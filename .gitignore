@@ -1,0 +1,7 @@
+
+/.idea/
+/env/
+/build/
+/dist/
+/tsm_snoop.egg-info/
+/config.json
