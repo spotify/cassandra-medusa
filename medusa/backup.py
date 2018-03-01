@@ -38,7 +38,8 @@ def ringstate():
 
 def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
     if manifest_log == None:
-        manifest_log = tempfile.mkstemp()
+        with tempfile.NamedTemporaryFile(delete=False) as t:
+            manifest_log = t.name
 
     cmd = ['gsutil', '-q', '-m', 'cp', '-c',
            '-L', manifest_log,
@@ -48,9 +49,9 @@ def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
     while retry < max_retries:
         if subprocess.call(cmd) == 0:
             pathlib.Path(manifest_log).unlink()
-            break
+            return
         retry += 1
-    raise Exception('gsutil failed: {}'.format(cmd))
+    raise Exception('gsutil failed: {}'.format(' '.join(cmd)))
 
 
 def backup():
@@ -60,6 +61,7 @@ def backup():
     hostname = "gew1-yolocassandra-a-wm87"
     backup_name = "test_backup"
 
+    nodetool_snapshot(backup_name)
     state = ringstate()
 
     cassandra_root = pathlib.Path('/spotify/cassandra')
@@ -73,18 +75,18 @@ def backup():
     ]
 
     dst_format = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
-    backup_dst = pathlib.Path(dst_format.format(bucket_name=bucket_name,
-                                                role=role,
-                                                backup_name=backup_name,
-                                                hostname=hostname))
+    backup_dst = dst_format.format(bucket_name=bucket_name,
+                                   role=role,
+                                   backup_name=backup_name,
+                                   hostname=hostname)
     for snapshot in snapshots:
         gsutil_cp(src=snapshot,
-                  dst=backup_dst / snapshot.relative_to(cassandra_root))
+                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(cassandra_root)))
 
-    ringstate_file = tempfile.mkstemp()
-    with open(ringstate_file, 'w') as f:
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
         f.write(state)
-    gsutil_cp(src=ringstate_file, dst=dst_format / 'ringstate.json')
+        ringstate_file = f.name
+    gsutil_cp(src=ringstate_file, dst='{}/ringstate.json'.format(backup_dst))
     pathlib.Path(ringstate_file).unlink()
 
 
