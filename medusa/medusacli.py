@@ -29,10 +29,6 @@ def restore(args, config):
 
 
 
-def load_config():
-    pass
-
-
 def make_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='config.json',
@@ -43,6 +39,8 @@ def make_parser():
     subparsers = parser.add_subparsers(title='command', dest='command')
     backup_parser = subparsers.add_parser('backup', help='Backup Cassandra',
                                           parents=[subcommand_template])
+    backup_parser.add_argument("tag")
+
     restore_parser = subparsers.add_parser('restore', help='Restore Cassandra',
                                            parents=[subcommand_template])
     status_parser = subparsers.add_parser('status',

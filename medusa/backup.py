@@ -15,37 +15,78 @@
 
 
 import subprocess
+import tempfile
+import pathlib
 
 
-def snapshot(tag):
+def nodetool_snapshot(tag):
     cmd = ['nodetool', 'snapshot', '-t', tag]
-    cp = subprocess.run(cmd,
-                        stdin=None,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL,
-                        check=True,
-                        universal_newlines=True)
-    # TODO: Return anything?
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
+                          universal_newlines=True)
+
+
+def nodetool_clearsnapshot(tag):
+    cmd = ['nodetool', 'clearsnapshot', '-t', tag]
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
+                          universal_newlines=True)
 
 
 def ringstate():
     cmd = ['spjmxproxy', 'ringstate']
-    cp = subprocess.run(cmd,
-                        stdin=None,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL,
-                        check=True,
-                        universal_newlines=True)
-    return cp.stdout  # Pipe directly to file?
+    return subprocess.check_output(cmd, universal_newlines=True)
+
+
+def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
+    if manifest_log == None:
+        manifest_log = tempfile.mkstemp()
+
+    cmd = ['gsutil', '-q', '-m', 'cp', '-c',
+           '-L', manifest_log,
+           '-r', str(src), str(dst)]
+
+    retry = 0
+    while retry < max_retries:
+        if subprocess.call(cmd) == 0:
+            pathlib.Path(manifest_log).unlink()
+            break
+        retry += 1
+    raise Exception('gsutil failed: {}'.format(cmd))
 
 
 def backup():
     # TODO: Figure out a backup name
+    bucket_name = "parmus-medusa-test"
+    role = "yolo"
+    hostname = "gew1-yolocassandra-a-wm87"
     backup_name = "test_backup"
-    snapshot(backup_name)
+
     state = ringstate()
-    # TODO: spjmxproxy ringstate
-    # (TODO: MD5 and/or inventory)
-    # TODO: Upload snapshot
-    # (TODO: Upload MD5/inventory)
-    # TODO: Upload state
+
+    cassandra_root = pathlib.Path('/spotify/cassandra')
+    snapshot_pattern = '*/data/*/code/snapshots/{}'
+    snapshots = [
+        snapshot_dir
+        for snapshot_dir in cassandra_root.glob(
+            snapshot_pattern.format(backup_name)
+        )
+        if snapshot_dir.is_dir()
+    ]
+
+    dst_format = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
+    backup_dst = pathlib.Path(dst_format.format(bucket_name=bucket_name,
+                                                role=role,
+                                                backup_name=backup_name,
+                                                hostname=hostname))
+    for snapshot in snapshots:
+        gsutil_cp(src=snapshot,
+                  dst=backup_dst / snapshot.relative_to(cassandra_root))
+
+    ringstate_file = tempfile.mkstemp()
+    with open(ringstate_file, 'w') as f:
+        f.write(state)
+    gsutil_cp(src=ringstate_file, dst=dst_format / 'ringstate.json')
+    pathlib.Path(ringstate_file).unlink()
+
+
+if __name__ == '__main__':
+    backup()
