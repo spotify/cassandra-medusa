@@ -39,7 +39,7 @@ class Cassandra(object):
                                    cls.DEFAULT_CASSANDRA_CONFIG)
         if not config_file.is_file():
             raise RuntimeError('{} is not a file'.format(config_file))
-        config = yaml.open(config_file)
+        config = yaml.load(config_file.open())
         data_file_directories = config.get('data_file_directories')
         if not data_file_directories:
             raise RuntimeError('data_file_directories must be properly configured')
