@@ -22,39 +22,41 @@ RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_tra
 SNAPSHOT_PATTERN = '*/data/*/*/snapshots/{}'
 
 
-def nodetool_snapshot(tag):
-    cmd = ['nodetool', 'snapshot', '-t', tag]
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                          universal_newlines=True)
+class Cassandra(object):
+    DEFAULT_CASSANDRA_ROOT = '/spotify/cassandra'
 
+    def __init__(self, root=None):
+        self._root = pathlib.Path(root or self.DEFAULT_CASSANDRA_ROOT)
 
-def nodetool_clearsnapshot(tag):
-    cmd = ['nodetool', 'clearsnapshot', '-t', tag]
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                          universal_newlines=True)
+    def create_snapshot(self, tag):
+        cmd = ['nodetool', 'snapshot', '-t', tag]
+        subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
+                              universal_newlines=True)
+
+    def delete_snapshot(self, tag):
+        cmd = ['nodetool', 'clearsnapshot', '-t', tag]
+        subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
+                              universal_newlines=True)
+
+    def find_snapshotdirs(self, tag):
+        cassandra_root = pathlib.Path(self._root)
+        return [
+            snapshot_dir
+            for snapshot_dir in cassandra_root.glob(
+                SNAPSHOT_PATTERN.format(tag)
+            )
+            if snapshot_dir.is_dir() and
+               snapshot_dir.parts[-4] not in RESERVED_KEYSPACES
+        ]
+
+    def listsnapshots(self):
+        cmd = ['nodetool', 'listsnapshots']
+        data = subprocess.check_output(cmd, universal_newlines=True)
+        return {line.strip().split(maxsplit=1)[0]
+                for line in data.splitlines()[2:-2]
+                if line}
 
 
 def ringstate():
     cmd = ['spjmxproxy', 'ringstate']
     return subprocess.check_output(cmd, universal_newlines=True)
-
-
-def find_snapshotdirs(cassandra_root, tag):
-    cassandra_root = pathlib.Path(cassandra_root)
-    return [
-        snapshot_dir
-        for snapshot_dir in cassandra_root.glob(
-            SNAPSHOT_PATTERN.format(tag)
-        )
-        if snapshot_dir.is_dir() and
-           snapshot_dir.parts[-4] not in RESERVED_KEYSPACES
-    ]
-
-
-def nodetool_listsnapshots():
-    cmd = ['nodetool', 'listsnapshots']
-    data = subprocess.check_output(cmd, universal_newlines=True)
-    return {line.strip().split(maxsplit=1)[0]
-            for line in data.splitlines()[2:-2]
-            if line}
-

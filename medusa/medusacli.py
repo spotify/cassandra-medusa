@@ -16,17 +16,12 @@
 
 
 import argparse
-import json
-import pathlib
+import medusa.backup
 
 
-def backup(args, config):
-    pass
-
-
-def restore(args, config):
-    pass
-
+def debug_command(args):
+    print("This command is not implemented yet")
+    print(args)
 
 
 def make_parser():
@@ -35,11 +30,16 @@ def make_parser():
                         help='Specify config file')
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
+    subcommand_template.set_defaults(func=debug_command)
 
     subparsers = parser.add_subparsers(title='command', dest='command')
     backup_parser = subparsers.add_parser('backup', help='Backup Cassandra',
                                           parents=[subcommand_template])
-    backup_parser.add_argument("tag")
+    backup_parser.add_argument('-d', dest='delete_snapshot_if_exists',
+                               type=bool, default=False, action='store_true',
+                               help='Delete snapshot if it already exists')
+    backup_parser.add_argument('backup_name')
+    backup_parser.set_defaults(func=medusa.backup.main)
 
     restore_parser = subparsers.add_parser('restore', help='Restore Cassandra',
                                            parents=[subcommand_template])
@@ -57,7 +57,7 @@ def main():
         parser.print_help()
         parser.exit(status=1, message='Please specify command')
 
-    print(args)
+    args.func(args)
 
 
 if __name__ == '__main__':

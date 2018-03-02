@@ -15,10 +15,16 @@
 
 
 import pathlib
+import socket
 import subprocess
 import sys
 import tempfile
-import medusa.cassandra as c
+from medusa.cassandra import Cassandra, ringstate
+
+
+# Hardcoded values (must be refactored later)
+BUCKET_NAME = "parmus-medusa-test"
+CASSANDRA_ROOT = pathlib.Path('/spotify/cassandra')
 
 
 def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
@@ -39,31 +45,37 @@ def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
     raise Exception('gsutil failed: {}'.format(' '.join(cmd)))
 
 
-def backup():
-    # TODO: Figure out a backup name
-    bucket_name = "parmus-medusa-test"
-    role = "yolo"
-    hostname = "gew1-yolocassandra-a-wm87"
-    backup_name = "test_backup"
+def get_hostname_and_role():
+    hostname = socket.gethostname().split('.' ,1)[0]
+    role = hostname.split('-', 2)[1]
+    return (hostname, role)
 
-    if backup_name in c.nodetool_listsnapshots():
-        print('Error: Snapshot {} already exists'.format(backup_name))
-        sys.exit(1)
 
-    c.nodetool_snapshot(backup_name)
-    state = c.ringstate()
+def main(args):
+    hostname, role = get_hostname_and_role()
 
-    cassandra_root = pathlib.Path('/spotify/cassandra')
-    snapshots = c.find_snapshotdirs(cassandra_root, backup_name)
+    c = Cassandra()
+
+    if args.backup_name in c.listsnapshots():
+        if args.delete_snapshot_if_exists:
+            c.delete_snapshot(args.backup_name)
+        else:
+            print('Error: Snapshot {.backup_name} already exists'.format(args))
+            sys.exit(1)
+
+    c.create_snapshot(args.backup_name)
+    state = ringstate()
+
+    snapshots = c.find_snapshotdirs(args.backup_name)
 
     dst_format = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
-    backup_dst = dst_format.format(bucket_name=bucket_name,
+    backup_dst = dst_format.format(bucket_name=BUCKET_NAME,
                                    role=role,
-                                   backup_name=backup_name,
+                                   backup_name=args.backup_name,
                                    hostname=hostname)
     for snapshot in snapshots:
         gsutil_cp(src=snapshot,
-                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(cassandra_root)))
+                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(CASSANDRA_ROOT)))
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
         f.write(state)
@@ -71,8 +83,4 @@ def backup():
     gsutil_cp(src=ringstate_file, dst='{}/ringstate.json'.format(backup_dst))
     pathlib.Path(ringstate_file).unlink()
 
-    c.nodetool_clearsnapshot(backup_name)
-
-
-if __name__ == '__main__':
-    backup()
+    c.delete_snapshot(args.backup_name)
