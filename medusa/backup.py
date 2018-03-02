@@ -14,26 +14,11 @@
 # limitations under the License.
 
 
-import subprocess
-import tempfile
 import pathlib
-
-
-def nodetool_snapshot(tag):
-    cmd = ['nodetool', 'snapshot', '-t', tag]
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                          universal_newlines=True)
-
-
-def nodetool_clearsnapshot(tag):
-    cmd = ['nodetool', 'clearsnapshot', '-t', tag]
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                          universal_newlines=True)
-
-
-def ringstate():
-    cmd = ['spjmxproxy', 'ringstate']
-    return subprocess.check_output(cmd, universal_newlines=True)
+import subprocess
+import sys
+import tempfile
+import medusa.cassandra as c
 
 
 def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
@@ -61,18 +46,15 @@ def backup():
     hostname = "gew1-yolocassandra-a-wm87"
     backup_name = "test_backup"
 
-    nodetool_snapshot(backup_name)
-    state = ringstate()
+    if backup_name in c.nodetool_listsnapshots():
+        print('Error: Snapshot {} already exists'.format(backup_name))
+        sys.exit(1)
+
+    c.nodetool_snapshot(backup_name)
+    state = c.ringstate()
 
     cassandra_root = pathlib.Path('/spotify/cassandra')
-    snapshot_pattern = '*/data/*/code/snapshots/{}'
-    snapshots = [
-        snapshot_dir
-        for snapshot_dir in cassandra_root.glob(
-            snapshot_pattern.format(backup_name)
-        )
-        if snapshot_dir.is_dir()
-    ]
+    snapshots = c.find_snapshotdirs(cassandra_root, backup_name)
 
     dst_format = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
     backup_dst = dst_format.format(bucket_name=bucket_name,
@@ -88,6 +70,8 @@ def backup():
         ringstate_file = f.name
     gsutil_cp(src=ringstate_file, dst='{}/ringstate.json'.format(backup_dst))
     pathlib.Path(ringstate_file).unlink()
+
+    c.nodetool_clearsnapshot(backup_name)
 
 
 if __name__ == '__main__':
