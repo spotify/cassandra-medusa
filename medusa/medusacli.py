@@ -36,7 +36,7 @@ def make_parser():
     backup_parser = subparsers.add_parser('backup', help='Backup Cassandra',
                                           parents=[subcommand_template])
     backup_parser.add_argument('-d', dest='delete_snapshot_if_exists',
-                               type=bool, default=False, action='store_true',
+                               default=False, action='store_true',
                                help='Delete snapshot if it already exists')
     backup_parser.add_argument('backup_name')
     backup_parser.set_defaults(func=medusa.backup.main)
