@@ -65,7 +65,7 @@ class Cassandra(object):
                 SNAPSHOT_PATTERN.format(tag)
             )
             if snapshot_dir.is_dir() and
-               snapshot_dir.parts[0] not in RESERVED_KEYSPACES
+               snapshot_dir.parts[-4] not in RESERVED_KEYSPACES
         ]
 
     def listsnapshots(self):
