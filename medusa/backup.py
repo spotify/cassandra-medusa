@@ -24,7 +24,6 @@ from medusa.cassandra import Cassandra, ringstate
 
 # Hardcoded values (must be refactored later)
 BUCKET_NAME = "parmus-medusa-test"
-CASSANDRA_ROOT = pathlib.Path('/spotify/cassandra')
 
 
 def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
@@ -75,7 +74,7 @@ def main(args):
                                    hostname=hostname)
     for snapshot in snapshots:
         gsutil_cp(src=snapshot,
-                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(CASSANDRA_ROOT)))
+                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(c.root)))
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
         f.write(state)

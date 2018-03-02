@@ -16,17 +16,36 @@
 
 import subprocess
 import pathlib
+import yaml
 
 
 RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
-SNAPSHOT_PATTERN = '*/data/*/*/snapshots/{}'
+SNAPSHOT_PATTERN = '*/*/snapshots/{}'
 
 
 class Cassandra(object):
-    DEFAULT_CASSANDRA_ROOT = '/spotify/cassandra'
+    DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
 
-    def __init__(self, root=None):
-        self._root = pathlib.Path(root or self.DEFAULT_CASSANDRA_ROOT)
+    def __init__(self, cassandra_config=None):
+        self._root = self.get_root(cassandra_config)
+
+    @property
+    def root(self):
+        return self._root
+
+    @classmethod
+    def get_root(cls, cassandra_config=None):
+        config_file = pathlib.Path(cassandra_config or
+                                   cls.DEFAULT_CASSANDRA_CONFIG)
+        if not config_file.is_file():
+            raise RuntimeError('{} is not a file'.format(config_file))
+        config = yaml.open(config_file)
+        data_file_directories = config.get('data_file_directories')
+        if not data_file_directories:
+            raise RuntimeError('data_file_directories must be properly configured')
+        if len(data_file_directories) > 1:
+            raise RuntimeError('Medusa only supports one data directory')
+        return pathlib.Path(data_file_directories[0])
 
     def create_snapshot(self, tag):
         cmd = ['nodetool', 'snapshot', '-t', tag]
@@ -46,7 +65,7 @@ class Cassandra(object):
                 SNAPSHOT_PATTERN.format(tag)
             )
             if snapshot_dir.is_dir() and
-               snapshot_dir.parts[-4] not in RESERVED_KEYSPACES
+               snapshot_dir.parts[0] not in RESERVED_KEYSPACES
         ]
 
     def listsnapshots(self):
