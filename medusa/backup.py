@@ -55,24 +55,22 @@ def main(args):
 
     c = Cassandra()
 
-    if args.backup_name in c.listsnapshots():
+    if c.snapshot_exists(args.backup_name):
         if args.delete_snapshot_if_exists:
             c.delete_snapshot(args.backup_name)
         else:
             print('Error: Snapshot {.backup_name} already exists'.format(args))
             sys.exit(1)
 
-    c.create_snapshot(args.backup_name)
+    snapshot = c.create_snapshot(args.backup_name)
     state = ringstate()
-
-    snapshots = c.find_snapshotdirs(args.backup_name)
 
     dst_format = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
     backup_dst = dst_format.format(bucket_name=BUCKET_NAME,
                                    role=role,
                                    backup_name=args.backup_name,
                                    hostname=hostname)
-    for snapshot in snapshots:
+    for snapshot in snapshot.find_dirs():
         gsutil_cp(src=snapshot,
                   dst='{}/{}/'.format(backup_dst, snapshot.relative_to(c.root)))
 
@@ -82,4 +80,4 @@ def main(args):
     gsutil_cp(src=ringstate_file, dst='{}/ringstate.json'.format(backup_dst))
     pathlib.Path(ringstate_file).unlink()
 
-    c.delete_snapshot(args.backup_name)
+    snapshot.delete()

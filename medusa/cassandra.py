@@ -47,35 +47,75 @@ class Cassandra(object):
             raise RuntimeError('Medusa only supports one data directory')
         return pathlib.Path(data_file_directories[0])
 
+    class Snapshot(object):
+        def __init__(self, parent, tag):
+            self._parent = parent
+            self._tag = tag
+
+        @property
+        def cassandra(self):
+            return self._parent
+
+        @property
+        def tag(self):
+            return self._tag
+
+        @property
+        def root(self):
+            return self._parent.root
+
+        def find_dirs(self):
+            return [
+                snapshot_dir
+                for snapshot_dir in self.root.glob(
+                    SNAPSHOT_PATTERN.format(self._tag)
+                )
+                if snapshot_dir.is_dir() and
+                   snapshot_dir.parts[-4] not in RESERVED_KEYSPACES
+            ]
+
+        def delete(self):
+            self._parent.delete_snapshot(self._tag)
+
+        def __repr__(self):
+            return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
+
     def create_snapshot(self, tag):
         cmd = ['nodetool', 'snapshot', '-t', tag]
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
                               universal_newlines=True)
+        return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
         cmd = ['nodetool', 'clearsnapshot', '-t', tag]
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
                               universal_newlines=True)
 
-    def find_snapshotdirs(self, tag):
-        cassandra_root = pathlib.Path(self._root)
-        return [
-            snapshot_dir
-            for snapshot_dir in cassandra_root.glob(
-                SNAPSHOT_PATTERN.format(tag)
-            )
-            if snapshot_dir.is_dir() and
-               snapshot_dir.parts[-4] not in RESERVED_KEYSPACES
-        ]
+    def list_snapshotnames(self):
+        return {
+            snapshot.name
+            for snapshot in self._root.glob('*/*/snapshots/*')
+            if snapshot.is_dir()
+        }
 
-    def listsnapshots(self):
-        cmd = ['nodetool', 'listsnapshots']
-        data = subprocess.check_output(cmd, universal_newlines=True)
-        return {line.strip().split(maxsplit=1)[0]
-                for line in data.splitlines()[2:-2]
-                if line}
+    def get_snapshot(self, tag):
+        if any(self._root.glob(SNAPSHOT_PATTERN.format(tag))):
+            return Cassandra.Snapshot(self, tag)
+
+        raise KeyError('Snapshot {} does not exist'.format(tag))
+
+    def snapshot_exists(self, tag):
+        for snapshot in self._root.glob('*/*/snapshots/*'):
+            if snapshot.is_dir() and snapshot.name == tag:
+                return True
+        return False
 
 
 def ringstate():
     cmd = ['spjmxproxy', 'ringstate']
+    return subprocess.check_output(cmd, universal_newlines=True)
+
+
+def dump_schema(hostname):
+    cmd = ['cqlsh', hostname, '-e', 'SHOW SCHEMA']
     return subprocess.check_output(cmd, universal_newlines=True)
