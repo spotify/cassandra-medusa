@@ -38,7 +38,7 @@ def get_hostname_and_role():
 def main(args):
     start = datetime.datetime.now()
 
-    logging.info()
+    logging.info('Starting backup')
     backup_name = args.backup_name or start.strftime('%Y%m%d%H')
 
     hostname, role = get_hostname_and_role()
@@ -58,12 +58,16 @@ def main(args):
 
     if cassandra.snapshot_exists(backup_name):
         if args.delete_snapshot_if_exists:
+            logging.info('Deleting existing snapshot')
             cassandra.delete_snapshot(backup_name)
         else:
             print('Error: Snapshot {} already exists'.format(backup_name))
             sys.exit(1)
 
+    logging.info('Creating snapshot')
     snapshot = cassandra.create_snapshot(backup_name)
+
+    logging.info('Saving ringstate and schema')
     ringstate = cassandra.ringstate()
     schema = cassandra.dump_schema()
 
@@ -78,6 +82,8 @@ def main(args):
         gsutil.cp(src=snapshot_dir,
                   dst='{}/{}/'.format(backup_dst, snapshot_dir.relative_to(cassandra.root)))
 
+    logging.info('Backup done')
     end = datetime.datetime.now()
 
+    logging.info('Cleaning up snapshot')
     snapshot.delete()
