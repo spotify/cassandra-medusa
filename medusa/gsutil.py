@@ -14,10 +14,15 @@
 # limitations under the License.
 
 
+import collections
+import csv
 import logging
 import pathlib
 import subprocess
 import tempfile
+
+
+ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
 
 class GSUtil(object):
@@ -43,7 +48,12 @@ class GSUtil(object):
         retry = 0
         while retry < max_retries:
             if subprocess.call(cmd) == 0:
+                with open(manifest_log) as f:
+                    manifestobjects = [ManifestObject(row['Destination'],
+                                                      row['Source Size'],
+                                                      row['Md5'])
+                                for row in csv.DictReader(f, delimiter=',')]
                 pathlib.Path(manifest_log).unlink()
-                return
+                return manifestobjects
             retry += 1
         raise Exception('gsutil failed: {}'.format(' '.join(cmd)))

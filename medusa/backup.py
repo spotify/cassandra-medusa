@@ -15,6 +15,7 @@
 
 
 import datetime
+import json
 import logging
 import socket
 import sys
@@ -78,10 +79,19 @@ def main(args):
     blob.upload_from_string(schema)
 
     gsutil = GSUtil(BUCKET_NAME)
+
+    manifest = []
     for snapshotpath in snapshot.find_dirs():
-        gsutil.cp(src=snapshotpath.path,
-                  dst='{0}/{1.keyspace}/{1.columnfamily}'.format(backup_dst,
-                                                                 snapshotpath))
+        manifestobjects = gsutil.cp(
+            src=snapshotpath.path,
+            dst='{0}/{1.keyspace}/{1.columnfamily}'.format(backup_dst,
+                                                           snapshotpath))
+        manifest.append({'keyspace': snapshotpath.keyspace,
+                         'columnfamily': snapshotpath.columnfamily,
+                         'objects': [o._asdict() for o in manifestobjects]})
+    blob = bucket.blob('{}/manifest.json'.format(backup_dst))
+    blob.upload_from_string(json.dumps(manifest))
+
 
     logging.info('Backup done')
     end = datetime.datetime.now()
