@@ -24,8 +24,10 @@ from medusa.cassandra import Cassandra
 from medusa.gsutil import GSUtil
 
 
+META_PREFIX_TMPL = '{role}/meta/{backup_name}/{hostname}'
+DATA_PREFIX_TMPL = '{role}/data/{backup_name}/{hostname}'
+
 # Hardcoded values (must be refactored later)
-DST_FORMAT = '{role}/{backup_name}/{hostname}'
 BUCKET_NAME = "parmus-medusa-test"
 GCP_KEY = "medusa-test.json"
 
@@ -49,9 +51,12 @@ def main(args):
 
     # TODO: Test permission
 
-    backup_dst = DST_FORMAT.format(role=role,
-                                   backup_name=backup_name,
-                                   hostname=hostname)
+    meta_prefix = META_PREFIX_TMPL.format(role=role,
+                                          backup_name=backup_name,
+                                          hostname=hostname)
+    data_prefix = DATA_PREFIX_TMPL.format(role=role,
+                                          backup_name=backup_name,
+                                          hostname=hostname)
 
     # TODO: Test if backup by that name already exists
 
@@ -72,10 +77,10 @@ def main(args):
     ringstate = cassandra.ringstate()
     schema = cassandra.dump_schema()
 
-    blob = bucket.blob('{}/ringstate.json'.format(backup_dst))
+    blob = bucket.blob('{}/ringstate.json'.format(meta_prefix))
     blob.upload_from_string(ringstate)
 
-    blob = bucket.blob('{}/schema.cql'.format(backup_dst))
+    blob = bucket.blob('{}/schema.cql'.format(meta_prefix))
     blob.upload_from_string(schema)
 
     gsutil = GSUtil(BUCKET_NAME)
@@ -84,12 +89,12 @@ def main(args):
     for snapshotpath in snapshot.find_dirs():
         manifestobjects = gsutil.cp(
             src=snapshotpath.path,
-            dst='{0}/{1.keyspace}/{1.columnfamily}'.format(backup_dst,
+            dst='{0}/{1.keyspace}/{1.columnfamily}'.format(data_prefix,
                                                            snapshotpath))
         manifest.append({'keyspace': snapshotpath.keyspace,
                          'columnfamily': snapshotpath.columnfamily,
                          'objects': [o._asdict() for o in manifestobjects]})
-    blob = bucket.blob('{}/manifest.json'.format(backup_dst))
+    blob = bucket.blob('{}/manifest.json'.format(meta_prefix))
     blob.upload_from_string(json.dumps(manifest))
 
 
