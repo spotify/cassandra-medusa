@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import collections
 import logging
 import subprocess
 import pathlib
@@ -21,11 +22,13 @@ import socket
 import yaml
 
 
-RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
-SNAPSHOT_PATTERN = '*/*/snapshots/{}'
+SnapshotPath = collections.namedtuple('SnapshotPath',
+                                      ['keyspace', 'columnfamily', 'path'])
 
 
 class Cassandra(object):
+    RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
+    SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
 
     def __init__(self, cassandra_config=None):
@@ -68,12 +71,15 @@ class Cassandra(object):
 
         def find_dirs(self):
             return [
-                snapshot_dir
+                SnapshotPath(
+                    *snapshot_dir.relative_to(self.root).parts[:2],
+                    snapshot_dir
+                )
                 for snapshot_dir in self.root.glob(
-                    SNAPSHOT_PATTERN.format(self._tag)
+                    Cassandra.SNAPSHOT_PATTERN.format(self._tag)
                 )
                 if snapshot_dir.is_dir() and
-                   snapshot_dir.parts[-4] not in RESERVED_KEYSPACES
+                   snapshot_dir.parts[-4] not in Cassandra.RESERVED_KEYSPACES
             ]
 
         def delete(self):
@@ -98,18 +104,18 @@ class Cassandra(object):
     def list_snapshotnames(self):
         return {
             snapshot.name
-            for snapshot in self._root.glob('*/*/snapshots/*')
+            for snapshot in self.root.glob(self.SNAPSHOT_PATTERN.format('*'))
             if snapshot.is_dir()
         }
 
     def get_snapshot(self, tag):
-        if any(self._root.glob(SNAPSHOT_PATTERN.format(tag))):
+        if any(self.root.glob(self.SNAPSHOT_PATTERN.format(tag))):
             return Cassandra.Snapshot(self, tag)
 
         raise KeyError('Snapshot {} does not exist'.format(tag))
 
     def snapshot_exists(self, tag):
-        for snapshot in self._root.glob('*/*/snapshots/*'):
+        for snapshot in self.root.glob(self.SNAPSHOT_PATTERN.format('*')):
             if snapshot.is_dir() and snapshot.name == tag:
                 return True
         return False

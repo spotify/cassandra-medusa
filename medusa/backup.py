@@ -78,9 +78,10 @@ def main(args):
     blob.upload_from_string(schema)
 
     gsutil = GSUtil(BUCKET_NAME)
-    for snapshot_dir in snapshot.find_dirs():
-        gsutil.cp(src=snapshot_dir,
-                  dst='{}/{}/'.format(backup_dst, snapshot_dir.relative_to(cassandra.root)))
+    for snapshotpath in snapshot.find_dirs():
+        gsutil.cp(src=snapshotpath.path,
+                  dst='{0}/{1.keyspace}/{1.columnfamily}'.format(backup_dst,
+                                                                 snapshotpath))
 
     logging.info('Backup done')
     end = datetime.datetime.now()
