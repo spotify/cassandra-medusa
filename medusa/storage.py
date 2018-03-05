@@ -25,10 +25,11 @@ class Storage(object):
         self.bucket = client.get_bucket(bucket_name)
 
     def get_backup_item(self, name, fqdn=None, role=None):
+        fqdn=fqdn or socket.gethostname()
         return Storage.Paths(
             parent=self,
             name=name,
-            fqdn=fqdn or socket.gethostname(),
+            fqdn=fqdn,
             role=role or fqdn.split('-', 2)[1]
         )
 
