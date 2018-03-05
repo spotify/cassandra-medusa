@@ -91,9 +91,9 @@ def main(args):
     blob = bucket.blob('{}/schema.cql'.format(backup_dst))
     blob.upload_from_string(schema)
 
-    for snapshot in snapshot.find_dirs():
-        gsutil_cp(src=snapshot,
-                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(cassandra.root)))
+    for snapshot_dir in snapshot.find_dirs():
+        gsutil_cp(src=snapshot_dir,
+                  dst='{}/{}/'.format(backup_dst, snapshot_dir.relative_to(cassandra.root)))
 
     end = datetime.datetime.now()
 
