@@ -15,37 +15,17 @@
 
 
 import datetime
-import pathlib
 import socket
-import subprocess
 import sys
-import tempfile
-from medusa.cassandra import Cassandra
 from google.cloud import storage
+from medusa.cassandra import Cassandra
+from medusa.gsutil import GSUtil
 
 
 # Hardcoded values (must be refactored later)
-DST_FORMAT = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
+DST_FORMAT = '{role}/{backup_name}/{hostname}'
 BUCKET_NAME = "parmus-medusa-test"
 GCP_KEY = "medusa-test.json"
-
-
-def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
-    if manifest_log == None:
-        with tempfile.NamedTemporaryFile(delete=False) as t:
-            manifest_log = t.name
-
-    cmd = ['gsutil', '-q', '-m', 'cp', '-c',
-           '-L', manifest_log,
-           '-r', str(src), str(dst)]
-
-    retry = 0
-    while retry < max_retries:
-        if subprocess.call(cmd) == 0:
-            pathlib.Path(manifest_log).unlink()
-            return
-        retry += 1
-    raise Exception('gsutil failed: {}'.format(' '.join(cmd)))
 
 
 def get_hostname_and_role():
@@ -65,8 +45,7 @@ def main(args):
 
     # TODO: Test permission
 
-    backup_dst = DST_FORMAT.format(bucket_name=BUCKET_NAME,
-                                   role=role,
+    backup_dst = DST_FORMAT.format(role=role,
                                    backup_name=backup_name,
                                    hostname=hostname)
 
@@ -91,8 +70,9 @@ def main(args):
     blob = bucket.blob('{}/schema.cql'.format(backup_dst))
     blob.upload_from_string(schema)
 
+    gsutil = GSUtil(BUCKET_NAME)
     for snapshot_dir in snapshot.find_dirs():
-        gsutil_cp(src=snapshot_dir,
+        gsutil.cp(src=snapshot_dir,
                   dst='{}/{}/'.format(backup_dst, snapshot_dir.relative_to(cassandra.root)))
 
     end = datetime.datetime.now()
