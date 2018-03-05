@@ -17,25 +17,15 @@
 import datetime
 import json
 import logging
-import socket
 import sys
-from google.cloud import storage
+import google.cloud.storage
 from medusa.cassandra import Cassandra
 from medusa.gsutil import GSUtil
-
-
-META_PREFIX_TMPL = '{role}/meta/{backup_name}/{hostname}'
-DATA_PREFIX_TMPL = '{role}/data/{backup_name}/{hostname}'
+from medusa.storage import Storage
 
 # Hardcoded values (must be refactored later)
 BUCKET_NAME = "parmus-medusa-test"
 GCP_KEY = "medusa-test.json"
-
-
-def get_hostname_and_role():
-    hostname = socket.gethostname().split('.' ,1)[0]
-    role = hostname.split('-', 2)[1]
-    return (hostname, role)
 
 
 def main(args):
@@ -44,21 +34,14 @@ def main(args):
     logging.info('Starting backup')
     backup_name = args.backup_name or start.strftime('%Y%m%d%H')
 
-    hostname, role = get_hostname_and_role()
-
-    client = storage.Client.from_service_account_json(GCP_KEY)
-    bucket = client.get_bucket(BUCKET_NAME)
-
+    client = google.cloud.storage.Client.from_service_account_json(GCP_KEY)
+    storage = Storage(BUCKET_NAME, client)
     # TODO: Test permission
 
-    meta_prefix = META_PREFIX_TMPL.format(role=role,
-                                          backup_name=backup_name,
-                                          hostname=hostname)
-    data_prefix = DATA_PREFIX_TMPL.format(role=role,
-                                          backup_name=backup_name,
-                                          hostname=hostname)
-
-    # TODO: Test if backup by that name already exists
+    backup_paths = storage.get_backup_item(backup_name)
+    if backup_paths.exists():
+        print('Error: Backup {} already exists'.format(backup_name))
+        sys.exit(1)
 
     cassandra = Cassandra()
 
@@ -77,11 +60,8 @@ def main(args):
     ringstate = cassandra.ringstate()
     schema = cassandra.dump_schema()
 
-    blob = bucket.blob('{}/ringstate.json'.format(meta_prefix))
-    blob.upload_from_string(ringstate)
-
-    blob = bucket.blob('{}/schema.cql'.format(meta_prefix))
-    blob.upload_from_string(schema)
+    backup_paths.ringstate.upload_from_string(ringstate)
+    backup_paths.schema.upload_from_string(schema)
 
     gsutil = GSUtil(BUCKET_NAME)
 
@@ -89,13 +69,12 @@ def main(args):
     for snapshotpath in snapshot.find_dirs():
         manifestobjects = gsutil.cp(
             src=snapshotpath.path,
-            dst='{0}/{1.keyspace}/{1.columnfamily}'.format(data_prefix,
-                                                           snapshotpath))
+            dst=str(backup_paths.datapath(keyspace=snapshotpath.keyspace,
+                                          columnspace=snapshotpath.columnfamily)))
         manifest.append({'keyspace': snapshotpath.keyspace,
                          'columnfamily': snapshotpath.columnfamily,
                          'objects': [o._asdict() for o in manifestobjects]})
-    blob = bucket.blob('{}/manifest.json'.format(meta_prefix))
-    blob.upload_from_string(json.dumps(manifest))
+    backup_paths.manifest.upload_from_string(json.dumps(manifest))
 
 
     logging.info('Backup done')

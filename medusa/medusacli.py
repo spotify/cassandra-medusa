@@ -43,6 +43,9 @@ def make_parser():
                                help='Custom name for the backup')
     backup_parser.set_defaults(func=medusa.backup.main)
 
+    list_parser = subparsers.add_parser('list', help='List backups',
+                                        parents=[subcommand_template])
+
     restore_parser = subparsers.add_parser('restore', help='Restore Cassandra',
                                            parents=[subcommand_template])
     status_parser = subparsers.add_parser('status',
