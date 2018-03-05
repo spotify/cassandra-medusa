@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import logging
 import pathlib
 import subprocess
 import tempfile
@@ -36,6 +37,8 @@ class GSUtil(object):
         cmd = ['gsutil', '-q', '-m', 'cp', '-c',
                '-L', manifest_log,
                '-r', str(src), 'gs://{}/{}'.format(self._bucket_name, str(dst))]
+
+        logging.debug(' '.join(cmd))
 
         retry = 0
         while retry < max_retries:

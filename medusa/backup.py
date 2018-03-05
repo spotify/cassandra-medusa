@@ -15,6 +15,7 @@
 
 
 import datetime
+import logging
 import socket
 import sys
 from google.cloud import storage
@@ -36,6 +37,8 @@ def get_hostname_and_role():
 
 def main(args):
     start = datetime.datetime.now()
+
+    logging.info()
     backup_name = args.backup_name or start.strftime('%Y%m%d%H')
 
     hostname, role = get_hostname_and_role()

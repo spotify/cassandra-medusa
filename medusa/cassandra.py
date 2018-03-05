@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import logging
 import subprocess
 import pathlib
 import socket
@@ -83,12 +84,14 @@ class Cassandra(object):
 
     def create_snapshot(self, tag):
         cmd = ['nodetool', 'snapshot', '-t', tag]
+        logging.debug(' '.join(cmd))
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
                               universal_newlines=True)
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
         cmd = ['nodetool', 'clearsnapshot', '-t', tag]
+        logging.debug(' '.join(cmd))
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
                               universal_newlines=True)
 
@@ -114,9 +117,11 @@ class Cassandra(object):
 
     def ringstate(self):
         cmd = ['spjmxproxy', 'ringstate']
+        logging.debug(' '.join(cmd))
         return subprocess.check_output(cmd, universal_newlines=True)
 
 
     def dump_schema(self):
         cmd = ['cqlsh', socket.gethostname(), '-e', 'DESCRIBE SCHEMA']
+        logging.debug(' '.join(cmd))
         return subprocess.check_output(cmd, universal_newlines=True)

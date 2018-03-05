@@ -16,6 +16,7 @@
 
 
 import argparse
+import logging
 import medusa.backup
 
 
@@ -51,6 +52,10 @@ def make_parser():
 
 
 def main():
+    logging.basicConfig(level=logging.DEBUG,
+                        format='[%(asctime)s] %(levelname)s: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+
     parser = make_parser()
     args = parser.parse_args()
 
