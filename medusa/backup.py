@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import datetime
 import pathlib
 import socket
 import subprocess
@@ -24,6 +25,7 @@ from medusa.cassandra import Cassandra, ringstate
 
 # Hardcoded values (must be refactored later)
 BUCKET_NAME = "parmus-medusa-test"
+GCP_KEY = "medusa-test.json"
 
 
 def gsutil_cp(*, src, dst, manifest_log=None, max_retries=5):
@@ -51,33 +53,38 @@ def get_hostname_and_role():
 
 
 def main(args):
+    start = datetime.datetime.now()
+    backup_name = args.backup_name or start.strftime('%Y%m%d%H')
+
     hostname, role = get_hostname_and_role()
 
-    c = Cassandra()
+    cassandra = Cassandra()
 
-    if c.snapshot_exists(args.backup_name):
+    if cassandra.snapshot_exists(backup_name):
         if args.delete_snapshot_if_exists:
-            c.delete_snapshot(args.backup_name)
+            cassandra.delete_snapshot(backup_name)
         else:
-            print('Error: Snapshot {.backup_name} already exists'.format(args))
+            print('Error: Snapshot {} already exists'.format(backup_name))
             sys.exit(1)
 
-    snapshot = c.create_snapshot(args.backup_name)
+    snapshot = cassandra.create_snapshot(backup_name)
     state = ringstate()
 
     dst_format = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
     backup_dst = dst_format.format(bucket_name=BUCKET_NAME,
                                    role=role,
-                                   backup_name=args.backup_name,
+                                   backup_name=backup_name,
                                    hostname=hostname)
     for snapshot in snapshot.find_dirs():
         gsutil_cp(src=snapshot,
-                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(c.root)))
+                  dst='{}/{}/'.format(backup_dst, snapshot.relative_to(cassandra.root)))
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
         f.write(state)
         ringstate_file = f.name
     gsutil_cp(src=ringstate_file, dst='{}/ringstate.json'.format(backup_dst))
     pathlib.Path(ringstate_file).unlink()
+
+    end = datetime.datetime.now()
 
     snapshot.delete()
