@@ -20,10 +20,12 @@ import socket
 import subprocess
 import sys
 import tempfile
-from medusa.cassandra import Cassandra, ringstate
+from medusa.cassandra import Cassandra
+from google.cloud import storage
 
 
 # Hardcoded values (must be refactored later)
+DST_FORMAT = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
 BUCKET_NAME = "parmus-medusa-test"
 GCP_KEY = "medusa-test.json"
 
@@ -58,6 +60,18 @@ def main(args):
 
     hostname, role = get_hostname_and_role()
 
+    client = storage.Client.from_service_account_json(GCP_KEY)
+    bucket = client.get_bucket(BUCKET_NAME)
+
+    # TODO: Test permission
+
+    backup_dst = DST_FORMAT.format(bucket_name=BUCKET_NAME,
+                                   role=role,
+                                   backup_name=backup_name,
+                                   hostname=hostname)
+
+    # TODO: Test if backup by that name already exists
+
     cassandra = Cassandra()
 
     if cassandra.snapshot_exists(backup_name):
@@ -68,22 +82,18 @@ def main(args):
             sys.exit(1)
 
     snapshot = cassandra.create_snapshot(backup_name)
-    state = ringstate()
+    ringstate = cassandra.ringstate()
+    schema = cassandra.dump_schema()
 
-    dst_format = 'gs://{bucket_name}/{role}/{backup_name}/{hostname}'
-    backup_dst = dst_format.format(bucket_name=BUCKET_NAME,
-                                   role=role,
-                                   backup_name=backup_name,
-                                   hostname=hostname)
+    blob = bucket.blob('{}/ringstate.json'.format(backup_dst))
+    blob.upload_from_string(ringstate)
+
+    blob = bucket.blob('{}/schema.cql'.format(backup_dst))
+    blob.upload_from_string(schema)
+
     for snapshot in snapshot.find_dirs():
         gsutil_cp(src=snapshot,
                   dst='{}/{}/'.format(backup_dst, snapshot.relative_to(cassandra.root)))
-
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
-        f.write(state)
-        ringstate_file = f.name
-    gsutil_cp(src=ringstate_file, dst='{}/ringstate.json'.format(backup_dst))
-    pathlib.Path(ringstate_file).unlink()
 
     end = datetime.datetime.now()
 

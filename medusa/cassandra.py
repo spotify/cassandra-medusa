@@ -16,6 +16,7 @@
 
 import subprocess
 import pathlib
+import socket
 import yaml
 
 
@@ -111,11 +112,11 @@ class Cassandra(object):
         return False
 
 
-def ringstate():
-    cmd = ['spjmxproxy', 'ringstate']
-    return subprocess.check_output(cmd, universal_newlines=True)
+    def ringstate(self):
+        cmd = ['spjmxproxy', 'ringstate']
+        return subprocess.check_output(cmd, universal_newlines=True)
 
 
-def dump_schema(hostname):
-    cmd = ['cqlsh', hostname, '-e', 'SHOW SCHEMA']
-    return subprocess.check_output(cmd, universal_newlines=True)
+    def dump_schema(self):
+        cmd = ['cqlsh', socket.gethostname(), '-e', 'DESCRIBE SCHEMA']
+        return subprocess.check_output(cmd, universal_newlines=True)
