@@ -60,7 +60,6 @@ def main(args):
     ringstate = cassandra.ringstate()
     schema = cassandra.dump_schema()
 
-    backup_paths.ringstate.upload_from_string(ringstate)
     backup_paths.schema.upload_from_string(schema)
 
     gsutil = GSUtil(BUCKET_NAME)
@@ -76,6 +75,7 @@ def main(args):
                          'objects': [o._asdict() for o in manifestobjects]})
     backup_paths.manifest.upload_from_string(json.dumps(manifest))
 
+    backup_paths.ringstate.upload_from_string(ringstate)
 
     logging.info('Backup done')
     end = datetime.datetime.now()

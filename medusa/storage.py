@@ -74,4 +74,4 @@ class Storage(object):
             return self.data_prefix / keyspace / columnspace
 
         def exists(self):
-            return self.ringstate.exists()
+            return self.schema.exists()
