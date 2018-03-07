@@ -24,28 +24,28 @@ class Storage(object):
         self._client = client
         self.bucket = client.get_bucket(bucket_name)
 
-    def get_backup_item(self, name, fqdn=None, role=None):
+    def get_backup_item(self, name, fqdn=None, prefix=None):
         fqdn=fqdn or socket.gethostname()
         return Storage.Paths(
             parent=self,
             name=name,
             fqdn=fqdn,
-            role=role or fqdn.split('-', 2)[1]
+            prefix=prefix or ''
         )
 
     class Paths(object):
-        META_PREFIX_TMPL = '{role}/meta/{fqdn}/{backup_name}'
-        DATA_PREFIX_TMPL = '{role}/data/{fqdn}/{backup_name}'
+        META_PREFIX_TMPL = '{prefix}/meta/{fqdn}/{backup_name}'
+        DATA_PREFIX_TMPL = '{prefix}/data/{fqdn}/{backup_name}'
 
-        def __init__(self, *, parent, name, fqdn, role):
+        def __init__(self, *, parent, name, fqdn, prefix):
             self._parent = parent
             self._meta_prefix = pathlib.Path(self.META_PREFIX_TMPL.format(
-                role=role,
+                prefix=prefix,
                 backup_name=name,
                 fqdn=fqdn
             ))
             self._data_prefix = pathlib.Path(self.DATA_PREFIX_TMPL.format(
-                role=role,
+                prefix=prefix,
                 backup_name=name,
                 fqdn=fqdn
             ))
