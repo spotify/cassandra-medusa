@@ -13,16 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import google.cloud.storage
 import sys
 from medusa.storage import Storage
 
 
-def main(args):
-    client = google.cloud.storage.Client.from_service_account_json(args.key_file)
-    storage = Storage(args.bucket_name, client)
-    backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name,
-                                     prefix=args.prefix)
+def main(args, storageconfig):
+    storage = Storage(config=storageconfig)
+    backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
     if not backup.exists():
         print('No such backup')
         sys.exit(1)

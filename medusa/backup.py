@@ -18,24 +18,21 @@ import datetime
 import json
 import logging
 import sys
-import google.cloud.storage
 from medusa.cassandra import Cassandra
 from medusa.gsutil import GSUtil
 from medusa.storage import Storage
 
 
-def main(args):
+def main(args, storageconfig):
     start = datetime.datetime.now()
 
     logging.info('Starting backup')
     backup_name = args.backup_name or start.strftime('%Y%m%d%H')
 
-    client = google.cloud.storage.Client.from_service_account_json(args.key_file)
-    storage = Storage(args.bucket_name, client)
+    storage = Storage(config=storageconfig)
     # TODO: Test permission
 
-    backup_paths = storage.get_backup_item(fqdn=args.fqdn, name=backup_name,
-                                           prefix=args.prefix)
+    backup_paths = storage.get_backup_item(fqdn=args.fqdn, name=backup_name)
     if backup_paths.exists():
         print('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)

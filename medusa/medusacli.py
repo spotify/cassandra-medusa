@@ -19,18 +19,12 @@ import argparse
 import logging
 import socket
 import medusa.backup
+import medusa.config
 import medusa.fetch_ringstate
 
 
-def debug_command(args):
-    print("This command is not implemented yet")
-    print(args)
-
-
-# Hardcoded values (must be refactored later)
-BUCKET_NAME = "parmus-medusa-test"
-CREDENTIALS_KEY_FILE = "medusa-test.json"
-PREFIX = 'yolocassandra'
+def debug_command(args, storageconfig):
+    logging.error("This command is not implemented yet")
 
 
 def make_parser():
@@ -39,12 +33,13 @@ def make_parser():
                         help='Specify config file')
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
+    subcommand_template.add_argument('--config', type=str, default=None,
+                                     help='Use configuration file')
     subcommand_template.add_argument('--bucket-name', type=str,
-                                     default=BUCKET_NAME, help='Bucket name')
-    subcommand_template.add_argument('--key-file', type=str,
-                                     default=CREDENTIALS_KEY_FILE,
+                                     default=None, help='Bucket name')
+    subcommand_template.add_argument('--key-file', type=str, default=None,
                                      help='GCP credentials key file')
-    subcommand_template.add_argument('--prefix', type=str, default=PREFIX,
+    subcommand_template.add_argument('--prefix', type=str, default=None,
                                      help='Prefix for shared storage')
     subcommand_template.add_argument('--fqdn', type=str, default=None,
                                      help='Act as another host')
@@ -91,8 +86,13 @@ def main():
         parser.print_help()
         parser.exit(status=1, message='Please specify command')
 
+
+    storageconfig = medusa.config.load_config(args)
+
     logging.debug(args)
-    args.func(args)
+    logging.debug(storageconfig)
+
+    args.func(args, storageconfig)
 
 
 if __name__ == '__main__':

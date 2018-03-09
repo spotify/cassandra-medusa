@@ -14,36 +14,47 @@
 # limitations under the License.
 
 
+import collections
+import google.cloud.storage
 import pathlib
 
 
-class Storage(object):
-    def __init__(self, bucket_name, client):
-        self._bucket_name = bucket_name
-        self._client = client
-        self.bucket = client.get_bucket(bucket_name)
+StorageConfig = collections.namedtuple('StorageConfig',
+                                       ['bucket_name', 'key_file', 'prefix'])
+StorageConfig.__new__.__defaults__ = (None,)
 
-    def get_backup_item(self, *, fqdn, name, prefix=None):
+
+class Storage(object):
+    def __init__(self, *, config, client=None):
+        self._config = config
+        self._client = client or google.cloud.storage.Client.from_service_account_json(config.key_file)
+        self.bucket = self._client.get_bucket(config.bucket_name)
+
+    @property
+    def config(self):
+        return self._config
+
+
+    def get_backup_item(self, *, fqdn, name):
         return Storage.Paths(
             parent=self,
             name=name,
-            fqdn=fqdn,
-            prefix=prefix or ''
+            fqdn=fqdn
         )
 
     class Paths(object):
         META_PREFIX_TMPL = '{prefix}/meta/{fqdn}/{backup_name}'
         DATA_PREFIX_TMPL = '{prefix}/data/{fqdn}/{backup_name}'
 
-        def __init__(self, *, parent, name, fqdn, prefix):
+        def __init__(self, *, parent, name, fqdn):
             self._parent = parent
             self._meta_prefix = pathlib.Path(self.META_PREFIX_TMPL.format(
-                prefix=prefix,
+                prefix=parent.config.prefix or '',
                 backup_name=name,
                 fqdn=fqdn
             ))
             self._data_prefix = pathlib.Path(self.DATA_PREFIX_TMPL.format(
-                prefix=prefix,
+                prefix=parent.config.prefix or '',
                 backup_name=name,
                 fqdn=fqdn
             ))
