@@ -23,10 +23,6 @@ from medusa.cassandra import Cassandra
 from medusa.gsutil import GSUtil
 from medusa.storage import Storage
 
-# Hardcoded values (must be refactored later)
-BUCKET_NAME = "parmus-medusa-test"
-GCP_KEY = "medusa-test.json"
-
 
 def main(args):
     start = datetime.datetime.now()
@@ -34,11 +30,12 @@ def main(args):
     logging.info('Starting backup')
     backup_name = args.backup_name or start.strftime('%Y%m%d%H')
 
-    client = google.cloud.storage.Client.from_service_account_json(GCP_KEY)
-    storage = Storage(BUCKET_NAME, client)
+    client = google.cloud.storage.Client.from_service_account_json(args.key_file)
+    storage = Storage(args.bucket_name, client)
     # TODO: Test permission
 
-    backup_paths = storage.get_backup_item(backup_name)
+    backup_paths = storage.get_backup_item(fqdn=args.fqdn, name=backup_name,
+                                           prefix=args.prefix)
     if backup_paths.exists():
         print('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)
@@ -62,7 +59,7 @@ def main(args):
 
     backup_paths.schema.upload_from_string(schema)
 
-    gsutil = GSUtil(BUCKET_NAME)
+    gsutil = GSUtil(args.bucket_name)
 
     manifest = []
     for snapshotpath in snapshot.find_dirs():

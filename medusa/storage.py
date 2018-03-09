@@ -15,7 +15,6 @@
 
 
 import pathlib
-import socket
 
 
 class Storage(object):
@@ -24,8 +23,7 @@ class Storage(object):
         self._client = client
         self.bucket = client.get_bucket(bucket_name)
 
-    def get_backup_item(self, name, fqdn=None, prefix=None):
-        fqdn=fqdn or socket.gethostname()
+    def get_backup_item(self, *, fqdn, name, prefix=None):
         return Storage.Paths(
             parent=self,
             name=name,
