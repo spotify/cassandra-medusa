@@ -29,7 +29,7 @@ class Storage(object):
         self._config = config
         self._client = client or google.cloud.storage.Client.from_service_account_json(config.key_file)
         self._bucket = self._client.get_bucket(config.bucket_name)
-        self._prefix = pathlib.Path(config.prefix)
+        self._prefix = pathlib.Path(config.prefix or '.')
         self._meta_prefix = self._prefix / 'meta'
         self._data_prefix = self._prefix / 'data'
 
