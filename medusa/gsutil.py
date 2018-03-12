@@ -17,6 +17,7 @@
 import collections
 import csv
 import logging
+import os
 import pathlib
 import subprocess
 import tempfile
@@ -26,13 +27,28 @@ ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'
 
 
 class GSUtil(object):
-    def __init__(self, bucket_name):
+    def __init__(self, bucket_name, key_file):
         self._bucket_name = bucket_name
+        self._key_file = key_file
 
     @property
     def bucket_name(self):
         return self._bucket_name
 
+    def __enter__(self):
+        self._gcloud_config = tempfile.TemporaryDirectory()
+        self._env = dict(os.environ, CLOUDSDK_CONFIG=self._gcloud_config.name)
+        cmd = ['gcloud', 'auth', 'activate-service-account',
+               '--key-file={}'.format(self._key_file)]
+        logging.info('Authenticating gcloud with {}'.format(self._key_file))
+        logging.debug(self._env)
+        subprocess.check_call(cmd, env=self._env)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._gcloud_config.cleanup()
+        self._env = dict(os.environ)
+        return False
 
     def cp(self, *, src, dst, manifest_log=None, max_retries=5):
         if manifest_log == None:
@@ -47,7 +63,7 @@ class GSUtil(object):
 
         retry = 0
         while retry < max_retries:
-            if subprocess.call(cmd) == 0:
+            if subprocess.call(cmd, env=self._env) == 0:
                 with open(manifest_log) as f:
                     manifestobjects = [ManifestObject(row['Destination'],
                                                       row['Source Size'],

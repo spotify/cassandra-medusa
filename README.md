@@ -22,3 +22,12 @@ Prototype roadmap
 
 
 ### Restore
+
+
+
+Notes
+-----
+
+CLOUDSDK_CONFIG=./.gcloud gcloud auth list
+CLOUDSDK_CONFIG=./.gcloud gcloud auth activate-service-account --key-file=medusa-test.json
+Popen(env={})

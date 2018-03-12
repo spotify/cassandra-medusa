@@ -56,17 +56,16 @@ def main(args, storageconfig):
 
     backup_paths.schema.upload_from_string(schema)
 
-    gsutil = GSUtil(args.bucket_name)
-
     manifest = []
-    for snapshotpath in snapshot.find_dirs():
-        manifestobjects = gsutil.cp(
-            src=snapshotpath.path,
-            dst=str(backup_paths.datapath(keyspace=snapshotpath.keyspace,
-                                          columnspace=snapshotpath.columnfamily)))
-        manifest.append({'keyspace': snapshotpath.keyspace,
-                         'columnfamily': snapshotpath.columnfamily,
-                         'objects': [o._asdict() for o in manifestobjects]})
+    with GSUtil(storageconfig.bucket_name, storageconfig.key_file) as gsutil:
+        for snapshotpath in snapshot.find_dirs():
+            manifestobjects = gsutil.cp(
+                src=snapshotpath.path,
+                dst=str(backup_paths.datapath(keyspace=snapshotpath.keyspace,
+                                              columnspace=snapshotpath.columnfamily)))
+            manifest.append({'keyspace': snapshotpath.keyspace,
+                             'columnfamily': snapshotpath.columnfamily,
+                             'objects': [o._asdict() for o in manifestobjects]})
     backup_paths.manifest.upload_from_string(json.dumps(manifest))
 
     backup_paths.ringstate.upload_from_string(ringstate)
