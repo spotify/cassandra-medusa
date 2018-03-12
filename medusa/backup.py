@@ -34,7 +34,7 @@ def main(args, storageconfig):
 
     backup_paths = storage.get_backup_item(fqdn=args.fqdn, name=backup_name)
     if backup_paths.exists():
-        print('Error: Backup {} already exists'.format(backup_name))
+        logging.error('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)
 
     cassandra = Cassandra()
@@ -44,7 +44,7 @@ def main(args, storageconfig):
             logging.info('Deleting existing snapshot')
             cassandra.delete_snapshot(backup_name)
         else:
-            print('Error: Snapshot {} already exists'.format(backup_name))
+            logging.error('Error: Snapshot {} already exists'.format(backup_name))
             sys.exit(1)
 
     logging.info('Creating snapshot')

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import sys
 from medusa.storage import Storage
 
@@ -21,7 +22,7 @@ def main(args, storageconfig):
     storage = Storage(config=storageconfig)
     backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
     if not backup.exists():
-        print('No such backup')
+        logging.error('No such backup')
         sys.exit(1)
 
     print(backup.ringstate.download_as_string().decode('utf-8'))

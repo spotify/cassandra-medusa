@@ -34,6 +34,9 @@ def make_parser():
                         help='Specify config file')
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
+    subcommand_template.add_argument('-v', '--verbose', dest='loglevel',
+                                     default=0, action='count',
+                                     help='Increase verbosity')
     subcommand_template.add_argument('--config', type=str, default=None,
                                      help='Use configuration file')
     subcommand_template.add_argument('--bucket-name', type=str,
@@ -77,12 +80,13 @@ def make_parser():
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG,
+    parser = make_parser()
+    args = parser.parse_args()
+
+    logging.basicConfig(level=max(3 - args.loglevel, 0) * 10,
                         format='[%(asctime)s] %(levelname)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
 
-    parser = make_parser()
-    args = parser.parse_args()
 
     if args.command is None:
         parser.print_help()
