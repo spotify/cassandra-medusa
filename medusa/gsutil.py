@@ -42,7 +42,10 @@ class GSUtil(object):
                '--key-file={}'.format(self._key_file)]
         logging.info('Authenticating gcloud with {}'.format(self._key_file))
         logging.debug(self._env)
-        subprocess.check_call(cmd, env=self._env)
+        subprocess.check_call(cmd,
+                              env=self._env,
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
