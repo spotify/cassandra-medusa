@@ -57,7 +57,7 @@ def main(args, storageconfig):
     backup_paths.schema.upload_from_string(schema)
 
     manifest = []
-    with GSUtil(storageconfig.bucket_name, storageconfig.key_file) as gsutil:
+    with GSUtil(storageconfig) as gsutil:
         for snapshotpath in snapshot.find_dirs():
             manifestobjects = gsutil.cp(
                 src=snapshotpath.path,

@@ -27,20 +27,19 @@ ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'
 
 
 class GSUtil(object):
-    def __init__(self, bucket_name, key_file):
-        self._bucket_name = bucket_name
-        self._key_file = key_file
+    def __init__(self, config):
+        self._config = config
 
     @property
     def bucket_name(self):
-        return self._bucket_name
+        return self._config.bucket_name
 
     def __enter__(self):
         self._gcloud_config = tempfile.TemporaryDirectory()
         self._env = dict(os.environ, CLOUDSDK_CONFIG=self._gcloud_config.name)
         cmd = ['gcloud', 'auth', 'activate-service-account',
-               '--key-file={}'.format(self._key_file)]
-        logging.info('Authenticating gcloud with {}'.format(self._key_file))
+               '--key-file={}'.format(self._config.key_file)]
+        logging.info('Authenticating gcloud with {}'.format(self._config.key_file))
         logging.debug(self._env)
         subprocess.check_call(cmd,
                               env=self._env,
@@ -60,7 +59,8 @@ class GSUtil(object):
 
         cmd = ['gsutil', '-q', '-m', 'cp', '-c',
                '-L', manifest_log,
-               '-r', str(src), 'gs://{}/{}'.format(self._bucket_name, str(dst))]
+               '-r', str(src), 'gs://{}/{}'.format(self._config.bucket_name,
+                                                   dst)]
 
         logging.debug(' '.join(cmd))
 
