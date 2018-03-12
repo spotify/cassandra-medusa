@@ -28,12 +28,18 @@ class Storage(object):
     def __init__(self, *, config, client=None):
         self._config = config
         self._client = client or google.cloud.storage.Client.from_service_account_json(config.key_file)
-        self.bucket = self._client.get_bucket(config.bucket_name)
+        self._bucket = self._client.get_bucket(config.bucket_name)
+        self._prefix = pathlib.Path(config.prefix)
+        self._meta_prefix = self._prefix / 'meta'
+        self._data_prefix = self._prefix / 'data'
 
     @property
     def config(self):
         return self._config
 
+    @property
+    def bucket(self):
+        return self._bucket
 
     def get_backup_item(self, *, fqdn, name):
         return Storage.Paths(
@@ -42,22 +48,29 @@ class Storage(object):
             fqdn=fqdn
         )
 
-    class Paths(object):
-        META_PREFIX_TMPL = '{prefix}/meta/{fqdn}/{backup_name}'
-        DATA_PREFIX_TMPL = '{prefix}/data/{fqdn}/{backup_name}'
+    def list_backup_items(self, *, fqdn):
+        return (
+            self.get_backup_item(fqdn=fqdn,
+                                 name=pathlib.Path(blob.name).parts[-2])
+            for blob in self._bucket.list_blobs(prefix=str(self._meta_prefix / fqdn))
+            if blob.name.endswith('/ringstate.json')
+        )
 
+    class Paths(object):
         def __init__(self, *, parent, name, fqdn):
             self._parent = parent
-            self._meta_prefix = pathlib.Path(self.META_PREFIX_TMPL.format(
-                prefix=parent.config.prefix or '',
-                backup_name=name,
-                fqdn=fqdn
-            ))
-            self._data_prefix = pathlib.Path(self.DATA_PREFIX_TMPL.format(
-                prefix=parent.config.prefix or '',
-                backup_name=name,
-                fqdn=fqdn
-            ))
+            self._fqdn = fqdn
+            self._name = name
+            self._meta_prefix = self._parent._meta_prefix / fqdn / name
+            self._data_prefix = self._parent._data_prefix / fqdn / name
+
+        @property
+        def name(self):
+            return self._name
+
+        @property
+        def fqdn(self):
+            return self._fqdn
 
         @property
         def data_prefix(self):
@@ -74,6 +87,22 @@ class Storage(object):
         @property
         def schema(self):
             return self.bucket.blob(str(self._meta_prefix / 'schema.cql'))
+
+        @property
+        def started(self):
+            schema = self.schema
+            if not schema.exists():
+                return None
+            schema.reload()
+            return schema.time_created
+
+        @property
+        def finished(self):
+            ringstate = self.ringstate
+            if not ringstate.exists():
+                return None
+            ringstate.reload()
+            return ringstate.time_created
 
         @property
         def manifest(self):
