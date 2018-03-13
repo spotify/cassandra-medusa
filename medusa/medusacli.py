@@ -17,9 +17,11 @@
 
 import argparse
 import logging
+import pathlib
 import socket
 import medusa.backup
 import medusa.config
+import medusa.download
 import medusa.fetch_ringstate
 import medusa.listing
 
@@ -35,7 +37,7 @@ def make_parser():
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
     subcommand_template.add_argument('-v', '--verbose', dest='loglevel',
-                                     default=0, action='count',
+                                     action='count',
                                      help='Increase verbosity')
     subcommand_template.add_argument('--config', type=str, default=None,
                                      help='Use configuration file')
@@ -48,7 +50,8 @@ def make_parser():
     subcommand_template.add_argument('--fqdn', type=str, default=None,
                                      help='Act as another host')
     subcommand_template.set_defaults(func=debug_command,
-                                     fqdn=socket.gethostname())
+                                     fqdn=socket.gethostname(),
+                                     loglevel=0)
 
     subparsers = parser.add_subparsers(title='command', dest='command')
     backup_parser = subparsers.add_parser('backup', help='Backup Cassandra',
@@ -70,6 +73,15 @@ def make_parser():
     ringstate_parser.add_argument('backup_name', type=str,
                                   metavar='BACKUP-NAME', help='Backup name')
     ringstate_parser.set_defaults(func=medusa.fetch_ringstate.main)
+
+    download_parser = subparsers.add_parser('download', help='Download backup',
+                                            parents=[subcommand_template])
+    download_parser.add_argument('backup_name', type=str,
+                                 metavar='BACKUP-NAME', help='Backup name')
+    download_parser.add_argument('destination', type=pathlib.Path,
+                                 metavar='DESTINATION',
+                                 help='Download destination')
+    download_parser.set_defaults(func=medusa.download.download)
 
     restore_parser = subparsers.add_parser('restore', help='Restore Cassandra',
                                            parents=[subcommand_template])
