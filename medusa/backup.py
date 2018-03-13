@@ -60,9 +60,11 @@ def main(args, storageconfig):
     with GSUtil(storageconfig) as gsutil:
         for snapshotpath in snapshot.find_dirs():
             manifestobjects = gsutil.cp(
-                src=snapshotpath.path,
-                dst=str(backup_paths.datapath(keyspace=snapshotpath.keyspace,
-                                              columnspace=snapshotpath.columnfamily)))
+                srcs=snapshotpath.path,
+                dst='gs://{}/{}'.format(
+                    storageconfig.bucket_name,
+                    backup_paths.datapath(keyspace=snapshotpath.keyspace,
+                                          columnspace=snapshotpath.columnfamily)))
             manifest.append({'keyspace': snapshotpath.keyspace,
                              'columnfamily': snapshotpath.columnfamily,
                              'objects': [o._asdict() for o in manifestobjects]})

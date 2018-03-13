@@ -52,15 +52,16 @@ class GSUtil(object):
         self._env = dict(os.environ)
         return False
 
-    def cp(self, *, src, dst, manifest_log=None, max_retries=5):
-        if manifest_log == None:
-            with tempfile.NamedTemporaryFile(delete=False) as t:
-                manifest_log = t.name
+    def cp(self, *, srcs, dst, max_retries=5):
+        fd, manifest_log = tempfile.mkstemp()
+        os.close(fd)
+
+        if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
+            srcs = [srcs]
 
         cmd = ['gsutil', '-q', '-m', 'cp', '-c',
                '-L', manifest_log,
-               '-r', str(src), 'gs://{}/{}'.format(self._config.bucket_name,
-                                                   dst)]
+               '-r'] + srcs + [str(dst)]
 
         logging.debug(' '.join(cmd))
 
