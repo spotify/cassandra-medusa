@@ -61,7 +61,7 @@ class GSUtil(object):
 
         cmd = ['gsutil', '-q', '-m', 'cp', '-c',
                '-L', manifest_log,
-               '-r'] + srcs + [str(dst)]
+               '-r'] + [str(src) for src in srcs] + [str(dst)]
 
         logging.debug(' '.join(cmd))
 
