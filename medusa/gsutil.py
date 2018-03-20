@@ -70,7 +70,7 @@ class GSUtil(object):
             if subprocess.call(cmd, env=self._env) == 0:
                 with open(manifest_log) as f:
                     manifestobjects = [ManifestObject(row['Destination'],
-                                                      row['Source Size'],
+                                                      int(row['Source Size']),
                                                       row['Md5'])
                                 for row in csv.DictReader(f, delimiter=',')]
                 pathlib.Path(manifest_log).unlink()

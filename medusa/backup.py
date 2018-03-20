@@ -23,6 +23,10 @@ from medusa.gsutil import GSUtil
 from medusa.storage import Storage
 
 
+def url_to_path(url):
+    return url.split('/', 3)[-1]
+
+
 def main(args, storageconfig):
     start = datetime.datetime.now()
 
@@ -67,7 +71,11 @@ def main(args, storageconfig):
                                           columnspace=snapshotpath.columnfamily)))
             manifest.append({'keyspace': snapshotpath.keyspace,
                              'columnfamily': snapshotpath.columnfamily,
-                             'objects': [o._asdict() for o in manifestobjects]})
+                             'objects': [{
+                                 'path': url_to_path(manifestobject.path),
+                                 'MD5': manifestobject.MD5,
+                                 'size': manifestobject.size
+                             } for manifestobject in manifestobjects]})
     backup_paths.manifest.upload_from_string(json.dumps(manifest))
 
     backup_paths.ringstate.upload_from_string(ringstate)
