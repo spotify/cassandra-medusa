@@ -3,5 +3,5 @@
 /env/
 /build/
 /dist/
-/tsm_snoop.egg-info/
+/*.egg-info/
 /config.json
