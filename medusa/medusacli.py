@@ -24,6 +24,7 @@ import medusa.config
 import medusa.download
 import medusa.fetch_ringstate
 import medusa.listing
+import medusa.status
 
 
 def debug_command(args, storageconfig):
@@ -88,6 +89,10 @@ def make_parser():
     status_parser = subparsers.add_parser('status',
                                           help='Show status of backups',
                                           parents=[subcommand_template])
+    status_parser.add_argument('backup_name', type=str,
+                               metavar='BACKUP-NAME', help='Backup name')
+    status_parser.set_defaults(func=medusa.status.status)
+
     return parser
 
 

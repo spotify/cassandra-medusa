@@ -81,6 +81,10 @@ class Storage(object):
             return self._parent.bucket
 
         @property
+        def storage(self):
+            return self._parent
+
+        @property
         def ringstate(self):
             return self.bucket.blob(str(self._meta_prefix / 'ringstate.json'))
 
