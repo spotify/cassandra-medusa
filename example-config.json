@@ -1,0 +1,6 @@
+{
+  "storage": {
+    "bucket_name": "<Google Cloud Storage bucket name>",
+    "key_file": "<JSON key file for service account with access to GCP bucket>"
+  }
+}
