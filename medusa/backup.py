@@ -43,16 +43,8 @@ def main(args, storageconfig):
 
     cassandra = Cassandra()
 
-    if cassandra.snapshot_exists(backup_name):
-        if args.delete_snapshot_if_exists:
-            logging.info('Deleting existing snapshot')
-            cassandra.delete_snapshot(backup_name)
-        else:
-            logging.error('Error: Snapshot {} already exists'.format(backup_name))
-            sys.exit(1)
-
     logging.info('Creating snapshot')
-    snapshot = cassandra.create_snapshot(backup_name)
+    snapshot = cassandra.create_snapshot()
 
     logging.info('Saving ringstate and schema')
     ringstate = cassandra.ringstate()

@@ -16,9 +16,10 @@
 
 import collections
 import logging
-import subprocess
 import pathlib
 import socket
+import subprocess
+import uuid
 import yaml
 
 
@@ -88,7 +89,8 @@ class Cassandra(object):
         def __repr__(self):
             return '{}<{}>'.format(self.__class__.__qualname__, self._tag)
 
-    def create_snapshot(self, tag):
+    def create_snapshot(self):
+        tag = 'medusa-{}'.format(uuid.uuid4())
         cmd = ['nodetool', 'snapshot', '-t', tag]
         logging.debug(' '.join(cmd))
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
