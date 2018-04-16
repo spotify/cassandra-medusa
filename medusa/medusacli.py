@@ -33,15 +33,13 @@ def debug_command(args, storageconfig):
 
 def make_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='config.json',
+    parser.add_argument('--config', type=str, default=None,
                         help='Specify config file')
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
     subcommand_template.add_argument('-v', '--verbose', dest='loglevel',
                                      action='count',
                                      help='Increase verbosity')
-    subcommand_template.add_argument('--config', type=str, default=None,
-                                     help='Use configuration file')
     subcommand_template.add_argument('--bucket-name', type=str,
                                      default=None, help='Bucket name')
     subcommand_template.add_argument('--key-file', type=str, default=None,
