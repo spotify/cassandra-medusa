@@ -40,7 +40,8 @@ def download(args, storageconfig):
     with GSUtil(storageconfig) as gsutil:
         for section in manifest:
             dst = args.destination / section['keyspace'] / section['columnfamily']
-            srcs = [object['path'] for object in section['objects']]
+            srcs = ['gs://{}/{}'.format(storageconfig.bucket_name, object['path'])
+                    for object in section['objects']]
             dst.mkdir(parents=True)
             gsutil.cp(srcs=srcs, dst=dst)
 
