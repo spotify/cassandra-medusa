@@ -24,6 +24,7 @@ import medusa.config
 import medusa.download
 import medusa.fetch_ringstate
 import medusa.listing
+import medusa.restore_node
 import medusa.status
 
 
@@ -79,8 +80,13 @@ def make_parser():
                                  help='Download destination')
     download_parser.set_defaults(func=medusa.download.download)
 
-    restore_parser = subparsers.add_parser('restore', help='Restore Cassandra',
-                                           parents=[subcommand_template])
+    restore_node_parser = subparsers.add_parser('restore_node',
+                                                help='Restore single Cassandra node',
+                                                parents=[subcommand_template])
+    restore_node_parser.add_argument('backup_name', type=str,
+                                     metavar='BACKUP-NAME', help='Backup name')
+    restore_node_parser.set_defaults(func=medusa.restore_node.restore_node)
+
     status_parser = subparsers.add_parser('status',
                                           help='Show status of backups',
                                           parents=[subcommand_template])
