@@ -78,13 +78,17 @@ def make_parser():
     download_parser.add_argument('destination', type=pathlib.Path,
                                  metavar='DESTINATION',
                                  help='Download destination')
-    download_parser.set_defaults(func=medusa.download.download)
+    download_parser.set_defaults(func=medusa.download.download_cmd)
 
     restore_node_parser = subparsers.add_parser('restore_node',
                                                 help='Restore single Cassandra node',
                                                 parents=[subcommand_template])
     restore_node_parser.add_argument('backup_name', type=str,
                                      metavar='BACKUP-NAME', help='Backup name')
+    # TODO: Make optional and configurable
+    restore_node_parser.add_argument('destination', type=pathlib.Path,
+                                     metavar='DESTINATION',
+                                     help='Download destination')
     restore_node_parser.set_defaults(func=medusa.restore_node.restore_node)
 
     status_parser = subparsers.add_parser('status',

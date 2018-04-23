@@ -22,6 +22,7 @@ import subprocess
 import uuid
 import yaml
 
+from cassandra.cluster import Cluster
 
 SnapshotPath = collections.namedtuple('SnapshotPath',
                                       ['path', 'keyspace', 'columnfamily'])
@@ -133,3 +134,32 @@ class Cassandra(object):
         cmd = ['cqlsh', socket.gethostname(), '-e', 'DESCRIBE SCHEMA']
         logging.debug(' '.join(cmd))
         return subprocess.check_output(cmd, universal_newlines=True)
+
+    def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
+        root = pathlib.Path(self._root)
+        keyspace_path = root / keyspace_name / columnfamily_name
+        if keyspace_path.exists() and keyspace_path.is_dir():
+            return keyspace_path
+        else:
+            # Notice: Cassandra use dashes in the cf_id in the system table,
+            # but not in the directory names
+            directory_postfix = str(cf_id).replace('-', '')
+            return keyspace_path.with_name('{}-{}'.format(
+                columnfamily_name,
+                directory_postfix
+            ))
+
+    def schema_path_mapping(self):
+        # TODO: How to connect to Cassandra should be configurable
+        cluster = Cluster([socket.gethostname()])
+        session = cluster.connect('system')
+        query = 'SELECT keyspace_name, columnfamily_name, cf_id FROM system.schema_columnfamilies'
+
+        return {
+            (row.keyspace_name, row.columnfamily_name):
+                self._columnfamily_path(row.keyspace_name,
+                                        row.columnfamily_name,
+                                        row.cf_id)
+            for row in session.execute(query)
+            if row.keyspace_name not in self.RESERVED_KEYSPACES
+        }

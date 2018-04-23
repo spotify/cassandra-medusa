@@ -22,7 +22,28 @@ from medusa.storage import Storage
 from medusa.gsutil import GSUtil
 
 
-def download(args, storageconfig):
+def download_data(storageconfig, backup, destination):
+    manifest_str = backup.manifest.download_as_string().decode('utf-8')
+    manifest = json.loads(manifest_str)
+
+    with GSUtil(storageconfig) as gsutil:
+        for section in manifest:
+            dst = destination / section['keyspace'] / section['columnfamily']
+            srcs = ['gs://{}/{}'.format(storageconfig.bucket_name, object['path'])
+                    for object in section['objects']]
+            dst.mkdir(parents=True)
+            gsutil.cp(srcs=srcs, dst=dst)
+
+        gsutil.cp(
+            srcs=['gs://{}/{}'.format(storageconfig.bucket_name, blob.name)
+                  for blob in [backup.manifest,
+                               backup.schema,
+                               backup.ringstate]],
+            dst=destination
+        )
+
+
+def download_cmd(args, storageconfig):
     storage = Storage(config=storageconfig)
 
     if not args.destination.is_dir():
@@ -34,21 +55,4 @@ def download(args, storageconfig):
         logging.error('No such backup')
         sys.exit(1)
 
-    manifest_str = backup.manifest.download_as_string().decode('utf-8')
-    manifest = json.loads(manifest_str)
-
-    with GSUtil(storageconfig) as gsutil:
-        for section in manifest:
-            dst = args.destination / section['keyspace'] / section['columnfamily']
-            srcs = ['gs://{}/{}'.format(storageconfig.bucket_name, object['path'])
-                    for object in section['objects']]
-            dst.mkdir(parents=True)
-            gsutil.cp(srcs=srcs, dst=dst)
-
-        gsutil.cp(
-            srcs=['gs://{}/{}'.format(storageconfig.bucket_name, blob.name)
-                  for blob in [backup.manifest,
-                               backup.schema,
-                               backup.ringstate]],
-            dst=args.destination
-        )
+    download_data(storageconfig, backup, args.destination)
