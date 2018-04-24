@@ -33,8 +33,9 @@ class Cassandra(object):
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
 
-    def __init__(self, cassandra_config=None):
+    def __init__(self, cassandra_config=None, use_localhost=False):
         self._root = self.get_root(cassandra_config)
+        self._hostname = socket.gethostname() if use_localhost else 'localhost'
 
     @property
     def root(self):
@@ -131,7 +132,7 @@ class Cassandra(object):
 
 
     def dump_schema(self):
-        cmd = ['cqlsh', socket.gethostname(), '-e', 'DESCRIBE SCHEMA']
+        cmd = ['cqlsh', self._hostname, '-e', 'DESCRIBE SCHEMA']
         logging.debug(' '.join(cmd))
         return subprocess.check_output(cmd, universal_newlines=True)
 
@@ -150,8 +151,7 @@ class Cassandra(object):
             ))
 
     def schema_path_mapping(self):
-        # TODO: How to connect to Cassandra should be configurable
-        cluster = Cluster([socket.gethostname()])
+        cluster = Cluster([self._hostname])
         session = cluster.connect('system')
         query = 'SELECT keyspace_name, columnfamily_name, cf_id FROM system.schema_columnfamilies'
 
