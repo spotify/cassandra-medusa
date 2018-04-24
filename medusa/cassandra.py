@@ -15,6 +15,7 @@
 
 
 import collections
+import contextlib
 import logging
 import pathlib
 import socket
@@ -22,7 +23,20 @@ import subprocess
 import uuid
 import yaml
 
-from cassandra.cluster import Cluster
+from cassandra.cluster import Cluster, ExecutionProfile
+from cassandra.policies import WhiteListRoundRobinPolicy
+
+
+@contextlib.contextmanager
+def single_host_cluster_connect(hostname):
+    load_balancing_policy = WhiteListRoundRobinPolicy([hostname])
+    execution_profiles = {'local': ExecutionProfile(
+        load_balancing_policy=load_balancing_policy
+    )}
+    cluster = Cluster([hostname], execution_profiles=execution_profiles)
+    yield(cluster)
+    cluster.shutdown()
+
 
 SnapshotPath = collections.namedtuple('SnapshotPath',
                                       ['path', 'keyspace', 'columnfamily'])
@@ -151,15 +165,15 @@ class Cassandra(object):
             ))
 
     def schema_path_mapping(self):
-        cluster = Cluster([self._hostname])
-        session = cluster.connect('system')
-        query = 'SELECT keyspace_name, columnfamily_name, cf_id FROM system.schema_columnfamilies'
+        with single_host_cluster_connect(self._hostname) as cluster:
+            session = cluster.connect('system')
+            query = 'SELECT keyspace_name, columnfamily_name, cf_id FROM system.schema_columnfamilies'
 
-        return {
-            (row.keyspace_name, row.columnfamily_name):
-                self._columnfamily_path(row.keyspace_name,
-                                        row.columnfamily_name,
-                                        row.cf_id)
-            for row in session.execute(query)
-            if row.keyspace_name not in self.RESERVED_KEYSPACES
-        }
+            return {
+                (row.keyspace_name, row.columnfamily_name):
+                    self._columnfamily_path(row.keyspace_name,
+                                            row.columnfamily_name,
+                                            row.cf_id)
+                for row in session.execute(query)
+                if row.keyspace_name not in self.RESERVED_KEYSPACES
+            }
