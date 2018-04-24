@@ -177,3 +177,11 @@ class Cassandra(object):
                 for row in session.execute(query)
                 if row.keyspace_name not in self.RESERVED_KEYSPACES
             }
+
+    def shutdown(self):
+        # TODO: Make configurable
+        subprocess.check_output(['sudo', 'spcassandra-stop'])
+
+    def start(self):
+        # TODO: Make configurable
+        subprocess.check_output(['sudo', 'spcassandra-enable-hecuba'])

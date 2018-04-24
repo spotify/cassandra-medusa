@@ -57,7 +57,7 @@ def restore_node(args, storageconfig):
     download_data(storageconfig, backup, destination=args.destination)
 
     logging.info('Stopping Cassandra')
-    subprocess.check_output(['sudo', 'spcassandra-stop'])
+    cassandra.shutdown()
 
     # Move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
@@ -71,4 +71,4 @@ def restore_node(args, storageconfig):
 
     # Start up Cassandra
     logging.info('Starting Cassandra')
-    subprocess.check_output(['sudo', 'spcassandra-enable-hecuba'])
+    cassandra.start()
