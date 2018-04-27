@@ -154,11 +154,18 @@ class Cassandra(object):
                 return True
         return False
 
-
     def ringstate(self):
-        cmd = ['spjmxproxy', 'ringstate']
-        logging.debug(' '.join(cmd))
-        return subprocess.check_output(cmd, universal_newlines=True)
+        with single_host_cluster_connect(self._hostname) as cluster:
+            session = cluster.connect('system')  # This is needed to fetch the metadata
+            token_map = cluster.metadata.token_map
+            return {
+                socket.gethostbyaddr(host.address)[0]: {
+                    'dc': host.datacenter,
+                    'token': token.value,
+                    'is_up': host.is_up
+                }
+                for token, host in token_map.token_to_host_owner.items()
+            }
 
     def dump_schema(self):
         with single_host_cluster_connect(self._hostname) as cluster:
