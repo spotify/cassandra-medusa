@@ -34,10 +34,10 @@ def debug_command(args, storageconfig):
 
 def make_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default=None,
-                        help='Specify config file')
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
+    subcommand_template.add_argument('--config', type=str, default=None,
+                                     help='Specify config file')
     subcommand_template.add_argument('-v', '--verbose', dest='loglevel',
                                      action='count',
                                      help='Increase verbosity')
