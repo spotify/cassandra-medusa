@@ -160,11 +160,13 @@ class Cassandra(object):
         logging.debug(' '.join(cmd))
         return subprocess.check_output(cmd, universal_newlines=True)
 
-
     def dump_schema(self):
-        cmd = ['cqlsh', self._hostname, '-e', 'DESCRIBE SCHEMA']
-        logging.debug(' '.join(cmd))
-        return subprocess.check_output(cmd, universal_newlines=True)
+        with single_host_cluster_connect(self._hostname) as cluster:
+            session = cluster.connect('system')  # This is needed to fetch the metadata
+            keyspaces = cluster.metadata.keyspaces
+            return '\n\n'.join(metadata.export_as_string()
+                               for keyspace, metadata in keyspaces.items()
+                               if keyspace not in self.RESERVED_KEYSPACES)
 
     def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
         root = pathlib.Path(self._root)
