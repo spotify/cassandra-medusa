@@ -42,11 +42,11 @@ class Storage(object):
             fqdn=fqdn
         )
 
-    def list_backup_items(self, *, fqdn):
+    def list_backup_items(self, *, fqdn=None):
         return (
-            self.get_backup_item(fqdn=fqdn,
+            self.get_backup_item(fqdn=fqdn or pathlib.Path(blob.name).parts[-3],
                                  name=pathlib.Path(blob.name).parts[-2])
-            for blob in self._bucket.list_blobs(prefix=str(self._meta_prefix / fqdn))
+            for blob in self._bucket.list_blobs(prefix=str(self._meta_prefix / (fqdn or '')))
             if blob.name.endswith('/tokenmap.json')
         )
 
