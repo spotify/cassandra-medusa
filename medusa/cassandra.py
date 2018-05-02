@@ -28,14 +28,53 @@ from cassandra.policies import WhiteListRoundRobinPolicy
 
 
 @contextlib.contextmanager
-def single_host_cluster_connect(hostname):
+def single_host_cluster_connect(hostname, *, keyspace=None):
     load_balancing_policy = WhiteListRoundRobinPolicy([hostname])
     execution_profiles = {'local': ExecutionProfile(
         load_balancing_policy=load_balancing_policy
     )}
     cluster = Cluster([hostname], execution_profiles=execution_profiles)
-    yield(cluster)
+    session = cluster.connect(keyspace=keyspace)
+    yield(CqlSession(session))
     cluster.shutdown()
+
+
+class CqlSession(object):
+    RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
+
+    def __init__(self, session):
+        self._session = session
+
+    @property
+    def cluster(self):
+        return self._session.cluster
+
+    @property
+    def session(self):
+        return self._session
+
+    def ringstate(self):
+        token_map = self.cluster.metadata.token_map
+        return {
+            socket.gethostbyaddr(host.address)[0]: {
+                'dc': host.datacenter,
+                'token': token.value,
+                'is_up': host.is_up
+            }
+            for token, host in token_map.token_to_host_owner.items()
+        }
+
+    def dump_schema(self):
+        keyspaces = self.session.cluster.metadata.keyspaces
+        return '\n\n'.join(metadata.export_as_string()
+                           for keyspace, metadata in keyspaces.items()
+                           if keyspace not in self.RESERVED_KEYSPACES)
+
+    def schema_path_mapping(self):
+        query = 'SELECT keyspace_name, columnfamily_name, cf_id FROM system.schema_columnfamilies'
+
+        return (row for row in self.session.execute(query)
+                if row.keyspace_name not in self.RESERVED_KEYSPACES)
 
 
 SnapshotPath = collections.namedtuple('SnapshotPath',
@@ -73,7 +112,6 @@ class CassandraConfigReader(object):
 
 
 class Cassandra(object):
-    RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
 
     def __init__(self, cassandra_config=None):
@@ -112,7 +150,7 @@ class Cassandra(object):
                     Cassandra.SNAPSHOT_PATTERN.format(self._tag)
                 )
                 if snapshot_dir.is_dir() and
-                   snapshot_dir.parts[-4] not in Cassandra.RESERVED_KEYSPACES
+                   snapshot_dir.parts[-4] not in CqlSession.RESERVED_KEYSPACES
             ]
 
         def delete(self):
@@ -155,25 +193,12 @@ class Cassandra(object):
         return False
 
     def ringstate(self):
-        with single_host_cluster_connect(self._hostname) as cluster:
-            session = cluster.connect('system')  # This is needed to fetch the metadata
-            token_map = cluster.metadata.token_map
-            return {
-                socket.gethostbyaddr(host.address)[0]: {
-                    'dc': host.datacenter,
-                    'token': token.value,
-                    'is_up': host.is_up
-                }
-                for token, host in token_map.token_to_host_owner.items()
-            }
+        with single_host_cluster_connect(self._hostname) as session:
+            return session.ringstate()
 
     def dump_schema(self):
-        with single_host_cluster_connect(self._hostname) as cluster:
-            session = cluster.connect('system')  # This is needed to fetch the metadata
-            keyspaces = cluster.metadata.keyspaces
-            return '\n\n'.join(metadata.export_as_string()
-                               for keyspace, metadata in keyspaces.items()
-                               if keyspace not in self.RESERVED_KEYSPACES)
+        with single_host_cluster_connect(self._hostname) as session:
+            return session.dump_schema()
 
     def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
         root = pathlib.Path(self._root)
@@ -190,17 +215,13 @@ class Cassandra(object):
             ))
 
     def schema_path_mapping(self):
-        with single_host_cluster_connect(self._hostname) as cluster:
-            session = cluster.connect('system')
-            query = 'SELECT keyspace_name, columnfamily_name, cf_id FROM system.schema_columnfamilies'
-
+        with single_host_cluster_connect(self._hostname) as session:
             return {
                 (row.keyspace_name, row.columnfamily_name):
                     self._columnfamily_path(row.keyspace_name,
                                             row.columnfamily_name,
                                             row.cf_id)
-                for row in session.execute(query)
-                if row.keyspace_name not in self.RESERVED_KEYSPACES
+                for row in session.schema_path_mapping()
             }
 
     def shutdown(self):
