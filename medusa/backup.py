@@ -70,7 +70,7 @@ def main(args, storageconfig):
                              } for manifestobject in manifestobjects]})
     backup_paths.manifest.upload_from_string(json.dumps(manifest))
 
-    backup_paths.ringstate.upload_from_string(ringstate)
+    backup_paths.ringstate.upload_from_string(json.dumps(ringstate))
 
     logging.info('Backup done')
     end = datetime.datetime.now()

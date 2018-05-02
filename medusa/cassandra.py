@@ -42,32 +42,48 @@ SnapshotPath = collections.namedtuple('SnapshotPath',
                                       ['path', 'keyspace', 'columnfamily'])
 
 
-class Cassandra(object):
-    RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
-    SNAPSHOT_PATTERN = '*/*/snapshots/{}'
+class CassandraConfigReader(object):
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
 
-    def __init__(self, cassandra_config=None, use_localhost=False):
-        self._root = self.get_root(cassandra_config)
-        self._hostname = socket.gethostname() if use_localhost else 'localhost'
+    def __init__(self, cassandra_config=None):
+        config_file = pathlib.Path(cassandra_config or
+                                   self.DEFAULT_CASSANDRA_CONFIG)
+        if not config_file.is_file():
+            raise RuntimeError('{} is not a file'.format(config_file))
+        self._config = yaml.load(config_file.open())
 
     @property
     def root(self):
-        return self._root
-
-    @classmethod
-    def get_root(cls, cassandra_config=None):
-        config_file = pathlib.Path(cassandra_config or
-                                   cls.DEFAULT_CASSANDRA_CONFIG)
-        if not config_file.is_file():
-            raise RuntimeError('{} is not a file'.format(config_file))
-        config = yaml.load(config_file.open())
-        data_file_directories = config.get('data_file_directories')
+        data_file_directories = self._config.get('data_file_directories')
         if not data_file_directories:
             raise RuntimeError('data_file_directories must be properly configured')
         if len(data_file_directories) > 1:
             raise RuntimeError('Medusa only supports one data directory')
         return pathlib.Path(data_file_directories[0])
+
+    @property
+    def listen_address(self):
+        if 'listen_address' in self._config:
+            if self._config['listen_address']:
+                return self._config['listen_address']
+            else:
+                return socket.gethostname()
+        else:
+            return 'localhost'
+
+
+class Cassandra(object):
+    RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
+    SNAPSHOT_PATTERN = '*/*/snapshots/{}'
+
+    def __init__(self, cassandra_config=None):
+        config_reader = CassandraConfigReader(cassandra_config)
+        self._root = config_reader.root
+        self._hostname = config_reader.listen_address
+
+    @property
+    def root(self):
+        return self._root
 
     class Snapshot(object):
         def __init__(self, parent, tag):
@@ -138,17 +154,26 @@ class Cassandra(object):
                 return True
         return False
 
-
     def ringstate(self):
-        cmd = ['spjmxproxy', 'ringstate']
-        logging.debug(' '.join(cmd))
-        return subprocess.check_output(cmd, universal_newlines=True)
-
+        with single_host_cluster_connect(self._hostname) as cluster:
+            session = cluster.connect('system')  # This is needed to fetch the metadata
+            token_map = cluster.metadata.token_map
+            return {
+                socket.gethostbyaddr(host.address)[0]: {
+                    'dc': host.datacenter,
+                    'token': token.value,
+                    'is_up': host.is_up
+                }
+                for token, host in token_map.token_to_host_owner.items()
+            }
 
     def dump_schema(self):
-        cmd = ['cqlsh', self._hostname, '-e', 'DESCRIBE SCHEMA']
-        logging.debug(' '.join(cmd))
-        return subprocess.check_output(cmd, universal_newlines=True)
+        with single_host_cluster_connect(self._hostname) as cluster:
+            session = cluster.connect('system')  # This is needed to fetch the metadata
+            keyspaces = cluster.metadata.keyspaces
+            return '\n\n'.join(metadata.export_as_string()
+                               for keyspace, metadata in keyspaces.items()
+                               if keyspace not in self.RESERVED_KEYSPACES)
 
     def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
         root = pathlib.Path(self._root)
