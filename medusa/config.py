@@ -14,8 +14,7 @@
 # limitations under the License.
 
 import collections
-import json
-import pathlib
+import configparser
 import logging
 import sys
 import medusa.storage
@@ -23,31 +22,38 @@ import medusa.storage
 
 StorageConfig = collections.namedtuple('StorageConfig',
                                        ['bucket_name', 'key_file', 'prefix'])
-StorageConfig.__new__.__defaults__ = (None,)
 
 
 def load_config(args):
+    config = configparser.ConfigParser(interpolation=None)
+
+    # Set defaults
+    config['storage'] = {}
+    config['cassandra'] = {}
+
     if args.config:
-        configfile = pathlib.Path(args.config)
-        if not configfile.exists():
+        if not args.config.exists():
             logging.error('Configuration file {} does not exist'.format(args.config))
             sys.exit(2)
 
-        config = json.load(configfile.open())
-        storage_config = config.get('storage', {})
-    else:
-        storage_config = {}
+        logging.debug('Loading configuration from {}'.format(args.config))
+        config.read_file(args.config.open())
 
-    storage_config.update({
+    config.read_dict({'storage': {
         key: value
         for key, value in zip(medusa.storage.StorageConfig._fields,
                               (args.bucket_name, args.key_file, args.prefix))
         if value is not None
+    }})
+
+    storage_config = StorageConfig(**{
+        field: config['storage'].get(field)
+        for field in StorageConfig._fields
     })
 
-    return namedtuple_from_dict(cls=medusa.storage.StorageConfig,
-                                data=storage_config)
+    for field in ['bucket_name', 'key_file']:
+        if getattr(storage_config, field) is None:
+            logging.error('Required configuration "{}" is missing.'.format(field))
+            sys.exit(2)
 
-
-def namedtuple_from_dict(*, cls, data):
-    return cls(**{k:v for k, v in data.items() if k in cls._fields})
+    return storage_config

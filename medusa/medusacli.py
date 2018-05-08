@@ -36,7 +36,8 @@ def make_parser():
     parser = argparse.ArgumentParser()
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
-    subcommand_template.add_argument('--config', type=str, default=None,
+    subcommand_template.add_argument('--config', type=pathlib.Path,
+                                     default=None,
                                      help='Specify config file')
     subcommand_template.add_argument('-v', '--verbose', dest='loglevel',
                                      action='count',
@@ -114,10 +115,9 @@ def main():
         parser.print_help()
         parser.exit(status=1, message='Please specify command')
 
+    logging.debug(args)
 
     storageconfig = medusa.config.load_config(args)
-
-    logging.debug(args)
     logging.debug(storageconfig)
 
     args.func(args, storageconfig)
