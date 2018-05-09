@@ -15,7 +15,6 @@
 
 
 import collections
-import contextlib
 import logging
 import pathlib
 import shlex
@@ -26,18 +25,26 @@ import yaml
 
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
+from cassandra.auth import PlainTextAuthProvider
 
 
-@contextlib.contextmanager
-def single_host_cluster_connect(hostname, *, keyspace=None):
-    load_balancing_policy = WhiteListRoundRobinPolicy([hostname])
-    execution_profiles = {'local': ExecutionProfile(
-        load_balancing_policy=load_balancing_policy
-    )}
-    cluster = Cluster([hostname], execution_profiles=execution_profiles)
-    session = cluster.connect(keyspace=keyspace)
-    yield(CqlSession(session))
-    cluster.shutdown()
+class CqlSessionProvider(object):
+    def __init__(self, hostname, *, username=None, password=None):
+        self._hostname = hostname
+        self._auth_provider = (PlainTextAuthProvider(username=username,
+                                                     password=password)
+                               if username and password else None)
+        load_balancing_policy = WhiteListRoundRobinPolicy([hostname])
+        self._execution_profiles = {'local': ExecutionProfile(
+            load_balancing_policy=load_balancing_policy
+        )}
+
+    def new_session(self):
+        cluster = Cluster(contact_points=[self._hostname],
+                          auth_provider=self._auth_provider,
+                          execution_profiles=self._execution_profiles)
+        session = cluster.connect()
+        return CqlSession(session)
 
 
 class CqlSession(object):
@@ -45,6 +52,13 @@ class CqlSession(object):
 
     def __init__(self, session):
         self._session = session
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.session.shutdown()
+        self.cluster.shutdown()
 
     @property
     def cluster(self):
@@ -122,6 +136,11 @@ class Cassandra(object):
         config_reader = CassandraConfigReader(cassandra_config.config_file)
         self._root = config_reader.root
         self._hostname = config_reader.listen_address
+        self._cql_session_provider = CqlSessionProvider(
+            self._hostname,
+            username=cassandra_config.username,
+            password=cassandra_config.password
+        )
 
     @property
     def root(self):
@@ -197,11 +216,11 @@ class Cassandra(object):
         return False
 
     def ringstate(self):
-        with single_host_cluster_connect(self._hostname) as session:
+        with self._cql_session_provider.new_session() as session:
             return session.ringstate()
 
     def dump_schema(self):
-        with single_host_cluster_connect(self._hostname) as session:
+        with self._cql_session_provider.new_session() as session:
             return session.dump_schema()
 
     def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
@@ -219,7 +238,7 @@ class Cassandra(object):
             ))
 
     def schema_path_mapping(self):
-        with single_host_cluster_connect(self._hostname) as session:
+        with self._cql_session_provider.new_session() as session:
             return {
                 (row.keyspace_name, row.columnfamily_name):
                     self._columnfamily_path(row.keyspace_name,
