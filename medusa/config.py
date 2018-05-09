@@ -16,6 +16,7 @@
 import collections
 import configparser
 import logging
+import pathlib
 import sys
 import medusa.storage
 import medusa.cassandra
@@ -27,6 +28,8 @@ CassandraConfig = collections.namedtuple('CassandraConfig',
                                           'config_file',
                                           'cql_username', 'cql_password'])
 MedusaConfig = collections.namedtuple('MedusaConfig', ['storage', 'cassandra'])
+
+DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
 
 def load_config(args):
@@ -47,6 +50,9 @@ def load_config(args):
 
         logging.debug('Loading configuration from {}'.format(args.config))
         config.read_file(args.config.open())
+    elif DEFAULT_CONFIGURATION_PATH.exists():
+        logging.debug('Loading configuration from {}'.format(DEFAULT_CONFIGURATION_PATH))
+        config.read_file(DEFAULT_CONFIGURATION_PATH.open())
 
     config.read_dict({'storage': {
         key: value
