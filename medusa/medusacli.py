@@ -28,7 +28,7 @@ import medusa.restore_node
 import medusa.status
 
 
-def debug_command(args, storageconfig):
+def debug_command(args, config):
     logging.error("This command is not implemented yet")
 
 
@@ -36,7 +36,8 @@ def make_parser():
     parser = argparse.ArgumentParser()
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
-    subcommand_template.add_argument('--config', type=str, default=None,
+    subcommand_template.add_argument('--config', type=pathlib.Path,
+                                     default=None,
                                      help='Specify config file')
     subcommand_template.add_argument('-v', '--verbose', dest='loglevel',
                                      action='count',
@@ -114,13 +115,12 @@ def main():
         parser.print_help()
         parser.exit(status=1, message='Please specify command')
 
-
-    storageconfig = medusa.config.load_config(args)
-
     logging.debug(args)
-    logging.debug(storageconfig)
 
-    args.func(args, storageconfig)
+    config = medusa.config.load_config(args)
+    logging.debug(config)
+
+    args.func(args, config)
 
 
 if __name__ == '__main__':

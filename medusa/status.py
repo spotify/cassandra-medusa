@@ -76,8 +76,8 @@ def validate_completion(backup):
             continue
 
 
-def status(args, storageconfig):
-    storage = Storage(config=storageconfig)
+def status(args, config):
+    storage = Storage(config=config.storage)
     backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
     if not backup.exists():
         logging.error('No such backup')

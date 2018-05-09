@@ -18,8 +18,8 @@ import sys
 from medusa.storage import Storage
 
 
-def main(args, storageconfig):
-    storage = Storage(config=storageconfig)
+def main(args, config):
+    storage = Storage(config=config.storage)
     backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
     if not backup.exists():
         logging.error('No such backup')

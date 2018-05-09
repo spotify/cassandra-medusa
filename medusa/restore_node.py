@@ -23,8 +23,8 @@ from medusa.download import download_data
 from medusa.storage import Storage
 
 
-def restore_node(args, storageconfig):
-    storage = Storage(config=storageconfig)
+def restore_node(args, config):
+    storage = Storage(config=config.storage)
 
     backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
     if not backup.exists():
@@ -40,7 +40,7 @@ def restore_node(args, storageconfig):
     manifest_str = backup.manifest.download_as_string().decode('utf-8')
     manifest = json.loads(manifest_str)
 
-    cassandra = Cassandra()
+    cassandra = Cassandra(config.cassandra)
     schema_path_mapping = cassandra.schema_path_mapping()
 
     # Validate existance of column families
@@ -54,7 +54,7 @@ def restore_node(args, storageconfig):
             sys.exit(1)
 
     logging.info('Downloading data from backup')
-    download_data(storageconfig, backup, destination=args.destination)
+    download_data(config.storage, backup, destination=args.destination)
 
     logging.info('Stopping Cassandra')
     cassandra.shutdown()

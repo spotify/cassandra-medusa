@@ -18,6 +18,7 @@ import collections
 import contextlib
 import logging
 import pathlib
+import shlex
 import socket
 import subprocess
 import uuid
@@ -114,8 +115,11 @@ class CassandraConfigReader(object):
 class Cassandra(object):
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
 
-    def __init__(self, cassandra_config=None):
-        config_reader = CassandraConfigReader(cassandra_config)
+    def __init__(self, cassandra_config):
+        self._start_cmd = shlex.split(cassandra_config.start_cmd)
+        self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
+
+        config_reader = CassandraConfigReader(cassandra_config.config_file)
         self._root = config_reader.root
         self._hostname = config_reader.listen_address
 
@@ -225,9 +229,7 @@ class Cassandra(object):
             }
 
     def shutdown(self):
-        # TODO: Make configurable
-        subprocess.check_output(['sudo', 'spcassandra-stop'])
+        subprocess.check_output(self._stop_cmd)
 
     def start(self):
-        # TODO: Make configurable
-        subprocess.check_output(['sudo', 'spcassandra-enable-hecuba'])
+        subprocess.check_output(self._start_cmd)
