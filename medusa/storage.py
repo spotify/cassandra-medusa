@@ -14,14 +14,8 @@
 # limitations under the License.
 
 
-import collections
 import google.cloud.storage
 import pathlib
-
-
-StorageConfig = collections.namedtuple('StorageConfig',
-                                       ['bucket_name', 'key_file', 'prefix'])
-StorageConfig.__new__.__defaults__ = (None,)
 
 
 class Storage(object):
