@@ -17,6 +17,7 @@ import json
 import logging
 import subprocess
 import sys
+import uuid
 
 from medusa.cassandra import Cassandra
 from medusa.download import download_data
@@ -29,10 +30,6 @@ def restore_node(args, config):
     backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
     if not backup.exists():
         logging.error('No such backup')
-        sys.exit(1)
-
-    if not args.destination.is_dir():
-        logging.error('{} is not a directory'.format(args.destination))
         sys.exit(1)
 
     # TODO: Validate token
@@ -53,8 +50,16 @@ def restore_node(args, config):
             ))
             sys.exit(1)
 
-    logging.info('Downloading data from backup')
-    download_data(config.storage, backup, destination=args.destination)
+    if args.restore_from:
+        if not args.restore_from.is_dir():
+            logging.error('{} is not a directory'.format(args.restore_from))
+            sys.exit(1)
+        download_dir = args.restore_from
+        logging.info('Restoring data from {}'.format(download_dir))
+    else:
+        download_dir = args.temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
+        logging.info('Downloading data from backup to {}'.format(download_dir))
+        download_data(config.storage, backup, destination=download_dir)
 
     logging.info('Stopping Cassandra')
     cassandra.shutdown()
@@ -64,7 +69,7 @@ def restore_node(args, config):
     file_ownership = '{}:{}'.format(Cassandra.root.owner(),
                                     Cassandra.root.group())
     for section in manifest:
-        src = args.destination / section['keyspace'] / section['columnfamily']
+        src = download_dir / section['keyspace'] / section['columnfamily']
         dst = schema_path_mapping[(section['keyspace'], section['columnfamily'])]
         if dst.exists():
             subprocess.check_output(['sudo', '-u', Cassandra.root.owner(),
