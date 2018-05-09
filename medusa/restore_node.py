@@ -34,8 +34,7 @@ def restore_node(args, config):
 
     # TODO: Validate token
 
-    manifest_str = backup.manifest.download_as_string().decode('utf-8')
-    manifest = json.loads(manifest_str)
+    manifest = json.loads(backup.manifest)
 
     cassandra = Cassandra(config.cassandra)
     schema_path_mapping = cassandra.schema_path_mapping()

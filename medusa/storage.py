@@ -57,6 +57,12 @@ class Storage(object):
             self._name = name
             self._meta_prefix = self._parent._meta_prefix / fqdn / name
             self._data_prefix = self._parent._data_prefix / fqdn / name
+            self._ringstate_path = self._meta_prefix / 'ringstate.json'
+            self._schema_path = self._meta_prefix / 'schema.cql'
+            self._manifest_path = self._meta_prefix / 'manifest.json'
+
+        def _blob(self, path):
+            return self.bucket.blob(str(path))
 
         @property
         def name(self):
@@ -79,35 +85,65 @@ class Storage(object):
             return self._parent
 
         @property
+        def ringstate_path(self):
+            return self._ringstate_path
+
+        @property
         def ringstate(self):
-            return self.bucket.blob(str(self._meta_prefix / 'ringstate.json'))
+            ringstate_blob = self._blob(self.ringstate_path)
+            return ringstate_blob.download_as_string().decode('utf-8')
+
+        @ringstate.setter
+        def ringstate(self, ringstate):
+            ringstate_blob = self._blob(self.ringstate_path)
+            ringstate_blob.upload_from_string(ringstate)
+
+        @property
+        def schema_path(self):
+            return self._schema_path
 
         @property
         def schema(self):
-            return self.bucket.blob(str(self._meta_prefix / 'schema.cql'))
+            schema_blob = self._blob(self.schema_path)
+            return schema_blob.download_as_string().decode('utf-8')
+
+        @schema.setter
+        def schema(self, schema):
+            schema_blob = self._blob(self.schema_path)
+            schema_blob.upload_from_string(schema)
 
         @property
         def started(self):
-            schema = self.schema
-            if not schema.exists():
+            schema_blob = self._blob(self.schema_path)
+            if not schema_blob.exists():
                 return None
-            schema.reload()
-            return schema.time_created
+            schema_blob.reload()
+            return schema_blob.time_created
 
         @property
         def finished(self):
-            ringstate = self.ringstate
-            if not ringstate.exists():
+            ringstate_blob = self._blob(self.ringstate_path)
+            if not ringstate_blob.exists():
                 return None
-            ringstate.reload()
-            return ringstate.time_created
+            ringstate_blob.reload()
+            return ringstate_blob.time_created
+
+        @property
+        def manifest_path(self):
+            return self._manifest_path
 
         @property
         def manifest(self):
-            return self.bucket.blob(str(self._meta_prefix / 'manifest.json'))
+            manifest_blob = self._blob(self.manifest_path)
+            return manifest_blob.download_as_string().decode('utf-8')
+
+        @manifest.setter
+        def manifest(self, manifest):
+            manifest_blob = self._blob(self.manifest_path)
+            manifest_blob.upload_from_string(manifest)
 
         def datapath(self, *, keyspace, columnspace):
             return self.data_prefix / keyspace / columnspace
 
         def exists(self):
-            return self.schema.exists()
+            return self._blob(self.schema_path).exists()

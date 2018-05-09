@@ -25,4 +25,4 @@ def main(args, config):
         logging.error('No such backup')
         sys.exit(1)
 
-    print(backup.ringstate.download_as_string().decode('utf-8'))
+    print(backup.ringstate)
