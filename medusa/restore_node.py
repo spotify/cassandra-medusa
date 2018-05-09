@@ -32,11 +32,22 @@ def restore_node(args, config):
         logging.error('No such backup')
         sys.exit(1)
 
-    # TODO: Validate token
+    cassandra = Cassandra(config.cassandra)
+
+    logging.info('Validating token')
+    ringstate = json.loads(backup.ringstate)
+    with cassandra.new_session() as session:
+        # TODO: Should be store token as string?
+        current_token = str(session.current_token())
+        backup_token = ringstate[backup.fqdn]['token']
+        if  current_token != backup_token:
+            logging.error('Token mismatch: Current ({}) != Backup ({})'.format(
+                current_token,
+                backup_token
+            ))
+            sys.exit(1)
 
     manifest = json.loads(backup.manifest)
-
-    cassandra = Cassandra(config.cassandra)
     schema_path_mapping = cassandra.schema_path_mapping()
 
     # Validate existance of column families

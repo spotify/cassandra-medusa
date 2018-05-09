@@ -156,6 +156,9 @@ class Cassandra(object):
             password=cassandra_config.password
         )
 
+    def new_session(self):
+        return self._cql_session_provider.new_session()
+
     @property
     def root(self):
         return self._root
