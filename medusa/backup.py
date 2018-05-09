@@ -27,13 +27,13 @@ def url_to_path(url):
     return url.split('/', 3)[-1]
 
 
-def main(args, storageconfig):
+def main(args, config):
     start = datetime.datetime.now()
 
     logging.info('Starting backup')
     backup_name = args.backup_name or start.strftime('%Y%m%d%H')
 
-    storage = Storage(config=storageconfig)
+    storage = Storage(config=config.storage)
     # TODO: Test permission
 
     backup_paths = storage.get_backup_item(fqdn=args.fqdn, name=backup_name)
@@ -41,7 +41,7 @@ def main(args, storageconfig):
         logging.error('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)
 
-    cassandra = Cassandra()
+    cassandra = Cassandra(config.cassandra)
 
     logging.info('Creating snapshot')
     snapshot = cassandra.create_snapshot()
@@ -53,12 +53,12 @@ def main(args, storageconfig):
     backup_paths.schema.upload_from_string(schema)
 
     manifest = []
-    with GSUtil(storageconfig) as gsutil:
+    with GSUtil(config.storage) as gsutil:
         for snapshotpath in snapshot.find_dirs():
             manifestobjects = gsutil.cp(
                 srcs=snapshotpath.path,
                 dst='gs://{}/{}'.format(
-                    storageconfig.bucket_name,
+                    config.storage.bucket_name,
                     backup_paths.datapath(keyspace=snapshotpath.keyspace,
                                           columnspace=snapshotpath.columnfamily)))
             manifest.append({'keyspace': snapshotpath.keyspace,

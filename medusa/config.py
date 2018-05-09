@@ -18,10 +18,15 @@ import configparser
 import logging
 import sys
 import medusa.storage
-
+import medusa.cassandra
 
 StorageConfig = collections.namedtuple('StorageConfig',
                                        ['bucket_name', 'key_file', 'prefix'])
+CassandraConfig = collections.namedtuple('CassandraConfig',
+                                         ['start_cmd', 'stop_cmd',
+                                          'config_file',
+                                          'cql_username', 'cql_password'])
+MedusaConfig = collections.namedtuple('MedusaConfig', ['storage', 'cassandra'])
 
 
 def load_config(args):
@@ -29,7 +34,11 @@ def load_config(args):
 
     # Set defaults
     config['storage'] = {}
-    config['cassandra'] = {}
+    config['cassandra'] = {
+        'config_file': medusa.cassandra.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
+        'start_cmd': 'sudo spcassandra-enable-hecuba',
+        'stop_cmd': 'sudo spcassandra-stop'
+    }
 
     if args.config:
         if not args.config.exists():
@@ -46,14 +55,25 @@ def load_config(args):
         if value is not None
     }})
 
-    storage_config = StorageConfig(**{
-        field: config['storage'].get(field)
-        for field in StorageConfig._fields
-    })
+    medusa_config = MedusaConfig(
+        storage=StorageConfig(**{
+            field: config['storage'].get(field)
+            for field in StorageConfig._fields
+        }),
+        cassandra=CassandraConfig(**{
+            field: config['cassandra'].get(field)
+            for field in CassandraConfig._fields
+        })
+    )
 
     for field in ['bucket_name', 'key_file']:
-        if getattr(storage_config, field) is None:
+        if getattr(medusa_config.storage, field) is None:
             logging.error('Required configuration "{}" is missing.'.format(field))
             sys.exit(2)
 
-    return storage_config
+    for field in ['start_cmd', 'stop_cmd']:
+        if getattr(medusa_config.cassandra, field) is None:
+            logging.error('Required configuration "{}" is missing.'.format(field))
+            sys.exit(2)
+
+    return medusa_config

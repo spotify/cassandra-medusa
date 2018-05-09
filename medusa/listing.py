@@ -15,12 +15,11 @@
 # limitations under the License.
 
 
-import json
 from medusa.storage import Storage
 
 
-def list(args, storageconfig):
-    storage = Storage(config=storageconfig)
+def list(args, config):
+    storage = Storage(config=config.storage)
 
     for backup_item in storage.list_backup_items(fqdn=args.fqdn):
         print('{} (started: {}, finished: {})'.format(

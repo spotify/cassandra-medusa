@@ -28,7 +28,7 @@ import medusa.restore_node
 import medusa.status
 
 
-def debug_command(args, storageconfig):
+def debug_command(args, config):
     logging.error("This command is not implemented yet")
 
 
@@ -117,10 +117,10 @@ def main():
 
     logging.debug(args)
 
-    storageconfig = medusa.config.load_config(args)
-    logging.debug(storageconfig)
+    config = medusa.config.load_config(args)
+    logging.debug(config)
 
-    args.func(args, storageconfig)
+    args.func(args, config)
 
 
 if __name__ == '__main__':
