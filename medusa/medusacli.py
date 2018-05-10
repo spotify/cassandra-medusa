@@ -87,7 +87,7 @@ def make_parser():
                                                    parents=[subcommand_template])
     restore_cluster_parser.add_argument('backup_name', type=str,
                                         metavar='BACKUP-NAME', help='Backup name')
-    restore_cluster_parser.add_argument('targets', type=list,
+    restore_cluster_parser.add_argument('targets', type=str, nargs='+',
                                         metavar='HOSTS', help='List of target hosts')
     restore_cluster_parser.set_defaults(func=medusa.restore_cluster.orchestrate)
 
