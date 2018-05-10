@@ -100,7 +100,6 @@ class Restore(object):
         self.id = uuid.uuid4()
         self.ringmap = ringmap
         self.cluster_backup = cluster_backup
-        self.seed_backup = random.sample(self.cluster_backup, 1)[0]
         self.ssh_config = ssh_config
         self.remotes = []
 
