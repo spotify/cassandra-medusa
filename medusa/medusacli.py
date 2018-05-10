@@ -93,8 +93,8 @@ def make_parser():
                                         default=None, help='SSH keyfile to use')
     restore_cluster_parser.add_argument('backup_name', type=str,
                                         metavar='BACKUP-NAME', help='Backup name')
-    restore_cluster_parser.add_argument('targets', type=str, nargs='+',
-                                        metavar='HOSTS', help='List of target hosts')
+    restore_cluster_parser.add_argument('seed_target', type=str,
+                                        metavar='HOST', help='Seed of the target hosts')
     restore_cluster_parser.set_defaults(func=medusa.restore_cluster.orchestrate)
 
     restore_node_parser = subparsers.add_parser('restore_node',

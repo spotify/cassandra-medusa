@@ -40,7 +40,7 @@ def orchestrate(args, config):
     if not cluster_backup.is_complete():
         logging.error('Backup {} is incomplete!'.format(args.backup_name))
         sys.exit(1)
-    restore = cluster_backup.restore(args.targets)
+    restore = cluster_backup.restore(args.seed_target)
     restore.execute()
 
 
@@ -50,9 +50,9 @@ class ClusterBackup(object):
         self.tokenmap = tokenmap
         self.config = config
 
-    def restore(self, targets):
+    def restore(self, seed_target):
         # TODO: Add username=.., password=.. to CqlSessionProvider from config.cassandra
-        with CqlSessionProvider(targets[0],
+        with CqlSessionProvider(seed_target,
                                 username=self.config.cassandra.cql_username,
                                 password=self.config.cassandra.cql_password).new_session() as session:
             target_tokenmap = session.tokenmap()
