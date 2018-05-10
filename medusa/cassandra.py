@@ -82,7 +82,7 @@ class CqlSession(object):
             raise RuntimeError('Unable to current token')
 
 
-    def ringstate(self):
+    def tokenmap(self):
         token_map = self.cluster.metadata.token_map
         return {
             socket.gethostbyaddr(host.address)[0]: {
@@ -232,9 +232,9 @@ class Cassandra(object):
                 return True
         return False
 
-    def ringstate(self):
+    def tokenmap(self):
         with self._cql_session_provider.new_session() as session:
-            return session.ringstate()
+            return session.tokenmap()
 
     def dump_schema(self):
         with self._cql_session_provider.new_session() as session:

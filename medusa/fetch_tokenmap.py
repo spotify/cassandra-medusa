@@ -25,4 +25,4 @@ def main(args, config):
         logging.error('No such backup')
         sys.exit(1)
 
-    print(backup.ringstate)
+    print(backup.tokenmap)

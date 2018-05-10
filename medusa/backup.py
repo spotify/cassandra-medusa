@@ -46,8 +46,8 @@ def main(args, config):
     logging.info('Creating snapshot')
     snapshot = cassandra.create_snapshot()
 
-    logging.info('Saving ringstate and schema')
-    ringstate = cassandra.ringstate()
+    logging.info('Saving tokenmap and schema')
+    tokenmap = cassandra.tokenmap()
     backup_paths.schema = cassandra.dump_schema()
 
     manifest = []
@@ -68,7 +68,7 @@ def main(args, config):
                              } for manifestobject in manifestobjects]})
 
     backup_paths.manifest = json.dumps(manifest)
-    backup_paths.ringstate = json.dumps(ringstate)
+    backup_paths.tokenmap = json.dumps(tokenmap)
 
     logging.info('Backup done')
     end = datetime.datetime.now()

@@ -25,7 +25,7 @@ The backed up data is stored in a Google Cloud Storage using the following struc
 ```
 gs://<bucket name>/<optional prefix>/data/<fqdn>/<backup name>/<keyspace>/<column family>/<SSTAble files ...>
 gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/manifest.json
-gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/ringstate.json
+gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/tokenmap.json
 gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/schema.cql
 ```
 
@@ -38,7 +38,7 @@ buckets are cheap anyway. The support for this prefix might be dropped in later 
 - `manifest.json` will contain a list of all expected data files along with expected sizes and
   MD5 checksums. This can be used to easily validate the content of a backup in a bucket.
   The content of `manifest.json` is generated on the node as part of the upload process.
-- `ringstate.json` contains the topology (token) configuration of the cluster as seen by the node
+- `tokenmap.json` contains the topology (token) configuration of the cluster as seen by the node
   at the time of backup. This is the last file to be uploaded to the bucket, thus the existance of
   this file means that the backup is complete.
 - `schema.cql` contains the CQL commands to recreate the schema. This is the very first file to be

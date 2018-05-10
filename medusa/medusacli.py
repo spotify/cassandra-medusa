@@ -22,7 +22,7 @@ import socket
 import medusa.backup
 import medusa.config
 import medusa.download
-import medusa.fetch_ringstate
+import medusa.fetch_tokenmap
 import medusa.listing
 import medusa.restore_node
 import medusa.status
@@ -65,12 +65,12 @@ def make_parser():
                                         parents=[subcommand_template])
     list_parser.set_defaults(func=medusa.listing.list)
 
-    ringstate_parser = subparsers.add_parser('fetch-ringstate',
-                                             help='Fetch ringstate',
+    tokenmap_parser = subparsers.add_parser('fetch-tokenmap',
+                                             help='Fetch tokenmap',
                                              parents=[subcommand_template])
-    ringstate_parser.add_argument('backup_name', type=str,
+    tokenmap_parser.add_argument('backup_name', type=str,
                                   metavar='BACKUP-NAME', help='Backup name')
-    ringstate_parser.set_defaults(func=medusa.fetch_ringstate.main)
+    tokenmap_parser.set_defaults(func=medusa.fetch_tokenmap.main)
 
     download_parser = subparsers.add_parser('download', help='Download backup',
                                             parents=[subcommand_template])

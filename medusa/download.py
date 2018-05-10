@@ -37,7 +37,7 @@ def download_data(storageconfig, backup, destination):
             srcs=['gs://{}/{}'.format(storageconfig.bucket_name, path)
                   for path in [backup.manifest_path,
                                backup.schema_path,
-                               backup.ringstate_path]],
+                               backup.tokenmap_path]],
             dst=destination
         )
 
