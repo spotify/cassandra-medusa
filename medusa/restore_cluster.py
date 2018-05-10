@@ -51,7 +51,7 @@ class ClusterBackup(object):
         # TODO: Add username=.., password=.. to CqlSessionProvider from config.cassandra
         with CqlSessionProvider(targets[0]).new_session() as session:
             target_ringstate = session.ringstate()
-            for host, ringitem in target_ringstate.iterkeys():
+            for host, ringitem in target_ringstate.items():
                 if not ringitem.get('is_up'):
                     raise Exception(f'Target {host} is not up!')
             if len(target_ringstate) != len(self.ringstate):
@@ -62,7 +62,7 @@ class ClusterBackup(object):
             backup_tokens = {ringitem['token']: host for host, ringitem in self.ringstate.items()}
             if target_tokens.keys() != backup_tokens.keys():
                 raise Exception('Ringstate is differently distributed: '
-                                f'{target_tokens ^ backup_tokens}')
+                                f'{target_tokens.keys() ^ backup_tokens.keys()}')
 
             ringmap = collections.defaultdict(list)
             for ring in backup_tokens, target_tokens:
