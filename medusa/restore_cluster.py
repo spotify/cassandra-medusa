@@ -120,7 +120,7 @@ class Restore(object):
             sftp = client.open_sftp()
             sftp.mkdir(f'medusa-#{self.id}')
             sftp.close()
-            command = 'ls'  # TODO: Make command
+            command = 'sleep 10'  # TODO: Make command
             stdin, stdout, stderr = client.exec_command(command)
             stdin.close()
             stdout.close()
@@ -167,7 +167,7 @@ class Restore(object):
                     client = paramiko.SSHClient()
                     client.load_system_host_keys()
                     client.connect(**remote.connect_args)
-                    command = 'ls'  # TODO: Make command
+                    command = 'sleep 90'  # TODO: Make command
                     stdin, stdout, stderr = client.exec_command(command)
                     stdin.close()
                     stdout.close()
