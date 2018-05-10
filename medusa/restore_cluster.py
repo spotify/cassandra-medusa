@@ -43,25 +43,25 @@ def orchestrate(args, config):
 
 
 class ClusterBackup(object):
-    def __init__(self, cluster_backup, ringstate):
+    def __init__(self, cluster_backup, tokenmap):
         self.cluster_backup = cluster_backup
-        self.ringstate = ringstate
+        self.tokenmap = tokenmap
 
     def restore(self, targets):
         # TODO: Add username=.., password=.. to CqlSessionProvider from config.cassandra
         with CqlSessionProvider(targets[0]).new_session() as session:
-            target_ringstate = session.ringstate()
-            for host, ringitem in target_ringstate.items():
+            target_tokenmap = session.tokenmap()
+            for host, ringitem in target_tokenmap.items():
                 if not ringitem.get('is_up'):
                     raise Exception(f'Target {host} is not up!')
-            if len(target_ringstate) != len(self.ringstate):
-                raise Exception('Cannot restore to a ringstate of differing size: '
-                                f'(#{len(target_ringstate)}:#{len(self.ringstate)}.')
+            if len(target_tokenmap) != len(self.tokenmap):
+                raise Exception('Cannot restore to a tokenmap of differing size: '
+                                f'(#{len(target_tokenmap)}:#{len(self.tokenmap)}.')
 
-            target_tokens = {ringitem['token']: host for host, ringitem in target_ringstate.items()}
-            backup_tokens = {ringitem['token']: host for host, ringitem in self.ringstate.items()}
+            target_tokens = {ringitem['token']: host for host, ringitem in target_tokenmap.items()}
+            backup_tokens = {ringitem['token']: host for host, ringitem in self.tokenmap.items()}
             if target_tokens.keys() != backup_tokens.keys():
-                raise Exception('Ringstate is differently distributed: '
+                raise Exception('Tokenmap is differently distributed: '
                                 f'{target_tokens.keys() ^ backup_tokens.keys()}')
 
             ringmap = collections.defaultdict(list)
@@ -79,15 +79,15 @@ class ClusterBackup(object):
 
     @staticmethod
     def discover(backup):
-        ringstate = json.loads(backup.ringstate)
-        dc = ringstate[backup.fqdn]['dc']
+        tokenmap = json.loads(backup.tokenmap)
+        dc = tokenmap[backup.fqdn]['dc']
         all_backups_in_set = [
             backup.storage.get_backup_item(fqdn=node, name=backup.name)
-            for node, config in ringstate.items()
+            for node, config in tokenmap.items()
             if config.get('dc') == dc
             ]
 
-        return ClusterBackup(all_backups_in_set, ringstate)
+        return ClusterBackup(all_backups_in_set, tokenmap)
 
 
 class Restore(object):
