@@ -23,8 +23,7 @@ from medusa.gsutil import GSUtil
 
 
 def download_data(storageconfig, backup, destination):
-    manifest_str = backup.manifest.download_as_string().decode('utf-8')
-    manifest = json.loads(manifest_str)
+    manifest = json.loads(backup.manifest)
 
     with GSUtil(storageconfig) as gsutil:
         for section in manifest:
@@ -35,10 +34,10 @@ def download_data(storageconfig, backup, destination):
             gsutil.cp(srcs=srcs, dst=dst)
 
         gsutil.cp(
-            srcs=['gs://{}/{}'.format(storageconfig.bucket_name, blob.name)
-                  for blob in [backup.manifest,
-                               backup.schema,
-                               backup.ringstate]],
+            srcs=['gs://{}/{}'.format(storageconfig.bucket_name, path)
+                  for path in [backup.manifest_path,
+                               backup.schema_path,
+                               backup.ringstate_path]],
             dst=destination
         )
 

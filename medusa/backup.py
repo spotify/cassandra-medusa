@@ -48,9 +48,7 @@ def main(args, config):
 
     logging.info('Saving ringstate and schema')
     ringstate = cassandra.ringstate()
-    schema = cassandra.dump_schema()
-
-    backup_paths.schema.upload_from_string(schema)
+    backup_paths.schema = cassandra.dump_schema()
 
     manifest = []
     with GSUtil(config.storage) as gsutil:
@@ -68,9 +66,9 @@ def main(args, config):
                                  'MD5': manifestobject.MD5,
                                  'size': manifestobject.size
                              } for manifestobject in manifestobjects]})
-    backup_paths.manifest.upload_from_string(json.dumps(manifest))
 
-    backup_paths.ringstate.upload_from_string(json.dumps(ringstate))
+    backup_paths.manifest = json.dumps(manifest)
+    backup_paths.ringstate = json.dumps(ringstate)
 
     logging.info('Backup done')
     end = datetime.datetime.now()

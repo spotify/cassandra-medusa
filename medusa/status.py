@@ -21,12 +21,8 @@ from medusa.storage import Storage
 
 
 def validate_manifest(backup):
-    if not backup.manifest.exists():
-        logging.error('Backup contains no manifest')
-        return
-
     try:
-        manifest = json.loads(backup.manifest.download_as_string().decode('utf-8'))
+        manifest = json.loads(backup.manifest)
     except:
         logging.error('Unable to read manifest from storage')
         return
@@ -60,7 +56,7 @@ def validate_manifest(backup):
 
 
 def validate_completion(backup):
-    ringstate = json.loads(backup.ringstate.download_as_string().decode('utf-8'))
+    ringstate = json.loads(backup.ringstate)
     dc = ringstate[backup.fqdn]['dc']
     all_backups_in_set = [
         backup.storage.get_backup_item(fqdn=node, name=backup.name)
