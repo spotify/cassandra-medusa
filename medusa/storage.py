@@ -47,7 +47,7 @@ class Storage(object):
             self.get_backup_item(fqdn=fqdn,
                                  name=pathlib.Path(blob.name).parts[-2])
             for blob in self._bucket.list_blobs(prefix=str(self._meta_prefix / fqdn))
-            if blob.name.endswith('/ringstate.json')
+            if blob.name.endswith('/tokenmap.json')
         )
 
     class Paths(object):
@@ -57,7 +57,7 @@ class Storage(object):
             self._name = name
             self._meta_prefix = self._parent._meta_prefix / fqdn / name
             self._data_prefix = self._parent._data_prefix / fqdn / name
-            self._ringstate_path = self._meta_prefix / 'ringstate.json'
+            self._tokenmap_path = self._meta_prefix / 'tokenmap.json'
             self._schema_path = self._meta_prefix / 'schema.cql'
             self._manifest_path = self._meta_prefix / 'manifest.json'
 
@@ -85,18 +85,18 @@ class Storage(object):
             return self._parent
 
         @property
-        def ringstate_path(self):
-            return self._ringstate_path
+        def tokenmap_path(self):
+            return self._tokenmap_path
 
         @property
-        def ringstate(self):
-            ringstate_blob = self._blob(self.ringstate_path)
-            return ringstate_blob.download_as_string().decode('utf-8')
+        def tokenmap(self):
+            tokenmap_blob = self._blob(self.tokenmap_path)
+            return tokenmap_blob.download_as_string().decode('utf-8')
 
-        @ringstate.setter
-        def ringstate(self, ringstate):
-            ringstate_blob = self._blob(self.ringstate_path)
-            ringstate_blob.upload_from_string(ringstate)
+        @tokenmap.setter
+        def tokenmap(self, tokenmap):
+            tokenmap_blob = self._blob(self.tokenmap_path)
+            tokenmap_blob.upload_from_string(tokenmap)
 
         @property
         def schema_path(self):
@@ -122,11 +122,11 @@ class Storage(object):
 
         @property
         def finished(self):
-            ringstate_blob = self._blob(self.ringstate_path)
-            if not ringstate_blob.exists():
+            manifest_blob = self._blob(self.manifest_path)
+            if not manifest_blob.exists():
                 return None
-            ringstate_blob.reload()
-            return ringstate_blob.time_created
+            manifest_blob.reload()
+            return manifest_blob.time_created
 
         @property
         def manifest_path(self):

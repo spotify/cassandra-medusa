@@ -35,11 +35,11 @@ def restore_node(args, config):
     cassandra = Cassandra(config.cassandra)
 
     logging.info('Validating token')
-    ringstate = json.loads(backup.ringstate)
+    tokenmap = json.loads(backup.tokenmap)
     with cassandra.new_session() as session:
         # TODO: Should be store token as string?
-        current_token = str(session.current_token())
-        backup_token = ringstate[backup.fqdn]['token']
+        current_token = session.current_token()
+        backup_token = tokenmap[backup.fqdn]['token']
         if  current_token != backup_token:
             logging.error('Token mismatch: Current ({}) != Backup ({})'.format(
                 current_token,

@@ -56,11 +56,11 @@ def validate_manifest(backup):
 
 
 def validate_completion(backup):
-    ringstate = json.loads(backup.ringstate)
-    dc = ringstate[backup.fqdn]['dc']
+    tokenmap = json.loads(backup.tokenmap)
+    dc = tokenmap[backup.fqdn]['dc']
     all_backups_in_set = [
         backup.storage.get_backup_item(fqdn=node, name=backup.name)
-        for node, config in ringstate.items()
+        for node, config in tokenmap.items()
         if config.get('dc') == dc
     ]
     for b in all_backups_in_set:
