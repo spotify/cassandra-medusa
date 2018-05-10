@@ -16,6 +16,7 @@
 import collections
 import configparser
 import logging
+import os
 import pathlib
 import sys
 import medusa.storage
@@ -27,7 +28,9 @@ CassandraConfig = collections.namedtuple('CassandraConfig',
                                          ['start_cmd', 'stop_cmd',
                                           'config_file',
                                           'cql_username', 'cql_password'])
-MedusaConfig = collections.namedtuple('MedusaConfig', ['storage', 'cassandra'])
+SSHConfig = collections.namedtuple('SSHConfig', ['username', 'key_file'])
+MedusaConfig = collections.namedtuple('MedusaConfig',
+                                      ['storage', 'cassandra', 'ssh'])
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
@@ -41,6 +44,10 @@ def load_config(args):
         'config_file': medusa.cassandra.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
         'start_cmd': 'sudo spcassandra-enable-hecuba',
         'stop_cmd': 'sudo spcassandra-stop'
+    }
+    config['ssh'] = {
+        'username': os.environ.get('USER'),
+        'key_file': pathlib.Path(os.path.expanduser('~/.ssh/id_rsa'))
     }
 
     if args.config:
@@ -61,25 +68,39 @@ def load_config(args):
         if value is not None
     }})
 
+    config.read_dict({'ssh': {
+        key: value
+        for key, value in zip(SSHConfig._fields,
+                              (args.ssh_username, args.ssh_key_file))
+        if value is not None
+    }})
+
     medusa_config = MedusaConfig(
-        storage=StorageConfig(**{
-            field: config['storage'].get(field)
-            for field in StorageConfig._fields
-        }),
-        cassandra=CassandraConfig(**{
-            field: config['cassandra'].get(field)
-            for field in CassandraConfig._fields
-        })
+        storage=_namedtuple_from_dict(StorageConfig, config['storage']),
+        cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+        ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
     )
 
     for field in ['bucket_name', 'key_file']:
         if getattr(medusa_config.storage, field) is None:
-            logging.error('Required configuration "{}" is missing.'.format(field))
+            logging.error('Required configuration "{}" is missing in [storage] section.'.format(field))
             sys.exit(2)
 
     for field in ['start_cmd', 'stop_cmd']:
         if getattr(medusa_config.cassandra, field) is None:
-            logging.error('Required configuration "{}" is missing.'.format(field))
+            logging.error('Required configuration "{}" is missing in [cassandra] section.'.format(field))
+            sys.exit(2)
+
+    for field in ['username', 'key_file']:
+        if getattr(medusa_config.ssh, field) is None:
+            logging.error('Required configuration "{}" is missing in [ssh] section.'.format(field))
             sys.exit(2)
 
     return medusa_config
+
+
+def _namedtuple_from_dict(cls, data):
+    return cls(**{
+        field: data.get(field)
+        for field in cls._fields
+    })

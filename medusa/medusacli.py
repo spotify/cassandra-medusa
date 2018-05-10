@@ -85,6 +85,10 @@ def make_parser():
     restore_cluster_parser = subparsers.add_parser('restore_cluster',
                                                    help='Restore Cassandra cluster',
                                                    parents=[subcommand_template])
+    restore_cluster_parser.add_argument('--ssh_username', type=str,
+                                        help='SSH username to use')
+    restore_cluster_parser.add_argument('--ssh_key_file', type=str,
+                                        help='SSH keyfile to use')
     restore_cluster_parser.add_argument('backup_name', type=str,
                                         metavar='BACKUP-NAME', help='Backup name')
     restore_cluster_parser.add_argument('targets', type=str, nargs='+',
