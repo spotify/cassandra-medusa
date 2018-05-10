@@ -6,7 +6,7 @@ if test -f pid; then
     done
     exit $(cat status)
 fi
-%s ./job >stdout 2>stderr &
+$@ >stdout 2>stderr &
 echo $! >pid
 wait $!
 echo $? >status
