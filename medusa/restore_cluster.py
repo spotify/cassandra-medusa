@@ -125,26 +125,28 @@ class Restore(object):
             stderr.close()
             self.remotes.append(Remote(target, connect_args, client, stdout.channel))
 
-        # TODO: loop until everything is complete
         finished, broken = [], []
         while True:
-            pending = self.remotes - finished - broken
             for remote in finished:
-                logging.debug(f"Finished: {remote.finished.target}")
+                logging.info(f"Finished: {remote.target}")
             for remote in broken:
-                logging.debug(f"Broken: {remote.broken.target}")
-            for remote in pending:
-                logging.debug(f"Pending: {remote.pending.target}")
+                logging.info(f"Broken: {remote.target}")
+            logging.info(f"Total: #{self.remotes}")
 
-            if len(pending) == 0:
+            if len(self.remotes) == len(finished) + len(broken):
+                # TODO: make a nicer exit condition
                 break
             pass
 
-            for i, remote in enumerate(pending):
+            for i, remote in enumerate(self.remotes):
+
+                if remote in broken or remote in finished:
+                    continue
+
                 # If the remote does not set an exit status and the channel closes
                 # the exit_status is negative.
-                if channel.exit_status_ready and channel.exit_status >= 0:
-                    if channel.exit_status == 0:
+                if remote.channel.exit_status_ready and remote.channel.exit_status >= 0:
+                    if remote.channel.exit_status == 0:
                         finished.append(remote)
                     else:
                         broken.append(remote)
@@ -153,13 +155,11 @@ class Restore(object):
                     # be used.
                     remote.channel.close()
                     continue
-                else:
-                    # Will reconnect on next cycle
-                    channel.close()
 
-                if remote.client.get_transport.is_alive and not remote.channel.closed:
+                if remote.client.get_transport().is_alive() and not remote.channel.closed:
                     # Send an ignored packet for keep alive and later noticing a broken connection
-                    remote.client.get_transport.send_ignore()
+                    logging.debug(f"Keeping #{remote.target} alive.")
+                    remote.client.get_transport().send_ignore()
                 else:
                     client = paramiko.SSHClient()
                     client.load_system_host_keys()
@@ -170,8 +170,6 @@ class Restore(object):
                     stdout.close()
                     stderr.close()
                     self.remotes[i] = Remote(target, connect_args, client, stdout.channel)
-            channel = self.remotes[i].channel
 
-        pass
-
-    pass
+        logging.info(f'finished: #{finished}')
+        logging.info(f'broken: #{broken}')
