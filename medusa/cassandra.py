@@ -152,8 +152,8 @@ class Cassandra(object):
         self._hostname = config_reader.listen_address
         self._cql_session_provider = CqlSessionProvider(
             self._hostname,
-            username=cassandra_config.username,
-            password=cassandra_config.password
+            username=cassandra_config.cql_username,
+            password=cassandra_config.cql_password
         )
 
     def new_session(self):
