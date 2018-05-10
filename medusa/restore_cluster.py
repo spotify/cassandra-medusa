@@ -36,7 +36,7 @@ def orchestrate(args, config):
         logging.error('No backup for {}.'.format(args.backup_name))
         sys.exit(1)
 
-    cluster_backup = ClusterBackup.discover(usable_seed_backups[0])
+    cluster_backup = ClusterBackup.discover(usable_seed_backups[0], config)
     if not cluster_backup.is_complete():
         logging.error('Backup {} is incomplete!'.format(args.backup_name))
         sys.exit(1)
@@ -45,13 +45,16 @@ def orchestrate(args, config):
 
 
 class ClusterBackup(object):
-    def __init__(self, cluster_backup, tokenmap):
+    def __init__(self, cluster_backup, tokenmap, config):
         self.cluster_backup = cluster_backup
         self.tokenmap = tokenmap
+        self.config = config
 
     def restore(self, targets):
         # TODO: Add username=.., password=.. to CqlSessionProvider from config.cassandra
-        with CqlSessionProvider(targets[0]).new_session() as session:
+        with CqlSessionProvider(targets[0],
+                                username=self.config.cassandra.cql_username,
+                                password=self.config.cassandra.cql_password).new_session() as session:
             target_tokenmap = session.tokenmap()
             for host, ringitem in target_tokenmap.items():
                 if not ringitem.get('is_up'):
@@ -71,7 +74,7 @@ class ClusterBackup(object):
                 for token, host in ring.items():
                     ringmap[token].append(host)
 
-            return Restore(ringmap=ringmap, cluster_backup=self.cluster_backup)
+            return Restore(ringmap=ringmap, cluster_backup=self.cluster_backup, ssh_config=self.config.ssh)
 
     def is_complete(self):
         for b in self.cluster_backup:
@@ -80,24 +83,25 @@ class ClusterBackup(object):
         return True
 
     @staticmethod
-    def discover(backup):
+    def discover(backup, config):
         tokenmap = json.loads(backup.tokenmap)
         dc = tokenmap[backup.fqdn]['dc']
         all_backups_in_set = [
             backup.storage.get_backup_item(fqdn=node, name=backup.name)
             for node, config in tokenmap.items()
             if config.get('dc') == dc
-            ]
+        ]
 
-        return ClusterBackup(all_backups_in_set, tokenmap)
+        return ClusterBackup(all_backups_in_set, tokenmap, config)
 
 
 class Restore(object):
-    def __init__(self, *, ringmap, cluster_backup):
+    def __init__(self, *, ringmap, cluster_backup, ssh_config):
         self.id = uuid.uuid4()
         self.ringmap = ringmap
         self.cluster_backup = cluster_backup
         self.seed_backup = random.sample(self.cluster_backup, 1)[0]
+        self.ssh_config = ssh_config
         self.remotes = []
 
     def execute(self):
@@ -107,14 +111,15 @@ class Restore(object):
         # invoke `nohup medusa-wrapper #{command}` on each target host
         # wait for exit on each
 
-
         targets = [target for source, target in self.ringmap.values()]
         for target in targets:
             client = paramiko.SSHClient()
             client.load_system_host_keys()
             connect_args = {
                 'hostname': target,
-                'username': 'xeago',  # TODO: remove xeago
+                'username': self.ssh_config.username,
+                # TODO: consider restricting the authentication to just the key provided
+                'key_filename': self.ssh_config.key_file,
             }
             client.connect(**connect_args)
             sftp = client.open_sftp()
