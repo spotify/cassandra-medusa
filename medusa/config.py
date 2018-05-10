@@ -56,7 +56,7 @@ def load_config(args):
 
     config.read_dict({'storage': {
         key: value
-        for key, value in zip(medusa.storage.StorageConfig._fields,
+        for key, value in zip(StorageConfig._fields,
                               (args.bucket_name, args.key_file, args.prefix))
         if value is not None
     }})
