@@ -24,6 +24,7 @@ import medusa.config
 import medusa.download
 import medusa.fetch_tokenmap
 import medusa.listing
+import medusa.restore_cluster
 import medusa.restore_node
 import medusa.status
 
@@ -80,6 +81,15 @@ def make_parser():
                                  metavar='DESTINATION',
                                  help='Download destination')
     download_parser.set_defaults(func=medusa.download.download_cmd)
+
+    restore_cluster_parser = subparsers.add_parser('restore_cluster',
+                                                   help='Restore Cassandra cluster',
+                                                   parents=[subcommand_template])
+    restore_cluster_parser.add_argument('backup_name', type=str,
+                                        metavar='BACKUP-NAME', help='Backup name')
+    restore_cluster_parser.add_argument('targets', type=str, nargs='+',
+                                        metavar='HOSTS', help='List of target hosts')
+    restore_cluster_parser.set_defaults(func=medusa.restore_cluster.orchestrate)
 
     restore_node_parser = subparsers.add_parser('restore_node',
                                                 help='Restore single Cassandra node',
