@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
+
 import logging
 import sys
 import json
@@ -127,6 +129,7 @@ class Restore(object):
 
         finished, broken = [], []
         while True:
+            time.sleep(5)  # TODO: configure sleep
             for remote in finished:
                 logging.info(f"Finished: {remote.target}")
             for remote in broken:
