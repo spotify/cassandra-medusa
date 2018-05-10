@@ -76,13 +76,13 @@ def restore_node(args, config):
 
     # Move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
-    file_ownership = '{}:{}'.format(Cassandra.root.owner(),
-                                    Cassandra.root.group())
+    file_ownership = '{}:{}'.format(cassandra.root.owner(),
+                                    cassandra.root.group())
     for section in manifest:
         src = download_dir / section['keyspace'] / section['columnfamily']
         dst = schema_path_mapping[(section['keyspace'], section['columnfamily'])]
         if dst.exists():
-            subprocess.check_output(['sudo', '-u', Cassandra.root.owner(),
+            subprocess.check_output(['sudo', '-u', cassandra.root.owner(),
                                      'rm', '-rf', str(dst)])
         subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
         subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
