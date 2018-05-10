@@ -116,7 +116,7 @@ class Restore(object):
             }
             client.connect(**connect_args)
             sftp = client.open_sftp()
-            sftp.mkdir(f'medusa-#{self.id}')  # TODO: Does this always succeed?
+            sftp.mkdir(f'medusa-#{self.id}')
             sftp.close()
             command = 'ls'  # TODO: Make command
             stdin, stdout, stderr = client.exec_command(command)
