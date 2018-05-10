@@ -58,16 +58,20 @@ class ClusterBackup(object):
             target_tokenmap = session.tokenmap()
             for host, ringitem in target_tokenmap.items():
                 if not ringitem.get('is_up'):
-                    raise Exception(f'Target {host} is not up!')
+                    raise Exception('Target {host} is not up!'.format(host=host))
             if len(target_tokenmap) != len(self.tokenmap):
                 raise Exception('Cannot restore to a tokenmap of differing size: '
-                                f'(#{len(target_tokenmap)}:#{len(self.tokenmap)}.')
+                                '({target_tokenmap}:{tokenmap}).'.format(
+                                    target_tokenmap=len(target_tokenmap),
+                                    tokenmap=len(self.tokenmap)))
 
             target_tokens = {ringitem['token']: host for host, ringitem in target_tokenmap.items()}
             backup_tokens = {ringitem['token']: host for host, ringitem in self.tokenmap.items()}
             if target_tokens.keys() != backup_tokens.keys():
                 raise Exception('Tokenmap is differently distributed: '
-                                f'{target_tokens.keys() ^ backup_tokens.keys()}')
+                                '{target_tokens_keys() ^ backup_tokens_keys()}'.format(
+                                    target_tokens_keys=target_tokens.keys(),
+                                    backup_tokens_keys=backup_tokens.keys()))
 
             ringmap = collections.defaultdict(list)
             for ring in backup_tokens, target_tokens:
@@ -122,7 +126,7 @@ class Restore(object):
             }
             client.connect(**connect_args)
             sftp = client.open_sftp()
-            sftp.mkdir(f'medusa-#{self.id}')
+            sftp.mkdir('medusa-{id}'.format(id=self.id))
             sftp.close()
             command = 'sleep 10'  # TODO: Make command
             stdin, stdout, stderr = client.exec_command(command)
@@ -135,10 +139,10 @@ class Restore(object):
         while True:
             time.sleep(5)  # TODO: configure sleep
             for remote in finished:
-                logging.info(f"Finished: {remote.target}")
+                logging.info("Finished: {}".format(remote.target))
             for remote in broken:
-                logging.info(f"Broken: {remote.target}")
-            logging.info(f"Total: #{self.remotes}")
+                logging.info("Broken: {}".formate(remote.target))
+            logging.info("Total: {}".format(len(self.remotes)))
 
             if len(self.remotes) == len(finished) + len(broken):
                 # TODO: make a nicer exit condition
@@ -165,7 +169,7 @@ class Restore(object):
 
                 if remote.client.get_transport().is_alive() and not remote.channel.closed:
                     # Send an ignored packet for keep alive and later noticing a broken connection
-                    logging.debug(f"Keeping #{remote.target} alive.")
+                    logging.debug("Keeping {} alive.".format(remote.target))
                     remote.client.get_transport().send_ignore()
                 else:
                     client = paramiko.SSHClient()
@@ -178,5 +182,5 @@ class Restore(object):
                     stderr.close()
                     self.remotes[i] = Remote(target, connect_args, client, stdout.channel)
 
-        logging.info(f'finished: #{finished}')
-        logging.info(f'broken: #{broken}')
+        logging.info('finished: {}'.format(finished))
+        logging.info('broken: {}'.format(broken))
