@@ -24,9 +24,9 @@ network bandwidth.
 The backed up data is stored in a Google Cloud Storage using the following structure:
 ```
 gs://<bucket name>/<optional prefix>/data/<fqdn>/<backup name>/<keyspace>/<column family>/<SSTAble files ...>
-gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/manifest.json
-gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/tokenmap.json
 gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/schema.cql
+gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/tokenmap.json
+gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/manifest.json
 ```
 
 - `<optional prefix>` allows several clusters to share the same bucket, but is not encouraged as
@@ -35,14 +35,15 @@ buckets are cheap anyway. The support for this prefix might be dropped in later 
 - `<backup name>` is the name of the backup, which defaults to a timestamp rounded to hours. Data
   from different nodes with the same `<backup name>` is considered part of the same backup, and
   expected to have been created at close to the same time.
+- `schema.cql` contains the CQL commands to recreate the schema. This is the very first file to be
+  uploaded to the bucket, and thus the existance of this file indicates that a backup has begun.
+- `tokenmap.json` contains the topology (token) configuration of the cluster as seen by the node
+  at the time of backup.
 - `manifest.json` will contain a list of all expected data files along with expected sizes and
   MD5 checksums. This can be used to easily validate the content of a backup in a bucket.
   The content of `manifest.json` is generated on the node as part of the upload process.
-- `tokenmap.json` contains the topology (token) configuration of the cluster as seen by the node
-  at the time of backup. This is the last file to be uploaded to the bucket, thus the existance of
-  this file means that the backup is complete.
-- `schema.cql` contains the CQL commands to recreate the schema. This is the very first file to be
-  uploaded to the bucket, and thus the existance of this file indicates that a backup has begun.
+  This is the last file to be uploaded to the bucket, thus the existance of this file means that the
+  backup is complete.
   
 #### Optimizations 
 As Cassandra's SSTables are immutable, it is possible to optimize the backup operation by

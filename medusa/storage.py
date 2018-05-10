@@ -122,11 +122,11 @@ class Storage(object):
 
         @property
         def finished(self):
-            tokenmap_blob = self._blob(self.tokenmap_path)
-            if not tokenmap_blob.exists():
+            manifest_blob = self._blob(self.manifest_path)
+            if not manifest_blob.exists():
                 return None
-            tokenmap_blob.reload()
-            return tokenmap_blob.time_created
+            manifest_blob.reload()
+            return manifest_blob.time_created
 
         @property
         def manifest_path(self):
