@@ -53,7 +53,9 @@ def make_parser():
                                      help='Act as another host')
     subcommand_template.set_defaults(func=debug_command,
                                      fqdn=socket.gethostname(),
-                                     loglevel=0)
+                                     loglevel=0,
+                                     ssh_username=None,
+                                     ssh_key_file=None)
 
     subparsers = parser.add_subparsers(title='command', dest='command')
     backup_parser = subparsers.add_parser('backup', help='Backup Cassandra',
