@@ -36,5 +36,5 @@ setup(name='medusa',
           'console_scripts': [
               'medusa=medusa.medusacli:main',
           ]},
-      scripts=['bin/medusa-wrap']
+      scripts=['bin/medusa-wrapper']
       )
