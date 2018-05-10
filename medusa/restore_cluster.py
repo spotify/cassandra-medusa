@@ -126,6 +126,7 @@ class Restore(object):
                 'hostname': target,
                 'username': self.ssh_config.username,
                 # TODO: consider restricting the authentication to just the key provided
+                # TODO: consider forwarding agent
                 'key_filename': self.ssh_config.key_file,
             }
             client.connect(**connect_args)
