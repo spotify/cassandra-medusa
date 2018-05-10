@@ -17,7 +17,6 @@ import time
 import logging
 import sys
 import json
-import random
 import collections
 import uuid
 
@@ -40,7 +39,7 @@ def orchestrate(args, config):
     if not cluster_backup.is_complete():
         logging.error('Backup {} is incomplete!'.format(args.backup_name))
         sys.exit(1)
-    restore = cluster_backup.restore(args.seed_target)
+    restore = cluster_backup.restore(seed_target=args.seed_target, temp_dir=args.temp_dir)
     restore.execute()
 
 
@@ -50,7 +49,7 @@ class ClusterBackup(object):
         self.tokenmap = tokenmap
         self.config = config
 
-    def restore(self, seed_target):
+    def restore(self, *, seed_target, temp_dir):
         # TODO: Add username=.., password=.. to CqlSessionProvider from config.cassandra
         with CqlSessionProvider(seed_target,
                                 username=self.config.cassandra.cql_username,
@@ -78,7 +77,10 @@ class ClusterBackup(object):
                 for token, host in ring.items():
                     ringmap[token].append(host)
 
-            return Restore(ringmap=ringmap, cluster_backup=self.cluster_backup, ssh_config=self.config.ssh)
+            return Restore(ringmap=ringmap,
+                           backup=self.cluster_backup[0].name,
+                           ssh_config=self.config.ssh,
+                           temp_dir=temp_dir)
 
     def is_complete(self):
         for b in self.cluster_backup:
@@ -100,11 +102,12 @@ class ClusterBackup(object):
 
 
 class Restore(object):
-    def __init__(self, *, ringmap, cluster_backup, ssh_config):
+    def __init__(self, *, ringmap, backup, ssh_config, temp_dir):
         self.id = uuid.uuid4()
         self.ringmap = ringmap
-        self.cluster_backup = cluster_backup
+        self.backup = backup
         self.ssh_config = ssh_config
+        self.temp_dir = temp_dir
         self.remotes = []
 
     def execute(self):
@@ -114,8 +117,9 @@ class Restore(object):
         # invoke `nohup medusa-wrapper #{command}` on each target host
         # wait for exit on each
 
-        targets = [target for source, target in self.ringmap.values()]
-        for target in targets:
+        work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
+        logging.info('Medusa is working in: {}'.format(work))
+        for source, target in self.ringmap.values():
             client = paramiko.SSHClient()
             client.load_system_host_keys()
             connect_args = {
@@ -126,9 +130,13 @@ class Restore(object):
             }
             client.connect(**connect_args)
             sftp = client.open_sftp()
-            sftp.mkdir('medusa-{id}'.format(id=self.id))
+            sftp.mkdir(str(work))
             sftp.close()
-            command = 'sleep 10'  # TODO: Make command
+            command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa -vvv restore_node --fqdn={fqdn} {backup}'.format(
+                work=work,
+                fqdn=source,
+                backup=self.backup
+            )
             stdin, stdout, stderr = client.exec_command(command)
             stdin.close()
             stdout.close()
@@ -141,7 +149,7 @@ class Restore(object):
             for remote in finished:
                 logging.info("Finished: {}".format(remote.target))
             for remote in broken:
-                logging.info("Broken: {}".formate(remote.target))
+                logging.info("Broken: {}".format(remote.target))
             logging.info("Total: {}".format(len(self.remotes)))
 
             if len(self.remotes) == len(finished) + len(broken):
@@ -175,7 +183,8 @@ class Restore(object):
                     client = paramiko.SSHClient()
                     client.load_system_host_keys()
                     client.connect(**remote.connect_args)
-                    command = 'sleep 90'  # TODO: Make command
+                    # TODO: check pid to exist before assuming medusa-wrapper to pick it up
+                    command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper'.format(work=work)
                     stdin, stdout, stderr = client.exec_command(command)
                     stdin.close()
                     stdout.close()

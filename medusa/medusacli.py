@@ -95,6 +95,10 @@ def make_parser():
                                         metavar='BACKUP-NAME', help='Backup name')
     restore_cluster_parser.add_argument('seed_target', type=str,
                                         metavar='HOST', help='Seed of the target hosts')
+    restore_cluster_parser.add_argument('--temp_dir', type=pathlib.Path,
+                                        metavar='PATH',
+                                        default=pathlib.Path('/tmp'),
+                                        help='Directory for temporary storage')
     restore_cluster_parser.set_defaults(func=medusa.restore_cluster.orchestrate)
 
     restore_node_parser = subparsers.add_parser('restore_node',
