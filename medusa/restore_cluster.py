@@ -190,7 +190,7 @@ class Restore(object):
                     stdin.close()
                     stdout.close()
                     stderr.close()
-                    self.remotes[i] = Remote(target, connect_args, client, stdout.channel)
+                    self.remotes[i] = Remote(remote.target, remote.connect_args, client, stdout.channel)
 
         logging.info('finished: {}'.format(finished))
         logging.info('broken: {}'.format(broken))
