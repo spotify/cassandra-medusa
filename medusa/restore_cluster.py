@@ -68,9 +68,8 @@ class ClusterBackup(object):
             backup_tokens = {ringitem['token']: host for host, ringitem in self.tokenmap.items()}
             if target_tokens.keys() != backup_tokens.keys():
                 raise Exception('Tokenmap is differently distributed: '
-                                '{target_tokens_keys() ^ backup_tokens_keys()}'.format(
-                                    target_tokens_keys=target_tokens.keys(),
-                                    backup_tokens_keys=backup_tokens.keys()))
+                                '{distribution}'.format(
+                                    distribution=target_tokens.keys() ^ backup_tokens.keys()))
 
             ringmap = collections.defaultdict(list)
             for ring in backup_tokens, target_tokens:
