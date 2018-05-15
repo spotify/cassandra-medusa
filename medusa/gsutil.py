@@ -59,9 +59,9 @@ class GSUtil(object):
         if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
             srcs = [srcs]
 
-        cmd = ['gsutil', '-q', '-m', 'cp', '-c',
-               '-L', manifest_log,
-               '-r'] + [str(src) for src in srcs] + [str(dst)]
+        cmd = (['gsutil', '-q', '-m', 'cp', '-c', '-L', manifest_log] +
+               [str(src) for src in srcs] +
+               [str(dst)])
 
         logging.debug(' '.join(cmd))
 

@@ -183,7 +183,7 @@ class Cassandra(object):
         def find_dirs(self):
             return [
                 SnapshotPath(
-                    snapshot_dir,
+                    pathlib.Path(snapshot_dir),
                     *snapshot_dir.relative_to(self.root).parts[:2]
                 )
                 for snapshot_dir in self.root.glob(

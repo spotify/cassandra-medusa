@@ -14,9 +14,12 @@
 # limitations under the License.
 
 
+import base64
 import datetime
+import hashlib
 import json
 import logging
+import pathlib
 import sys
 from medusa.cassandra import Cassandra
 from medusa.gsutil import GSUtil
@@ -27,6 +30,43 @@ def url_to_path(url):
     return url.split('/', 3)[-1]
 
 
+class NodeBackupCache(object):
+    DEFAULT_BLOCK_SIZE = 16*1024*1024
+
+    def __init__(self, *, node_backup, block_size=DEFAULT_BLOCK_SIZE, skip_md5=False):
+        self._bucket_name = node_backup.storage.config.bucket_name
+        self._block_size = block_size
+        self._skip_md5 = skip_md5
+        self._cached_objects = {} if node_backup is None else {
+            (section['keyspace'], section['columnfamily']): {
+                pathlib.Path(object['path']).name: object
+                for object in section['objects']
+            }
+            for section in json.loads(node_backup.manifest)
+        }
+
+    def replace_if_cached(self, *, keyspace, columnfamily, src):
+        fqtn = (keyspace, columnfamily)
+        cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
+        if cached_item is None:
+            return src
+
+        if src.stat().st_size != cached_item['size']:
+            return src
+
+        if self._skip_md5 or self._calc_md5(src) == cached_item['MD5']:
+            logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
+            return 'gs://{}/{}'.format(self._bucket_name, cached_item['path'])
+        else:
+            return src
+
+    def _calc_md5(self, path):
+        md5 = hashlib.md5()
+        with path.open('rb') as f:
+            md5.update(f.read(self._block_size))
+        return base64.b64encode(md5.digest()).decode()
+
+
 def main(args, config):
     start = datetime.datetime.now()
 
@@ -35,6 +75,10 @@ def main(args, config):
 
     storage = Storage(config=config.storage)
     # TODO: Test permission
+
+    node_backup_cache = NodeBackupCache(
+        node_backup=storage.latest_backup(fqdn=args.fqdn)
+    )
 
     backup_paths = storage.get_backup_item(fqdn=args.fqdn, name=backup_name)
     if backup_paths.exists():
@@ -53,12 +97,22 @@ def main(args, config):
     manifest = []
     with GSUtil(config.storage) as gsutil:
         for snapshotpath in snapshot.find_dirs():
-            manifestobjects = gsutil.cp(
-                srcs=snapshotpath.path,
-                dst='gs://{}/{}'.format(
-                    config.storage.bucket_name,
-                    backup_paths.datapath(keyspace=snapshotpath.keyspace,
-                                          columnspace=snapshotpath.columnfamily)))
+            srcs = [
+                node_backup_cache.replace_if_cached(
+                    keyspace=snapshotpath.keyspace,
+                    columnfamily=snapshotpath.columnfamily,
+                    src=src
+                )
+                for src in snapshotpath.path.glob('*')
+            ]
+
+            dst = 'gs://{}/{}'.format(
+                config.storage.bucket_name,
+                backup_paths.datapath(keyspace=snapshotpath.keyspace,
+                                      columnfamily=snapshotpath.columnfamily)
+            )
+
+            manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
             manifest.append({'keyspace': snapshotpath.keyspace,
                              'columnfamily': snapshotpath.columnfamily,
                              'objects': [{

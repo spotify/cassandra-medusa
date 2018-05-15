@@ -15,6 +15,7 @@
 
 
 import google.cloud.storage
+import operator
 import pathlib
 
 
@@ -37,7 +38,7 @@ class Storage(object):
 
     def get_backup_item(self, *, fqdn, name):
         return Storage.Paths(
-            parent=self,
+            storage=self,
             name=name,
             fqdn=fqdn
         )
@@ -50,13 +51,19 @@ class Storage(object):
             if blob.name.endswith('/tokenmap.json')
         )
 
+    def latest_backup(self, *, fqdn):
+        return max(filter(operator.attrgetter('finished'),
+                          self.list_backup_items(fqdn=fqdn)),
+                   key=operator.attrgetter('started'))
+
+
     class Paths(object):
-        def __init__(self, *, parent, name, fqdn):
-            self._parent = parent
+        def __init__(self, *, storage, name, fqdn):
+            self._storage = storage
             self._fqdn = fqdn
             self._name = name
-            self._meta_prefix = self._parent._meta_prefix / fqdn / name
-            self._data_prefix = self._parent._data_prefix / fqdn / name
+            self._meta_prefix = self._storage._meta_prefix / fqdn / name
+            self._data_prefix = self._storage._data_prefix / fqdn / name
             self._tokenmap_path = self._meta_prefix / 'tokenmap.json'
             self._schema_path = self._meta_prefix / 'schema.cql'
             self._manifest_path = self._meta_prefix / 'manifest.json'
@@ -78,11 +85,11 @@ class Storage(object):
 
         @property
         def bucket(self):
-            return self._parent.bucket
+            return self._storage.bucket
 
         @property
         def storage(self):
-            return self._parent
+            return self._storage
 
         @property
         def tokenmap_path(self):
@@ -142,8 +149,8 @@ class Storage(object):
             manifest_blob = self._blob(self.manifest_path)
             manifest_blob.upload_from_string(manifest)
 
-        def datapath(self, *, keyspace, columnspace):
-            return self.data_prefix / keyspace / columnspace
+        def datapath(self, *, keyspace, columnfamily):
+            return self.data_prefix / keyspace / columnfamily
 
         def exists(self):
             return self._blob(self.schema_path).exists()
