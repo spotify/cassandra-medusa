@@ -50,7 +50,6 @@ class ClusterBackup(object):
         self.config = config
 
     def restore(self, *, seed_target, temp_dir):
-        # TODO: Add username=.., password=.. to CqlSessionProvider from config.cassandra
         with CqlSessionProvider(seed_target,
                                 username=self.config.cassandra.cql_username,
                                 password=self.config.cassandra.cql_password).new_session() as session:
