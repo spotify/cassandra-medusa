@@ -40,7 +40,8 @@ def orchestrate(args, config):
         logging.error('Backup {} is incomplete!'.format(args.backup_name))
         sys.exit(1)
     restore = cluster_backup.restore(seed_target=args.seed_target, temp_dir=args.temp_dir)
-    restore.execute()
+    restore.schema()
+    restore.data()
 
 
 class ClusterBackup(object):
@@ -50,9 +51,10 @@ class ClusterBackup(object):
         self.config = config
 
     def restore(self, *, seed_target, temp_dir):
-        with CqlSessionProvider(seed_target,
-                                username=self.config.cassandra.cql_username,
-                                password=self.config.cassandra.cql_password).new_session() as session:
+        session_provider = CqlSessionProvider(seed_target,
+                                              username=self.config.cassandra.cql_username,
+                                              password=self.config.cassandra.cql_password)
+        with session_provider.new_session() as session:
             target_tokenmap = session.tokenmap()
             for host, ringitem in target_tokenmap.items():
                 if not ringitem.get('is_up'):
@@ -75,8 +77,14 @@ class ClusterBackup(object):
                 for token, host in ring.items():
                     ringmap[token].append(host)
 
+            schema = session.dump_schema()
+            if not (schema == self.schema or schema == ''):
+                raise Exception('Schema not compatible')
+
+
             return Restore(ringmap=ringmap,
-                           backup=self.cluster_backup[0].name,
+                           session_provider=session_provider,
+                           cluster_backup=self,
                            ssh_config=self.config.ssh,
                            temp_dir=temp_dir)
 
@@ -98,17 +106,37 @@ class ClusterBackup(object):
 
         return ClusterBackup(all_backups_in_set, tokenmap, config)
 
+    @property
+    def name(self):
+        return self.cluster_backup[0].name
+
+    @property
+    def schema(self):
+        return self.cluster_backup[0].schema
+
 
 class Restore(object):
-    def __init__(self, *, ringmap, backup, ssh_config, temp_dir):
+    def __init__(self, *, ringmap, cluster_backup, session_provider, ssh_config, temp_dir):
         self.id = uuid.uuid4()
         self.ringmap = ringmap
-        self.backup = backup
+        self.cluster_backup = cluster_backup
         self.ssh_config = ssh_config
+        self.session_provider = session_provider
         self.temp_dir = temp_dir
         self.remotes = []
 
-    def execute(self):
+    def schema(self):
+        with self.session_provider.new_session() as session:
+            if self.cluster_backup.schema == session.dump_schema():
+                return True
+            else:
+                parts = self.cluster_backup.schema.split('\n\n')
+                for i, part in enumerate(parts):
+                    logging.info('Restoring schema part {i}: {start}'.format(i=i, start=part[0:35]))
+                    session.execute(part)
+                return True
+
+    def data(self):
         # create workdir on each target host
         # Later: distribute a credential
         # construct command for each target host
@@ -134,7 +162,7 @@ class Restore(object):
             command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa -vvv restore_node --fqdn={fqdn} {backup}'.format(
                 work=work,
                 fqdn=source,
-                backup=self.backup
+                backup=self.cluster_backup.name
             )
             stdin, stdout, stderr = client.exec_command(command)
             stdin.close()
