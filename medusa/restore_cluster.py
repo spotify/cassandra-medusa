@@ -130,12 +130,14 @@ class RestoreJob(object):
     def schema(self):
         with self.session_provider.new_session() as session:
             if self.cluster_backup.schema == session.dump_schema():
+                logging.info('Not restoring schema, equivalent.')
                 return True
             else:
                 parts = filter(bool, self.cluster_backup.schema.split(';'))
                 for i, part in enumerate(parts):
-                    logging.info('Restoring schema part {i}: {start}'.format(i=i, start=part[0:35]))
+                    logging.info('Restoring schema part {i}: "{start}"..'.format(i=i, start=part[0:35]))
                     session.session.execute(part)  # TODO: `session.session` one of them is not a session...
+                logging.info('Finished restoring schema')
                 return True
 
     def data(self):
