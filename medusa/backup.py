@@ -34,16 +34,20 @@ class NodeBackupCache(object):
     DEFAULT_BLOCK_SIZE = 16 * 1024 * 1024
 
     def __init__(self, *, node_backup, block_size=DEFAULT_BLOCK_SIZE, skip_md5=False):
-        self._bucket_name = node_backup.storage.config.bucket_name
         self._block_size = block_size
         self._skip_md5 = skip_md5
-        self._cached_objects = {} if node_backup is None else {
-            (section['keyspace'], section['columnfamily']): {
-                pathlib.Path(object['path']).name: object
-                for object in section['objects']
+        if node_backup:
+            self._bucket_name = node_backup.storage.config.bucket_name
+            self._cached_objects = {
+                (section['keyspace'], section['columnfamily']): {
+                    pathlib.Path(object['path']).name: object
+                    for object in section['objects']
+                }
+                for section in json.loads(node_backup.manifest)
             }
-            for section in json.loads(node_backup.manifest)
-        }
+        else:
+            self._bucket_name = None
+            self._cached_objects = {}
 
     def replace_if_cached(self, *, keyspace, columnfamily, src):
         fqtn = (keyspace, columnfamily)
