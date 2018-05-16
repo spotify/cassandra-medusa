@@ -80,8 +80,8 @@ def main(args, config):
         node_backup=storage.latest_backup(fqdn=args.fqdn)
     )
 
-    backup_paths = storage.get_backup_item(fqdn=args.fqdn, name=backup_name)
-    if backup_paths.exists():
+    node_backup = storage.get_node_backup(fqdn=args.fqdn, name=backup_name)
+    if node_backup.exists():
         logging.error('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)
 
@@ -91,8 +91,8 @@ def main(args, config):
     with cassandra.create_snapshot() as snapshot:
         logging.info('Saving tokenmap and schema')
         with cassandra.new_session() as cql_session:
-            backup_paths.schema = cql_session.dump_schema()
-            backup_paths.tokenmap = json.dumps(cql_session.tokenmap())
+            node_backup.schema = cql_session.dump_schema()
+            node_backup.tokenmap = json.dumps(cql_session.tokenmap())
 
         manifest = []
         with GSUtil(config.storage) as gsutil:
@@ -108,7 +108,7 @@ def main(args, config):
 
                 dst = 'gs://{}/{}'.format(
                     config.storage.bucket_name,
-                    backup_paths.datapath(keyspace=snapshotpath.keyspace,
+                    node_backup.datapath(keyspace=snapshotpath.keyspace,
                                           columnfamily=snapshotpath.columnfamily)
                 )
 
@@ -121,7 +121,7 @@ def main(args, config):
                                      'size': manifestobject.size
                                  } for manifestobject in manifestobjects]})
 
-        backup_paths.manifest = json.dumps(manifest)
+        node_backup.manifest = json.dumps(manifest)
 
         logging.info('Backup done')
         end = datetime.datetime.now()

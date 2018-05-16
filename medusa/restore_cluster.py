@@ -29,7 +29,7 @@ Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', '
 
 def orchestrate(args, config):
     storage = Storage(config=config.storage)
-    backups = storage.list_backup_items()
+    backups = storage.list_node_backups()
     usable_seed_backups = list(filter(lambda b: b.name == args.backup_name and b.finished, backups))
     if len(usable_seed_backups) < 1:
         logging.error('No backup for {}.'.format(args.backup_name))
@@ -48,7 +48,7 @@ def discover(backup):
     tokenmap = json.loads(backup.tokenmap)
     dc = tokenmap[backup.fqdn]['dc']
     all_backups_in_set = [
-        backup.storage.get_backup_item(fqdn=node, name=backup.name)
+        backup.storage.get_node_backup(fqdn=node, name=backup.name)
         for node, config in tokenmap.items()
         if config.get('dc') == dc
     ]

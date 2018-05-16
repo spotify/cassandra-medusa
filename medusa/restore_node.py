@@ -27,19 +27,19 @@ from medusa.storage import Storage
 def restore_node(args, config):
     storage = Storage(config=config.storage)
 
-    backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
-    if not backup.exists():
+    node_backup = storage.get_node_backup(fqdn=args.fqdn, name=args.backup_name)
+    if not node_backup.exists():
         logging.error('No such backup')
         sys.exit(1)
 
     cassandra = Cassandra(config.cassandra)
 
     logging.info('Validating token')
-    tokenmap = json.loads(backup.tokenmap)
+    tokenmap = json.loads(node_backup.tokenmap)
     with cassandra.new_session() as session:
         # TODO: Should be store token as string?
         current_token = session.current_token()
-        backup_token = tokenmap[backup.fqdn]['token']
+        backup_token = tokenmap[node_backup.fqdn]['token']
         if current_token != backup_token:
             logging.error('Token mismatch: Current ({}) != Backup ({})'.format(
                 current_token,
@@ -47,7 +47,7 @@ def restore_node(args, config):
             ))
             sys.exit(1)
 
-    manifest = json.loads(backup.manifest)
+    manifest = json.loads(node_backup.manifest)
     schema_path_mapping = cassandra.schema_path_mapping()
 
     # Validate existance of column families
@@ -69,7 +69,7 @@ def restore_node(args, config):
     else:
         download_dir = args.temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
         logging.info('Downloading data from backup to {}'.format(download_dir))
-        download_data(config.storage, backup, destination=download_dir)
+        download_data(config.storage, node_backup, destination=download_dir)
 
     logging.info('Stopping Cassandra')
     cassandra.shutdown()

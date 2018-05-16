@@ -59,7 +59,7 @@ def validate_completion(backup):
     tokenmap = json.loads(backup.tokenmap)
     dc = tokenmap[backup.fqdn]['dc']
     all_backups_in_set = [
-        backup.storage.get_backup_item(fqdn=node, name=backup.name)
+        backup.storage.get_node_backup(fqdn=node, name=backup.name)
         for node, config in tokenmap.items()
         if config.get('dc') == dc
     ]
@@ -74,12 +74,12 @@ def validate_completion(backup):
 
 def status(args, config):
     storage = Storage(config=config.storage)
-    backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
-    if not backup.exists():
+    node_backup = storage.get_node_backup(fqdn=args.fqdn, name=args.backup_name)
+    if not node_backup.exists():
         logging.error('No such backup')
         sys.exit(1)
 
-    completion_errors = validate_completion(backup)
+    completion_errors = validate_completion(node_backup)
     if completion_errors:
         print('Completion: Not complete!')
         for error in completion_errors:
@@ -87,7 +87,7 @@ def status(args, config):
     else:
         print('Completion: OK!')
 
-    consistency_errors = list(validate_manifest(backup))
+    consistency_errors = list(validate_manifest(node_backup))
     if consistency_errors:
         print("Manifest validation: Failed!")
         for error in consistency_errors:

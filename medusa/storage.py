@@ -36,16 +36,16 @@ class Storage(object):
     def bucket(self):
         return self._bucket
 
-    def get_backup_item(self, *, fqdn, name):
-        return Storage.Paths(
+    def get_node_backup(self, *, fqdn, name):
+        return Storage.NodeBackup(
             storage=self,
             name=name,
             fqdn=fqdn
         )
 
-    def list_backup_items(self, *, fqdn=None):
+    def list_node_backups(self, *, fqdn=None):
         return (
-            self.get_backup_item(fqdn=fqdn or pathlib.Path(blob.name).parts[-3],
+            self.get_node_backup(fqdn=fqdn or pathlib.Path(blob.name).parts[-3],
                                  name=pathlib.Path(blob.name).parts[-2])
             for blob in self._bucket.list_blobs(prefix=str(self._meta_prefix / (fqdn or '')))
             if blob.name.endswith('/tokenmap.json')
@@ -53,10 +53,10 @@ class Storage(object):
 
     def latest_backup(self, *, fqdn):
         return max(filter(operator.attrgetter('finished'),
-                          self.list_backup_items(fqdn=fqdn)),
+                          self.list_node_backups(fqdn=fqdn)),
                    key=operator.attrgetter('started'))
 
-    class Paths(object):
+    class NodeBackup(object):
         def __init__(self, *, storage, name, fqdn):
             self._storage = storage
             self._fqdn = fqdn
@@ -66,6 +66,9 @@ class Storage(object):
             self._tokenmap_path = self._meta_prefix / 'tokenmap.json'
             self._schema_path = self._meta_prefix / 'schema.cql'
             self._manifest_path = self._meta_prefix / 'manifest.json'
+
+        def __repr__(self):
+            return 'NodeBackup(name={0.name}, fqdn={0.fqdn})'.format(self)
 
         def _blob(self, path):
             return self.bucket.blob(str(path))

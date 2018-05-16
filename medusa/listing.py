@@ -21,9 +21,9 @@ from medusa.storage import Storage
 def list(args, config):
     storage = Storage(config=config.storage)
 
-    for backup_item in storage.list_backup_items(fqdn=args.fqdn):
+    for node_backup in storage.list_node_backups(fqdn=args.fqdn):
         print('{} (started: {}, finished: {})'.format(
-            backup_item.name,
-            backup_item.started.strftime('%Y-%m-%d %H:%M:%S'),
-            backup_item.finished.strftime('%Y-%m-%d %H:%M:%S')
+            node_backup.name,
+            node_backup.started.strftime('%Y-%m-%d %H:%M:%S'),
+            node_backup.finished.strftime('%Y-%m-%d %H:%M:%S')
         ))

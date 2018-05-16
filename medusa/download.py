@@ -49,9 +49,9 @@ def download_cmd(args, config):
         logging.error('{} is not a directory'.format(args.destination))
         sys.exit(1)
 
-    backup = storage.get_backup_item(fqdn=args.fqdn, name=args.backup_name)
-    if not backup.exists():
+    node_backup = storage.get_node_backup(fqdn=args.fqdn, name=args.backup_name)
+    if not node_backup.exists():
         logging.error('No such backup')
         sys.exit(1)
 
-    download_data(config.storage, backup, args.destination)
+    download_data(config.storage, node_backup, args.destination)
