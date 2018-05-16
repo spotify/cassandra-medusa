@@ -51,7 +51,7 @@ class Storage(object):
             if blob.name.endswith('/tokenmap.json')
         )
 
-    def latest_backup(self, *, fqdn):
+    def latest_node_backup(self, *, fqdn):
         return max(filter(operator.attrgetter('finished'),
                           self.list_node_backups(fqdn=fqdn)),
                    key=operator.attrgetter('started'),

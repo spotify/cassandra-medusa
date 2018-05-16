@@ -71,7 +71,7 @@ def main(args, config):
     # TODO: Test permission
 
     node_backup_cache = NodeBackupCache(
-        node_backup=storage.latest_backup(fqdn=args.fqdn)
+        node_backup=storage.latest_node_backup(fqdn=args.fqdn)
     )
 
     node_backup = storage.get_node_backup(fqdn=args.fqdn, name=backup_name)
