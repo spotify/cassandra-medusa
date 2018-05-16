@@ -135,7 +135,7 @@ class RestoreJob(object):
                 parts = self.cluster_backup.schema.split('\n\n')
                 for i, part in enumerate(parts):
                     logging.info('Restoring schema part {i}: {start}'.format(i=i, start=part[0:35]))
-                    session.execute(part)
+                    session.session.execute(part)  # TODO: `session.session` one of them is not a session...
                 return True
 
     def data(self):
