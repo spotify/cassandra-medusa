@@ -79,7 +79,7 @@ def status(args, config):
         logging.error('No such backup')
         sys.exit(1)
 
-    completion_errors = validate_completion(node_backup)
+    completion_errors = list(validate_completion(node_backup))
     if completion_errors:
         print('Completion: Not complete!')
         for error in completion_errors:
