@@ -80,12 +80,11 @@ class ClusterBackup(object):
             if not (schema == self.schema or schema == ''):
                 raise Exception('Schema not compatible')
 
-
-            return Restore(ringmap=ringmap,
-                           session_provider=session_provider,
-                           cluster_backup=self,
-                           ssh_config=self.config.ssh,
-                           temp_dir=temp_dir)
+            return RestoreJob(ringmap=ringmap,
+                              session_provider=session_provider,
+                              cluster_backup=self,
+                              ssh_config=self.config.ssh,
+                              temp_dir=temp_dir)
 
     def is_complete(self):
         for b in self.cluster_backup:
@@ -114,7 +113,7 @@ class ClusterBackup(object):
         return self.cluster_backup[0].schema
 
 
-class Restore(object):
+class RestoreJob(object):
     def __init__(self, *, ringmap, cluster_backup, session_provider, ssh_config, temp_dir):
         self.id = uuid.uuid4()
         self.ringmap = ringmap
