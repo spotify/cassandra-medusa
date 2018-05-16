@@ -54,7 +54,8 @@ class Storage(object):
     def latest_backup(self, *, fqdn):
         return max(filter(operator.attrgetter('finished'),
                           self.list_node_backups(fqdn=fqdn)),
-                   key=operator.attrgetter('started'))
+                   key=operator.attrgetter('started'),
+                   default=None)
 
     class NodeBackup(object):
         def __init__(self, *, storage, name, fqdn):
