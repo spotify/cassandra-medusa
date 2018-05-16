@@ -239,14 +239,6 @@ class Cassandra(object):
                 return True
         return False
 
-    def tokenmap(self):
-        with self._cql_session_provider.new_session() as session:
-            return session.tokenmap()
-
-    def dump_schema(self):
-        with self._cql_session_provider.new_session() as session:
-            return session.dump_schema()
-
     def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
         root = pathlib.Path(self._root)
         keyspace_path = root / keyspace_name / columnfamily_name

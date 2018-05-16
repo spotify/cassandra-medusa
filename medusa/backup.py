@@ -90,8 +90,9 @@ def main(args, config):
     logging.info('Creating snapshot')
     with cassandra.create_snapshot() as snapshot:
         logging.info('Saving tokenmap and schema')
-        backup_paths.schema = cassandra.dump_schema()
-        backup_paths.tokenmap = json.dumps(cassandra.tokenmap())
+        with cassandra.new_session() as cql_session:
+            backup_paths.schema = cql_session.dump_schema()
+            backup_paths.tokenmap = json.dumps(cql_session.tokenmap())
 
         manifest = []
         with GSUtil(config.storage) as gsutil:
