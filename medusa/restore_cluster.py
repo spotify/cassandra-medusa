@@ -40,8 +40,7 @@ def orchestrate(args, config):
         logging.error('Backup {} is incomplete!'.format(args.backup_name))
         sys.exit(1)
     restore = cluster_backup.restore(seed_target=args.seed_target, temp_dir=args.temp_dir)
-    restore.schema()
-    restore.data()
+    restore.execute()
 
 
 class ClusterBackup(object):
@@ -124,6 +123,10 @@ class Restore(object):
         self.session_provider = session_provider
         self.temp_dir = temp_dir
         self.remotes = []
+
+    def execute(self):
+        self.schema()
+        self.data()
 
     def schema(self):
         with self.session_provider.new_session() as session:
