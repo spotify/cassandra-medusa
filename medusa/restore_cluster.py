@@ -35,113 +35,87 @@ def orchestrate(args, config):
         logging.error('No backup for {}.'.format(args.backup_name))
         sys.exit(1)
 
-    cluster_backup = ClusterBackup.discover(usable_seed_backups[0], config)
-    if not cluster_backup.is_complete():
-        logging.error('Backup {} is incomplete!'.format(args.backup_name))
-        sys.exit(1)
-    restore = cluster_backup.restore(seed_target=args.seed_target, temp_dir=args.temp_dir)
+    cluster_backup = discover(usable_seed_backups[0])
+    session_provider = CqlSessionProvider(args.seed_target,
+                                          username=config.cassandra.cql_username,
+                                          password=config.cassandra.cql_password)
+
+    restore = RestoreJob(cluster_backup, session_provider, config.ssh, args.temp_dir)
     restore.execute()
 
 
-class ClusterBackup(object):
-    def __init__(self, cluster_backup, tokenmap, config):
-        self.cluster_backup = cluster_backup
-        self.tokenmap = tokenmap
-        self.config = config
+def discover(backup):
+    tokenmap = json.loads(backup.tokenmap)
+    dc = tokenmap[backup.fqdn]['dc']
+    all_backups_in_set = [
+        backup.storage.get_backup_item(fqdn=node, name=backup.name)
+        for node, config in tokenmap.items()
+        if config.get('dc') == dc
+    ]
 
-    def restore(self, *, seed_target, temp_dir):
-        # TODO: Refactor this into Restore.validate_preconditions, see https://ghe.spotify.net/data-bye/medusa/pull/16#discussion_r497263
-        session_provider = CqlSessionProvider(seed_target,
-                                              username=self.config.cassandra.cql_username,
-                                              password=self.config.cassandra.cql_password)
-        with session_provider.new_session() as session:
-            target_tokenmap = session.tokenmap()
-            for host, ringitem in target_tokenmap.items():
-                if not ringitem.get('is_up'):
-                    raise Exception('Target {host} is not up!'.format(host=host))
-            if len(target_tokenmap) != len(self.tokenmap):
-                raise Exception('Cannot restore to a tokenmap of differing size: '
-                                '({target_tokenmap}:{tokenmap}).'.format(
-                                    target_tokenmap=len(target_tokenmap),
-                                    tokenmap=len(self.tokenmap)))
-
-            target_tokens = {ringitem['token']: host for host, ringitem in target_tokenmap.items()}
-            backup_tokens = {ringitem['token']: host for host, ringitem in self.tokenmap.items()}
-            if target_tokens.keys() != backup_tokens.keys():
-                raise Exception('Tokenmap is differently distributed: '
-                                '{distribution}'.format(
-                                    distribution=target_tokens.keys() ^ backup_tokens.keys()))
-
-            ringmap = collections.defaultdict(list)
-            for ring in backup_tokens, target_tokens:
-                for token, host in ring.items():
-                    ringmap[token].append(host)
-
-            schema = session.dump_schema()
-            if not (schema == self.schema or schema == ''):
-                raise Exception('Schema not compatible')
-
-            return RestoreJob(ringmap=ringmap,
-                              session_provider=session_provider,
-                              cluster_backup=self,
-                              ssh_config=self.config.ssh,
-                              temp_dir=temp_dir)
-
-    def is_complete(self):
-        for b in self.cluster_backup:
-            if b.finished is None:
-                return False
-        return True
-
-    @staticmethod
-    def discover(backup, config):
-        tokenmap = json.loads(backup.tokenmap)
-        dc = tokenmap[backup.fqdn]['dc']
-        all_backups_in_set = [
-            backup.storage.get_backup_item(fqdn=node, name=backup.name)
-            for node, config in tokenmap.items()
-            if config.get('dc') == dc
-        ]
-
-        return ClusterBackup(all_backups_in_set, tokenmap, config)
-
-    @property
-    def name(self):
-        return self.cluster_backup[0].name
-
-    @property
-    def schema(self):
-        return self.cluster_backup[0].schema
+    return all_backups_in_set
 
 
 class RestoreJob(object):
-    def __init__(self, *, ringmap, cluster_backup, session_provider, ssh_config, temp_dir):
+    def __init__(self, cluster_backup, session_provider, ssh_config, temp_dir):
         self.id = uuid.uuid4()
-        self.ringmap = ringmap
+        self.ringmap = None
         self.cluster_backup = cluster_backup
-        self.ssh_config = ssh_config
         self.session_provider = session_provider
+        self.ssh_config = ssh_config
         self.temp_dir = temp_dir
-        self.remotes = []
 
     def execute(self):
-        self.schema()
-        self.data()
-
-    def schema(self):
+        self._backup_complete()
         with self.session_provider.new_session() as session:
-            if self.cluster_backup.schema == session.dump_schema():
-                logging.info('Not restoring schema, equivalent.')
-                return True
-            else:
-                parts = filter(bool, self.cluster_backup.schema.split(';'))
-                for i, part in enumerate(parts):
-                    logging.info('Restoring schema part {i}: "{start}"..'.format(i=i, start=part[0:35]))
-                    session.session.execute(part)  # TODO: `session.session` one of them is not a session...
-                logging.info('Finished restoring schema')
-                return True
+            self._populate_ringmap(self.cluster_backup[0], session)
+            self._restore_schema(self.cluster_backup[0], session)
+        self._restore_data()
 
-    def data(self):
+    def _backup_complete(self):
+        complete = all(backup.finished for backup in self.cluster_backup) and len(self.cluster_backup) > 0
+        if not complete:
+            raise Exception("Backup is not complete")
+
+    def _populate_ringmap(self, backup, session):
+        target_tokenmap = session.tokenmap()
+        backup_tokenmap = json.loads(backup.tokenmap)
+
+        for host, ringitem in target_tokenmap.items():
+            if not ringitem.get('is_up'):
+                raise Exception('Target {host} is not up!'.format(host=host))
+            if len(target_tokenmap) != len(backup_tokenmap):
+                raise Exception('Cannot restore to a tokenmap of differing size: ({target_tokenmap}:{tokenmap}).'
+                                .format(target_tokenmap=len(target_tokenmap), tokenmap=len(backup_tokenmap)))
+
+        target_tokens = {ringitem['token']: host for host, ringitem in target_tokenmap.items()}
+        backup_tokens = {ringitem['token']: host for host, ringitem in backup_tokenmap.items()}
+        if target_tokens.keys() != backup_tokens.keys():
+            raise Exception('Tokenmap is differently distributed: {distribution}'.format(
+                distribution=target_tokens.keys() ^ backup_tokens.keys()))
+
+        ringmap = collections.defaultdict(list)
+        for ring in backup_tokens, target_tokens:
+            for token, host in ring.items():
+                ringmap[token].append(host)
+        self.ringmap = ringmap
+
+    def _restore_schema(self, backup, session):
+        schema = session.dump_schema()
+        if not (schema == backup.schema or schema == ''):
+            raise Exception('Schema not compatible')
+        if self.cluster_backup[0].schema == session.dump_schema():
+            logging.info('Not restoring schema, equivalent.')
+            return
+        parts = filter(bool, self.cluster_backup[0].schema.split(';'))
+        for i, part in enumerate(parts):
+            logging.info(
+                'Restoring schema part {i}: "{start}"..'.format(i=i, start=part[0:35]))
+            session.session.execute(part)  # TODO: `session.session` one of them is not a session...
+        logging.info('Finished restoring schema')
+        return
+
+    def _restore_data(self):
         # create workdir on each target host
         # Later: distribute a credential
         # construct command for each target host
@@ -150,6 +124,7 @@ class RestoreJob(object):
 
         work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         logging.info('Medusa is working in: {}'.format(work))
+        remotes = []
         for source, target in self.ringmap.values():
             client = paramiko.SSHClient()
             client.load_system_host_keys()
@@ -168,13 +143,13 @@ class RestoreJob(object):
             command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa restore_node -vvv --fqdn={fqdn} {backup}'.format(
                 work=work,
                 fqdn=source,
-                backup=self.cluster_backup.name
+                backup=self.cluster_backup[0].name
             )
             stdin, stdout, stderr = client.exec_command(command)
             stdin.close()
             stdout.close()
             stderr.close()
-            self.remotes.append(Remote(target, connect_args, client, stdout.channel))
+            remotes.append(Remote(target, connect_args, client, stdout.channel))
 
         finished, broken = [], []
         while True:
@@ -183,14 +158,14 @@ class RestoreJob(object):
                 logging.info("Finished: {}".format(remote.target))
             for remote in broken:
                 logging.info("Broken: {}".format(remote.target))
-            logging.info("Total: {}".format(len(self.remotes)))
+            logging.info("Total: {}".format(len(remotes)))
 
-            if len(self.remotes) == len(finished) + len(broken):
+            if len(remotes) == len(finished) + len(broken):
                 # TODO: make a nicer exit condition
                 break
             pass
 
-            for i, remote in enumerate(self.remotes):
+            for i, remote in enumerate(remotes):
 
                 if remote in broken or remote in finished:
                     continue
@@ -222,7 +197,8 @@ class RestoreJob(object):
                     stdin.close()
                     stdout.close()
                     stderr.close()
-                    self.remotes[i] = Remote(remote.target, remote.connect_args, client, stdout.channel)
+                    remotes[i] = Remote(remote.target, remote.connect_args, client,
+                                        stdout.channel)
 
         logging.info('finished: {}'.format(finished))
         logging.info('broken: {}'.format(broken))
