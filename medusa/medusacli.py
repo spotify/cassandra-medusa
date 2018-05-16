@@ -22,7 +22,6 @@ import socket
 import medusa.backup
 import medusa.config
 import medusa.download
-import medusa.fetch_tokenmap
 import medusa.listing
 import medusa.restore_cluster
 import medusa.restore_node
@@ -67,13 +66,6 @@ def make_parser():
     list_parser = subparsers.add_parser('list', help='List backups',
                                         parents=[subcommand_template])
     list_parser.set_defaults(func=medusa.listing.list)
-
-    tokenmap_parser = subparsers.add_parser('fetch-tokenmap',
-                                            help='Fetch tokenmap',
-                                            parents=[subcommand_template])
-    tokenmap_parser.add_argument('backup_name', type=str,
-                                 metavar='BACKUP-NAME', help='Backup name')
-    tokenmap_parser.set_defaults(func=medusa.fetch_tokenmap.main)
 
     download_parser = subparsers.add_parser('download', help='Download backup',
                                             parents=[subcommand_template])
