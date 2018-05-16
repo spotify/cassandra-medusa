@@ -20,16 +20,16 @@ import sys
 from medusa.storage import Storage
 
 
-def validate_manifest(backup):
+def validate_manifest(node_backup):
     try:
-        manifest = json.loads(backup.manifest)
+        manifest = json.loads(node_backup.manifest)
     except Exception:
         logging.error('Unable to read manifest from storage')
         return
 
     data_objects = {
         blob.name: blob
-        for blob in backup.bucket.list_blobs(prefix=str(backup.data_prefix))
+        for blob in node_backup.bucket.list_blobs(prefix=str(node_backup.data_prefix))
     }
 
     objects_in_manifest = [
@@ -55,11 +55,11 @@ def validate_manifest(backup):
         yield("[{}] exists in storage, but not in manifest".format(path))
 
 
-def validate_completion(backup):
-    tokenmap = json.loads(backup.tokenmap)
-    dc = tokenmap[backup.fqdn]['dc']
+def validate_completion(node_backup):
+    tokenmap = json.loads(node_backup.tokenmap)
+    dc = tokenmap[node_backup.fqdn]['dc']
     all_backups_in_set = [
-        backup.storage.get_node_backup(fqdn=node, name=backup.name)
+        node_backup.storage.get_node_backup(fqdn=node, name=node_backup.name)
         for node, config in tokenmap.items()
         if config.get('dc') == dc
     ]
