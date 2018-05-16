@@ -132,7 +132,7 @@ class RestoreJob(object):
             if self.cluster_backup.schema == session.dump_schema():
                 return True
             else:
-                parts = self.cluster_backup.schema.split('\n\n')
+                parts = filter(bool, self.cluster_backup.schema.split(';'))
                 for i, part in enumerate(parts):
                     logging.info('Restoring schema part {i}: {start}'.format(i=i, start=part[0:35]))
                     session.session.execute(part)  # TODO: `session.session` one of them is not a session...
