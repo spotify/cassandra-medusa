@@ -50,6 +50,7 @@ class ClusterBackup(object):
         self.config = config
 
     def restore(self, *, seed_target, temp_dir):
+        # TODO: Refactor this into Restore.validate_preconditions, see https://ghe.spotify.net/data-bye/medusa/pull/16#discussion_r497263
         session_provider = CqlSessionProvider(seed_target,
                                               username=self.config.cassandra.cql_username,
                                               password=self.config.cassandra.cql_password)
