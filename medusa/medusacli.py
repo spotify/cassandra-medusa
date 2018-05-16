@@ -65,6 +65,8 @@ def make_parser():
 
     list_parser = subparsers.add_parser('list', help='List backups',
                                         parents=[subcommand_template])
+    list_parser.add_argument('--all', action='store_true',
+                             help='List all backups in the bucket')
     list_parser.set_defaults(func=medusa.listing.list)
 
     download_parser = subparsers.add_parser('download', help='Download backup',

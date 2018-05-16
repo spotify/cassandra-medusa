@@ -17,13 +17,30 @@
 
 from medusa.storage import Storage
 
+TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
+
 
 def list(args, config):
     storage = Storage(config=config.storage)
 
-    for node_backup in storage.list_node_backups(fqdn=args.fqdn):
+    cluster_backups = storage.list_cluster_backups()
+    if not args.all:
+        cluster_backups = filter(
+            lambda cluster_backup: args.fqdn in cluster_backup.node_backups,
+            cluster_backups
+        )
+
+    for cluster_backup in cluster_backups:
+        finished = cluster_backup.finished
+        if finished is not None:
+            finished = finished.strftime(TIMESTAMP_FORMAT)
+        else:
+            finished = 'Incomplete [{} of {} nodes]'.format(
+                len(cluster_backup.node_backups),
+                len(cluster_backup.tokenmap)
+            )
         print('{} (started: {}, finished: {})'.format(
-            node_backup.name,
-            node_backup.started.strftime('%Y-%m-%d %H:%M:%S'),
-            node_backup.finished.strftime('%Y-%m-%d %H:%M:%S')
+            cluster_backup.name,
+            cluster_backup.started.strftime(TIMESTAMP_FORMAT),
+            finished
         ))
