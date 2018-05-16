@@ -88,43 +88,39 @@ def main(args, config):
     cassandra = Cassandra(config.cassandra)
 
     logging.info('Creating snapshot')
-    snapshot = cassandra.create_snapshot()
+    with cassandra.create_snapshot() as snapshot:
+        logging.info('Saving tokenmap and schema')
+        backup_paths.schema = cassandra.dump_schema()
+        backup_paths.tokenmap = json.dumps(cassandra.tokenmap())
 
-    logging.info('Saving tokenmap and schema')
-    backup_paths.schema = cassandra.dump_schema()
-    backup_paths.tokenmap = json.dumps(cassandra.tokenmap())
+        manifest = []
+        with GSUtil(config.storage) as gsutil:
+            for snapshotpath in snapshot.find_dirs():
+                srcs = [
+                    node_backup_cache.replace_if_cached(
+                        keyspace=snapshotpath.keyspace,
+                        columnfamily=snapshotpath.columnfamily,
+                        src=src
+                    )
+                    for src in snapshotpath.path.glob('*')
+                ]
 
-    manifest = []
-    with GSUtil(config.storage) as gsutil:
-        for snapshotpath in snapshot.find_dirs():
-            srcs = [
-                node_backup_cache.replace_if_cached(
-                    keyspace=snapshotpath.keyspace,
-                    columnfamily=snapshotpath.columnfamily,
-                    src=src
+                dst = 'gs://{}/{}'.format(
+                    config.storage.bucket_name,
+                    backup_paths.datapath(keyspace=snapshotpath.keyspace,
+                                          columnfamily=snapshotpath.columnfamily)
                 )
-                for src in snapshotpath.path.glob('*')
-            ]
 
-            dst = 'gs://{}/{}'.format(
-                config.storage.bucket_name,
-                backup_paths.datapath(keyspace=snapshotpath.keyspace,
-                                      columnfamily=snapshotpath.columnfamily)
-            )
+                manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
+                manifest.append({'keyspace': snapshotpath.keyspace,
+                                 'columnfamily': snapshotpath.columnfamily,
+                                 'objects': [{
+                                     'path': url_to_path(manifestobject.path),
+                                     'MD5': manifestobject.MD5,
+                                     'size': manifestobject.size
+                                 } for manifestobject in manifestobjects]})
 
-            manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
-            manifest.append({'keyspace': snapshotpath.keyspace,
-                             'columnfamily': snapshotpath.columnfamily,
-                             'objects': [{
-                                 'path': url_to_path(manifestobject.path),
-                                 'MD5': manifestobject.MD5,
-                                 'size': manifestobject.size
-                             } for manifestobject in manifestobjects]})
+        backup_paths.manifest = json.dumps(manifest)
 
-    backup_paths.manifest = json.dumps(manifest)
-
-    logging.info('Backup done')
-    end = datetime.datetime.now()
-
-    logging.info('Cleaning up snapshot')
-    snapshot.delete()
+        logging.info('Backup done')
+        end = datetime.datetime.now()

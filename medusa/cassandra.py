@@ -168,6 +168,13 @@ class Cassandra(object):
             self._parent = parent
             self._tag = tag
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            logging.debug('Cleaning up snapshot')
+            self.delete()
+
         @property
         def cassandra(self):
             return self._parent
