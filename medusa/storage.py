@@ -56,7 +56,6 @@ class Storage(object):
                           self.list_backup_items(fqdn=fqdn)),
                    key=operator.attrgetter('started'))
 
-
     class Paths(object):
         def __init__(self, *, storage, name, fqdn):
             self._storage = storage

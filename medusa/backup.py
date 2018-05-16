@@ -31,7 +31,7 @@ def url_to_path(url):
 
 
 class NodeBackupCache(object):
-    DEFAULT_BLOCK_SIZE = 16*1024*1024
+    DEFAULT_BLOCK_SIZE = 16 * 1024 * 1024
 
     def __init__(self, *, node_backup, block_size=DEFAULT_BLOCK_SIZE, skip_md5=False):
         self._bucket_name = node_backup.storage.config.bucket_name

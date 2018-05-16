@@ -40,7 +40,7 @@ def restore_node(args, config):
         # TODO: Should be store token as string?
         current_token = session.current_token()
         backup_token = tokenmap[backup.fqdn]['token']
-        if  current_token != backup_token:
+        if current_token != backup_token:
             logging.error('Token mismatch: Current ({}) != Backup ({})'.format(
                 current_token,
                 backup_token

@@ -69,10 +69,10 @@ def make_parser():
     list_parser.set_defaults(func=medusa.listing.list)
 
     tokenmap_parser = subparsers.add_parser('fetch-tokenmap',
-                                             help='Fetch tokenmap',
-                                             parents=[subcommand_template])
+                                            help='Fetch tokenmap',
+                                            parents=[subcommand_template])
     tokenmap_parser.add_argument('backup_name', type=str,
-                                  metavar='BACKUP-NAME', help='Backup name')
+                                 metavar='BACKUP-NAME', help='Backup name')
     tokenmap_parser.set_defaults(func=medusa.fetch_tokenmap.main)
 
     download_parser = subparsers.add_parser('download', help='Download backup',
@@ -132,7 +132,6 @@ def main():
     logging.basicConfig(level=max(3 - args.loglevel, 0) * 10,
                         format='[%(asctime)s] %(levelname)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-
 
     if args.command is None:
         parser.print_help()

@@ -23,7 +23,7 @@ from medusa.storage import Storage
 def validate_manifest(backup):
     try:
         manifest = json.loads(backup.manifest)
-    except:
+    except Exception:
         logging.error('Unable to read manifest from storage')
         return
 

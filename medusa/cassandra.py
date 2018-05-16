@@ -49,7 +49,8 @@ class CqlSessionProvider(object):
 
 
 class CqlSession(object):
-    RESERVED_KEYSPACES = ['system', 'system_distributed', 'system_auth', 'system_traces']
+    RESERVED_KEYSPACES = ['system', 'system_distributed',
+                          'system_auth', 'system_traces']
 
     def __init__(self, session):
         self._session = session
@@ -74,13 +75,12 @@ class CqlSession(object):
         token_map = self.cluster.metadata.token_map
         try:
             token, host = next(itertools.dropwhile(
-                lambda x:x[1].listen_address != listen_address,
+                lambda x: x[1].listen_address != listen_address,
                 token_map.token_to_host_owner.items()
             ))
             return token.value
         except StopIteration:
             raise RuntimeError('Unable to current token')
-
 
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map
@@ -189,8 +189,8 @@ class Cassandra(object):
                 for snapshot_dir in self.root.glob(
                     Cassandra.SNAPSHOT_PATTERN.format(self._tag)
                 )
-                if snapshot_dir.is_dir() and
-                   snapshot_dir.parts[-4] not in CqlSession.RESERVED_KEYSPACES
+                if (snapshot_dir.is_dir() and
+                    snapshot_dir.parts[-4] not in CqlSession.RESERVED_KEYSPACES)
             ]
 
         def delete(self):
