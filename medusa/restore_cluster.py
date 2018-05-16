@@ -163,7 +163,8 @@ class RestoreJob(object):
             sftp = client.open_sftp()
             sftp.mkdir(str(work))
             sftp.close()
-            command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa -vvv restore_node --fqdn={fqdn} {backup}'.format(
+            # TODO: If this command fails, the node is currently still marked as finished and not as broken.
+            command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa restore_node -vvv --fqdn={fqdn} {backup}'.format(
                 work=work,
                 fqdn=source,
                 backup=self.cluster_backup.name
