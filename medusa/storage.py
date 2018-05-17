@@ -69,6 +69,16 @@ class Storage(object):
                    key=operator.attrgetter('started'),
                    default=None)
 
+    def get_cluster_backup(self, backup_name):
+        try:
+            return itertools.dropwhile(
+                lambda cluster_backup: cluster_backup.name != backup_name,
+                self.list_cluster_backups()
+            )
+        except StopIteration:
+            raise KeyError('No such backup')
+
+
     class ClusterBackup(object):
         def __init__(self, name, node_backups):
             self._name = name
@@ -76,7 +86,9 @@ class Storage(object):
             self._first_nodebackup = next(iter(node_backups))
             self.node_backups = {node_backup.fqdn: node_backup
                                  for node_backup in node_backups}
+            # Cached values
             self._tokenmap = None
+            self._schema = None
 
         def __repr__(self):
             return 'ClusterBackup(name={0.name})'.format(self)
@@ -107,6 +119,12 @@ class Storage(object):
             if self._tokenmap is None:
                 self._tokenmap = json.loads(self._first_nodebackup.tokenmap)
             return self._tokenmap
+
+        @property
+        def schema(self):
+            if self._schema is None:
+                self._schema = self._first_nodebackup.schema
+            return self._schema
 
         def is_complete(self):
             return (not self.missing_nodes() and

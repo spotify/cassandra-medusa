@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import itertools
 import json
 import logging
 import sys
@@ -67,11 +66,8 @@ def status(args, config):
     storage = Storage(config=config.storage)
 
     try:
-        cluster_backup = next(itertools.dropwhile(
-            lambda cluster_backup: cluster_backup.name != args.backup_name,
-            storage.list_cluster_backups()
-        ))
-    except StopIteration:
+        cluster_backup = storage.get_cluster_backup(args.backup_name)
+    except KeyError:
         logging.error('No such backup')
         sys.exit(1)
 

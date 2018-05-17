@@ -12,48 +12,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import time
-
-import logging
-import sys
-import json
 import collections
+import logging
+import paramiko
+import sys
+import time
 import uuid
 
 from medusa.cassandra import CqlSessionProvider
 from medusa.storage import Storage
-import paramiko
+
 
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
 
 
 def orchestrate(args, config):
     storage = Storage(config=config.storage)
-    backups = storage.list_node_backups()
-    usable_seed_backups = list(filter(lambda b: b.name == args.backup_name and b.finished, backups))
-    if len(usable_seed_backups) < 1:
-        logging.error('No backup for {}.'.format(args.backup_name))
+    try:
+        cluster_backup = storage.get_cluster_backup(args.backup_name)
+    except KeyError:
+        logging.error('No such backup')
         sys.exit(1)
 
-    cluster_backup = discover(usable_seed_backups[0])
     session_provider = CqlSessionProvider(args.seed_target,
                                           username=config.cassandra.cql_username,
                                           password=config.cassandra.cql_password)
 
-    restore = RestoreJob(cluster_backup, session_provider, config.ssh, args.temp_dir)
+    restore = RestoreJob(cluster_backup, session_provider,
+                         config.ssh, args.temp_dir)
     restore.execute()
-
-
-def discover(backup):
-    tokenmap = json.loads(backup.tokenmap)
-    dc = tokenmap[backup.fqdn]['dc']
-    all_backups_in_set = [
-        backup.storage.get_node_backup(fqdn=node, name=backup.name)
-        for node, config in tokenmap.items()
-        if config.get('dc') == dc
-    ]
-
-    return all_backups_in_set
 
 
 class RestoreJob(object):
@@ -66,20 +53,16 @@ class RestoreJob(object):
         self.temp_dir = temp_dir
 
     def execute(self):
-        self._backup_complete()
+        if not self.cluster_backup.is_complete():
+            raise Exception("Backup is not complete")
         with self.session_provider.new_session() as session:
-            self._populate_ringmap(self.cluster_backup[0], session)
-            self._restore_schema(self.cluster_backup[0], session)
+            self._populate_ringmap(session)
+            self._restore_schema(session)
         self._restore_data()
 
-    def _backup_complete(self):
-        complete = all(backup.finished for backup in self.cluster_backup) and len(self.cluster_backup) > 0
-        if not complete:
-            raise Exception("Backup is not complete")
-
-    def _populate_ringmap(self, backup, session):
+    def _populate_ringmap(self, session):
         target_tokenmap = session.tokenmap()
-        backup_tokenmap = json.loads(backup.tokenmap)
+        backup_tokenmap = self.cluster_backup.tokenmap
 
         for host, ringitem in target_tokenmap.items():
             if not ringitem.get('is_up'):
@@ -100,20 +83,21 @@ class RestoreJob(object):
                 ringmap[token].append(host)
         self.ringmap = ringmap
 
-    def _restore_schema(self, backup, session):
-        schema = session.dump_schema()
-        if not (schema == backup.schema or schema == ''):
-            raise Exception('Schema not compatible')
-        if self.cluster_backup[0].schema == session.dump_schema():
+    def _restore_schema(self, session):
+        current_schema = session.dump_schema()
+
+        if current_schema == self.cluster_backup.schema:
             logging.info('Not restoring schema, equivalent.')
+        elif current_schema == '':
+            parts = filter(bool, self.cluster_backup.schema.split(';'))
+            for i, part in enumerate(parts):
+                logging.info(
+                    'Restoring schema part {i}: "{start}"..'.format(i=i, start=part[0:35]))
+                session.session.execute(part)  # TODO: `session.session` one of them is not a session...
+            logging.info('Finished restoring schema')
             return
-        parts = filter(bool, self.cluster_backup[0].schema.split(';'))
-        for i, part in enumerate(parts):
-            logging.info(
-                'Restoring schema part {i}: "{start}"..'.format(i=i, start=part[0:35]))
-            session.session.execute(part)  # TODO: `session.session` one of them is not a session...
-        logging.info('Finished restoring schema')
-        return
+        else:
+            raise Exception('Schema not compatible')
 
     def _restore_data(self):
         # create workdir on each target host
@@ -143,7 +127,7 @@ class RestoreJob(object):
             command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa restore_node -vvv --fqdn={fqdn} {backup}'.format(
                 work=work,
                 fqdn=source,
-                backup=self.cluster_backup[0].name
+                backup=self.cluster_backup.name
             )
             stdin, stdout, stderr = client.exec_command(command)
             stdin.close()
