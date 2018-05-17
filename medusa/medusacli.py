@@ -34,6 +34,7 @@ def debug_command(args, config):
 
 def make_parser():
     parser = argparse.ArgumentParser()
+    parser.set_defaults(loglevel=0)
 
     subcommand_template = argparse.ArgumentParser(add_help=False)
     subcommand_template.add_argument('--config', type=pathlib.Path,
