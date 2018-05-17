@@ -12,24 +12,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import itertools
 import json
 import logging
 import sys
 from medusa.storage import Storage
 
 
-def validate_manifest(backup):
+def validate_manifest(node_backup):
     try:
-        manifest = json.loads(backup.manifest)
+        manifest = json.loads(node_backup.manifest)
     except Exception:
         logging.error('Unable to read manifest from storage')
         return
 
     data_objects = {
         blob.name: blob
-        for blob in backup.bucket.list_blobs(prefix=str(backup.data_prefix))
+        for blob in node_backup.bucket.list_blobs(prefix=str(node_backup.data_prefix))
     }
 
     objects_in_manifest = [
@@ -55,31 +54,28 @@ def validate_manifest(backup):
         yield("[{}] exists in storage, but not in manifest".format(path))
 
 
-def validate_completion(backup):
-    tokenmap = json.loads(backup.tokenmap)
-    dc = tokenmap[backup.fqdn]['dc']
-    all_backups_in_set = [
-        backup.storage.get_node_backup(fqdn=node, name=backup.name)
-        for node, config in tokenmap.items()
-        if config.get('dc') == dc
-    ]
-    for b in all_backups_in_set:
-        if not b.exists():
-            yield('[{}] Backup missing'.format(b.fqdn))
-            continue
-        if b.finished is None:
-            yield('[{}] Backup started at {}, but not finished yet'.format(b.fqdn, b.started))
-            continue
+def validate_completion(cluster_backup):
+    for fqdn in cluster_backup.tokenmap.keys():
+        node_backup = cluster_backup.node_backups.get(fqdn)
+        if node_backup is None:
+            yield('[{}] Backup missing'.format(fqdn))
+        elif node_backup.finished is None:
+            yield('[{0.fqdn}] Backup started at {0.started}, but not finished yet'.format(node_backup))
 
 
 def status(args, config):
     storage = Storage(config=config.storage)
-    node_backup = storage.get_node_backup(fqdn=args.fqdn, name=args.backup_name)
-    if not node_backup.exists():
+
+    try:
+        cluster_backup = next(itertools.dropwhile(
+            lambda cluster_backup: cluster_backup.name != args.backup_name,
+            storage.list_cluster_backups()
+        ))
+    except StopIteration:
         logging.error('No such backup')
         sys.exit(1)
 
-    completion_errors = validate_completion(node_backup)
+    completion_errors = list(validate_completion(cluster_backup))
     if completion_errors:
         print('Completion: Not complete!')
         for error in completion_errors:
@@ -87,7 +83,11 @@ def status(args, config):
     else:
         print('Completion: OK!')
 
-    consistency_errors = list(validate_manifest(node_backup))
+    consistency_errors = [
+        consistency_error
+        for node_backup in cluster_backup.node_backups.values()
+        for consistency_error in validate_manifest(node_backup)
+    ]
     if consistency_errors:
         print("Manifest validation: Failed!")
         for error in consistency_errors:

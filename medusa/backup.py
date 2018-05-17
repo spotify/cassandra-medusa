@@ -14,9 +14,7 @@
 # limitations under the License.
 
 
-import base64
 import datetime
-import hashlib
 import json
 import logging
 import pathlib
@@ -31,11 +29,9 @@ def url_to_path(url):
 
 
 class NodeBackupCache(object):
-    DEFAULT_BLOCK_SIZE = 16 * 1024 * 1024
+    NEVER_CACHED = ['manifest.json']
 
-    def __init__(self, *, node_backup, block_size=DEFAULT_BLOCK_SIZE, skip_md5=False):
-        self._block_size = block_size
-        self._skip_md5 = skip_md5
+    def __init__(self, *, node_backup):
         if node_backup:
             self._bucket_name = node_backup.storage.config.bucket_name
             self._cached_objects = {
@@ -50,6 +46,9 @@ class NodeBackupCache(object):
             self._cached_objects = {}
 
     def replace_if_cached(self, *, keyspace, columnfamily, src):
+        if src.name in self.NEVER_CACHED:
+            return src
+
         fqtn = (keyspace, columnfamily)
         cached_item = self._cached_objects.get(fqtn, {}).get(src.name)
         if cached_item is None:
@@ -58,17 +57,8 @@ class NodeBackupCache(object):
         if src.stat().st_size != cached_item['size']:
             return src
 
-        if self._skip_md5 or self._calc_md5(src) == cached_item['MD5']:
-            logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
-            return 'gs://{}/{}'.format(self._bucket_name, cached_item['path'])
-        else:
-            return src
-
-    def _calc_md5(self, path):
-        md5 = hashlib.md5()
-        with path.open('rb') as f:
-            md5.update(f.read(self._block_size))
-        return base64.b64encode(md5.digest()).decode()
+        logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
+        return 'gs://{}/{}'.format(self._bucket_name, cached_item['path'])
 
 
 def main(args, config):
@@ -81,7 +71,7 @@ def main(args, config):
     # TODO: Test permission
 
     node_backup_cache = NodeBackupCache(
-        node_backup=storage.latest_backup(fqdn=args.fqdn)
+        node_backup=storage.latest_node_backup(fqdn=args.fqdn)
     )
 
     node_backup = storage.get_node_backup(fqdn=args.fqdn, name=backup_name)

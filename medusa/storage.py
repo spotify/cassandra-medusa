@@ -15,6 +15,8 @@
 
 
 import google.cloud.storage
+import itertools
+import json
 import operator
 import pathlib
 
@@ -44,18 +46,80 @@ class Storage(object):
         )
 
     def list_node_backups(self, *, fqdn=None):
+        prefix = self._meta_prefix / (fqdn or '')
         return (
             self.get_node_backup(fqdn=fqdn or pathlib.Path(blob.name).parts[-3],
                                  name=pathlib.Path(blob.name).parts[-2])
-            for blob in self._bucket.list_blobs(prefix=str(self._meta_prefix / (fqdn or '')))
+            for blob in self._bucket.list_blobs(prefix=str(prefix))
             if blob.name.endswith('/tokenmap.json')
         )
 
-    def latest_backup(self, *, fqdn):
+    def list_cluster_backups(self):
+        node_backups = sorted(self.list_node_backups(),
+                              key=operator.attrgetter('name'))
+        return (
+            Storage.ClusterBackup(name, node_backups)
+            for name, node_backups in itertools.groupby(node_backups,
+                                                        key=operator.attrgetter('name'))
+        )
+
+    def latest_node_backup(self, *, fqdn):
         return max(filter(operator.attrgetter('finished'),
                           self.list_node_backups(fqdn=fqdn)),
                    key=operator.attrgetter('started'),
                    default=None)
+
+    class ClusterBackup(object):
+        def __init__(self, name, node_backups):
+            self._name = name
+            node_backups = list(node_backups)
+            self._first_nodebackup = next(iter(node_backups))
+            self.node_backups = {node_backup.fqdn: node_backup
+                                 for node_backup in node_backups}
+            self._tokenmap = None
+
+        def __repr__(self):
+            return 'ClusterBackup(name={0.name})'.format(self)
+
+        @property
+        def name(self):
+            return self._name
+
+        @property
+        def started(self):
+            return min(map(operator.attrgetter('started'),
+                           self.node_backups.values()))
+
+        @property
+        def finished(self):
+            if any(self.missing_nodes()):
+                return None
+
+            finished_timestamps = list(map(operator.attrgetter('finished'),
+                                           self.node_backups.values()))
+            if all(finished_timestamps):
+                return max(finished_timestamps)
+            else:
+                return None
+
+        @property
+        def tokenmap(self):
+            if self._tokenmap is None:
+                self._tokenmap = json.loads(self._first_nodebackup.tokenmap)
+            return self._tokenmap
+
+        def is_complete(self):
+            return (not self.missing_nodes() and
+                    all(map(operator.attrgetter('finished'),
+                            self.node_backups.values())))
+
+        def missing_nodes(self):
+            return set(self.tokenmap.keys()) - set(self.node_backups.keys())
+
+        def incomplete_nodes(self):
+            return [node_backup
+                    for node_backup in self.node_backups.values()
+                    if node_backup.finished is None]
 
     class NodeBackup(object):
         def __init__(self, *, storage, name, fqdn):
