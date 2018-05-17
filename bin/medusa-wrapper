@@ -10,3 +10,4 @@ $@ >stdout 2>stderr &
 echo $! >pid
 wait $!
 echo $? >status
+exit $(cat status)
