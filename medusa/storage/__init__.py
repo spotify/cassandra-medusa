@@ -72,9 +72,8 @@ class Storage(object):
                    default=None)
 
     def get_cluster_backup(self, backup_name):
-        try:
-            return next(cluster_backup
-                        for cluster_backup in self.list_cluster_backups()
-                        if cluster_backup.name == backup_name)
-        except StopIteration:
+        for cluster_backup in self.list_cluster_backups():
+            if cluster_backup.name == backup_name:
+                return cluster_backup
+        else:
             raise KeyError('No such backup')
