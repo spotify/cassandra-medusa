@@ -30,18 +30,18 @@ from cassandra.auth import PlainTextAuthProvider
 
 
 class CqlSessionProvider(object):
-    def __init__(self, hostname, *, username=None, password=None):
-        self._hostname = hostname
+    def __init__(self, ip_address, *, username=None, password=None):
+        self._ip_address = ip_address
         self._auth_provider = (PlainTextAuthProvider(username=username,
                                                      password=password)
                                if username and password else None)
-        load_balancing_policy = WhiteListRoundRobinPolicy([hostname])
+        load_balancing_policy = WhiteListRoundRobinPolicy([ip_address])
         self._execution_profiles = {'local': ExecutionProfile(
             load_balancing_policy=load_balancing_policy
         )}
 
     def new_session(self):
-        cluster = Cluster(contact_points=[self._hostname],
+        cluster = Cluster(contact_points=[self._ip_address],
                           auth_provider=self._auth_provider,
                           execution_profiles=self._execution_profiles)
         session = cluster.connect()
