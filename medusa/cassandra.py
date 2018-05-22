@@ -92,13 +92,14 @@ class CqlSession(object):
 
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map
+        datacenter = self.datacenter()
         return {
             socket.gethostbyaddr(host.address)[0]: {
-                'dc': host.datacenter,
                 'token': token.value,
                 'is_up': host.is_up
             }
             for token, host in token_map.token_to_host_owner.items()
+            if host.datacenter == datacenter
         }
 
     def dump_schema(self):
