@@ -15,7 +15,6 @@
 
 
 import collections
-import itertools
 import logging
 import pathlib
 import shlex
@@ -30,18 +29,18 @@ from cassandra.auth import PlainTextAuthProvider
 
 
 class CqlSessionProvider(object):
-    def __init__(self, hostname, *, username=None, password=None):
-        self._hostname = hostname
+    def __init__(self, ip_address, *, username=None, password=None):
+        self._ip_address = ip_address
         self._auth_provider = (PlainTextAuthProvider(username=username,
                                                      password=password)
                                if username and password else None)
-        load_balancing_policy = WhiteListRoundRobinPolicy([hostname])
+        load_balancing_policy = WhiteListRoundRobinPolicy([ip_address])
         self._execution_profiles = {'local': ExecutionProfile(
             load_balancing_policy=load_balancing_policy
         )}
 
     def new_session(self):
-        cluster = Cluster(contact_points=[self._hostname],
+        cluster = Cluster(contact_points=[self._ip_address],
                           auth_provider=self._auth_provider,
                           execution_profiles=self._execution_profiles)
         session = cluster.connect()
@@ -59,6 +58,9 @@ class CqlSession(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.shutdown()
+
+    def shutdown(self):
         self.session.shutdown()
         self.cluster.shutdown()
 
@@ -70,27 +72,34 @@ class CqlSession(object):
     def session(self):
         return self._session
 
-    def current_token(self):
+    def token(self):
         listen_address = self.cluster.contact_points[0]
         token_map = self.cluster.metadata.token_map
-        try:
-            token, host = next(itertools.dropwhile(
-                lambda x: x[1].listen_address != listen_address,
-                token_map.token_to_host_owner.items()
-            ))
-            return token.value
-        except StopIteration:
+        for token, host in token_map.token_to_host_owner.items():
+            if host.address == listen_address:
+                return token.value
+        else:
             raise RuntimeError('Unable to current token')
+
+    def datacenter(self):
+        listen_address = self.cluster.contact_points[0]
+        token_map = self.cluster.metadata.token_map
+        for host in token_map.token_to_host_owner.values():
+            if host.address == listen_address:
+                return host.datacenter
+        else:
+            raise RuntimeError('Unable to current datacenter')
 
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map
+        datacenter = self.datacenter()
         return {
             socket.gethostbyaddr(host.address)[0]: {
-                'dc': host.datacenter,
                 'token': token.value,
                 'is_up': host.is_up
             }
             for token, host in token_map.token_to_host_owner.items()
+            if host.datacenter == datacenter
         }
 
     def dump_schema(self):
