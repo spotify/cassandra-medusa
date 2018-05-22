@@ -53,7 +53,7 @@ class Storage(object):
             self.get_node_backup(fqdn=fqdn or pathlib.Path(blob.name).parts[-3],
                                  name=pathlib.Path(blob.name).parts[-2])
             for blob in self._bucket.list_blobs(prefix=str(prefix))
-            if blob.name.endswith('/tokenmap.json')
+            if blob.name.endswith('/schema.cql')
         )
 
     def list_cluster_backups(self):
