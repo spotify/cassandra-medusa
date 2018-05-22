@@ -15,7 +15,6 @@
 
 
 import collections
-import itertools
 import logging
 import pathlib
 import shlex
@@ -73,16 +72,13 @@ class CqlSession(object):
     def session(self):
         return self._session
 
-    def current_token(self):
+    def token(self):
         listen_address = self.cluster.contact_points[0]
         token_map = self.cluster.metadata.token_map
-        try:
-            token, host = next(itertools.dropwhile(
-                lambda x: x[1].listen_address != listen_address,
-                token_map.token_to_host_owner.items()
-            ))
-            return token.value
-        except StopIteration:
+        for token, host in token_map.token_to_host_owner.items():
+            if host.address == listen_address:
+                return token.value
+        else:
             raise RuntimeError('Unable to current token')
 
     def tokenmap(self):
