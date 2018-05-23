@@ -75,5 +75,4 @@ class Storage(object):
         for cluster_backup in self.list_cluster_backups():
             if cluster_backup.name == backup_name:
                 return cluster_backup
-        else:
-            raise KeyError('No such backup')
+        raise KeyError('No such backup')
