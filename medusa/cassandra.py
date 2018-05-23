@@ -78,8 +78,7 @@ class CqlSession(object):
         for token, host in token_map.token_to_host_owner.items():
             if host.address == listen_address:
                 return token.value
-        else:
-            raise RuntimeError('Unable to current token')
+        raise RuntimeError('Unable to current token')
 
     def datacenter(self):
         listen_address = self.cluster.contact_points[0]
@@ -87,8 +86,7 @@ class CqlSession(object):
         for host in token_map.token_to_host_owner.values():
             if host.address == listen_address:
                 return host.datacenter
-        else:
-            raise RuntimeError('Unable to current datacenter')
+        raise RuntimeError('Unable to current datacenter')
 
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map

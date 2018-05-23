@@ -124,9 +124,14 @@ def main():
     parser = make_parser()
     args = parser.parse_args()
 
-    logging.basicConfig(level=max(3 - args.loglevel, 0) * 10,
+    loglevel = max(3 - args.loglevel, 0) * 10
+    logging.basicConfig(level=loglevel,
                         format='[%(asctime)s] %(levelname)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
+    if loglevel >= logging.DEBUG:
+        # Disable debugging logging for external libraries
+        for loggername in 'urllib3', 'google.auth.transport.requests':
+            logging.getLogger(loggername).setLevel(logging.CRITICAL)
 
     if args.command is None:
         parser.print_help()

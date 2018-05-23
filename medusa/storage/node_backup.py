@@ -25,6 +25,8 @@ class NodeBackup(object):
         self._schema_path = self._meta_prefix / 'schema.cql'
         self._manifest_path = self._meta_prefix / 'manifest.json'
 
+        self._cached_manifest = None
+
     def __repr__(self):
         return 'NodeBackup(name={0.name}, fqdn={0.fqdn})'.format(self)
 
@@ -81,19 +83,13 @@ class NodeBackup(object):
 
     @property
     def started(self):
-        schema_blob = self._blob(self.schema_path)
-        if not schema_blob.exists():
-            return None
-        schema_blob.reload()
-        return schema_blob.time_created
+        schema_blob = self.bucket.get_blob(str(self.schema_path))
+        return schema_blob.time_created if schema_blob else None
 
     @property
     def finished(self):
-        manifest_blob = self._blob(self.manifest_path)
-        if not manifest_blob.exists():
-            return None
-        manifest_blob.reload()
-        return manifest_blob.time_created
+        manifest_blob = self.bucket.get_blob(str(self.manifest_path))
+        return manifest_blob.time_created if manifest_blob else None
 
     @property
     def manifest_path(self):
@@ -101,11 +97,14 @@ class NodeBackup(object):
 
     @property
     def manifest(self):
-        manifest_blob = self._blob(self.manifest_path)
-        return manifest_blob.download_as_string().decode('utf-8')
+        if self._cached_manifest is None:
+            manifest_blob = self._blob(self.manifest_path)
+            self._cached_manifest = manifest_blob.download_as_string().decode('utf-8')
+        return self._cached_manifest
 
     @manifest.setter
     def manifest(self, manifest):
+        self._cached_manifest = None
         manifest_blob = self._blob(self.manifest_path)
         manifest_blob.upload_from_string(manifest)
 
