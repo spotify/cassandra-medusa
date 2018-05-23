@@ -14,27 +14,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup
+import setuptools
 
 
-setup(name='medusa',
-      version='0.0.1',
-      author='Spotify',
-      author_email='data-bye@spotify.com',
-      description='Prototype',
-      license='Apache',
-      classifiers=[
-          'Development Status :: 1 - Planning',
-          'Environment :: Console',
-          'Intended Audience :: System Administrators',
-          'License :: OSI Approved :: Apache Software License',
-          'Programming Language :: Python :: 3.6'
-      ],
-      python_requires='>=3',
-      packages=('medusa',),
-      entry_points={
-          'console_scripts': [
-              'medusa=medusa.medusacli:main',
-          ]},
-      scripts=['bin/medusa-wrapper']
-      )
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
+setuptools.setup(
+    name='medusa',
+    version='0.0.1',
+    author='Spotify',
+    author_email='data-bye@spotify.com',
+    description='Prototype',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    license='Apache',
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Environment :: Console',
+        'Intended Audience :: System Administrators',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python :: 3.4',
+        'Topic :: Database',
+        'Topic :: System :: Archiving :: Backup'
+    ],
+    python_requires='>=3',
+    packages=setuptools.find_packages(),
+    install_requires=[
+        'PyYAML>=3.10',
+        'google-cloud-storage>=1.7.0',
+        'cassandra-driver>=3.14.0',
+        'paramiko>=2.4.1'
+    ],
+    entry_points={
+        'console_scripts': [
+            'medusa=medusa.medusacli:main',
+        ]},
+    scripts=['bin/medusa-wrapper']
+)
