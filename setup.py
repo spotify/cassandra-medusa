@@ -38,7 +38,7 @@ setuptools.setup(
         'Topic :: Database',
         'Topic :: System :: Archiving :: Backup'
     ],
-    python_requires='>=3',
+    python_requires='>=3.4',
     packages=setuptools.find_packages(),
     install_requires=[
         'PyYAML>=3.10',
