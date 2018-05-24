@@ -21,7 +21,7 @@ import pathlib
 import sys
 from medusa.cassandra import Cassandra
 from medusa.gsutil import GSUtil
-from medusa.storage import Storage
+from medusa.storage import Storage, format_bytes_str
 
 
 def url_to_path(url):
@@ -33,6 +33,7 @@ class NodeBackupCache(object):
 
     def __init__(self, *, node_backup):
         if node_backup:
+            self._backup_name = node_backup.name
             self._bucket_name = node_backup.storage.config.bucket_name
             self._cached_objects = {
                 (section['keyspace'], section['columnfamily']): {
@@ -42,8 +43,18 @@ class NodeBackupCache(object):
                 for section in json.loads(node_backup.manifest)
             }
         else:
+            self._backup_name = None
             self._bucket_name = None
             self._cached_objects = {}
+        self._replaced = 0
+
+    @property
+    def replaced(self):
+        return self._replaced
+
+    @property
+    def backup_name(self):
+        return self._backup_name
 
     def replace_if_cached(self, *, keyspace, columnfamily, src):
         if src.name in self.NEVER_CACHED:
@@ -58,6 +69,7 @@ class NodeBackupCache(object):
             return src
 
         logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
+        self._replaced += 1
         return 'gs://{}/{}'.format(self._bucket_name, cached_item['path'])
 
 
@@ -89,6 +101,7 @@ def main(args, config):
             node_backup.tokenmap = json.dumps(cql_session.tokenmap())
 
         manifest = []
+        num_files = 0
         with GSUtil(config.storage) as gsutil:
             for snapshotpath in snapshot.find_dirs():
                 srcs = [
@@ -99,6 +112,7 @@ def main(args, config):
                     )
                     for src in snapshotpath.path.glob('*')
                 ]
+                num_files += len(srcs)
 
                 dst = 'gs://{}/{}'.format(
                     config.storage.bucket_name,
@@ -116,6 +130,20 @@ def main(args, config):
                                  } for manifestobject in manifestobjects]})
 
         node_backup.manifest = json.dumps(manifest)
+        end = datetime.datetime.now()
 
         logging.info('Backup done')
-        end = datetime.datetime.now()
+        logging.info('- Started: {:%Y-%m-%d %H:%M:%S}, Finished: {:%Y-%m-%d %H:%M:%S}'.format(start, end))
+        logging.info('- Duration: {}'.format(end-start))
+        logging.info('- {} files, {}'.format(
+            node_backup.num_objects(),
+            format_bytes_str(node_backup.size())
+        ))
+        logging.info('- {} files copied from host'.format(
+            num_files - node_backup_cache.replaced
+        ))
+        if node_backup_cache.backup_name is not None:
+            logging.info('- {} copied from previous backup ({})'.format(
+                node_backup_cache.replaced,
+                node_backup_cache.backup_name
+            ))

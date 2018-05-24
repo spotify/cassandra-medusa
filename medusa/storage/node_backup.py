@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 
 
 class NodeBackup(object):
@@ -113,3 +114,16 @@ class NodeBackup(object):
 
     def exists(self):
         return self._blob(self.schema_path).exists()
+
+    def size(self):
+        return sum(
+            obj['size']
+            for section in json.loads(self.manifest)
+            for obj in section['objects']
+        )
+
+    def num_objects(self):
+        return sum(
+            len(section['objects'])
+            for section in json.loads(self.manifest)
+        )

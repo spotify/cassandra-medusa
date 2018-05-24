@@ -15,7 +15,7 @@
 import json
 import logging
 import sys
-from medusa.storage import Storage
+from medusa.storage import Storage, format_bytes_str
 
 
 def validate_manifest(node_backup):
@@ -90,3 +90,8 @@ def status(args, config):
             print(error)
     else:
         print("Manifest validated: OK!!")
+
+    print('{} files, {}'.format(
+        cluster_backup.num_objects(),
+        format_bytes_str(cluster_backup.size())
+    ))
