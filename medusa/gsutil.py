@@ -21,7 +21,7 @@ import os
 import pathlib
 import subprocess
 import tempfile
-
+import time
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
@@ -53,21 +53,32 @@ class GSUtil(object):
         return False
 
     def cp(self, *, srcs, dst, max_retries=5):
-        fd, manifest_log = tempfile.mkstemp()
-        os.close(fd)
-
         if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
             srcs = [srcs]
 
-        cmd = (['gsutil', '-q', '-m', 'cp', '-c', '-L', manifest_log] +
-               [str(src) for src in srcs] +
-               [str(dst)])
+        fd, manifest_log = tempfile.mkstemp()
+        os.close(fd)
+
+        cmd = ['gsutil', '-q', '-m', 'cp', '-c',
+               '-L', manifest_log, '-I', str(dst)]
 
         logging.debug(' '.join(cmd))
 
-        retry = 0
-        while retry < max_retries:
-            if subprocess.call(cmd, env=self._env) == 0:
+        for retry in range(max_retries):
+            if retry > 0:
+                time.sleep(3)  # TODO: Move this magic number
+                logging.debug('Retrying ({}/{})....'.format(
+                    retry+1,
+                    max_retries
+                ))
+
+            process = subprocess.Popen(cmd, env=self._env,
+                                       stdin=subprocess.PIPE,
+                                       universal_newlines=True)
+            for src in srcs:
+                process.stdin.write(str(src) + '\n')
+            process.stdin.flush()
+            if process.wait() == 0:
                 with open(manifest_log) as f:
                     manifestobjects = [
                         ManifestObject(row['Destination'],
@@ -77,5 +88,5 @@ class GSUtil(object):
                     ]
                 pathlib.Path(manifest_log).unlink()
                 return manifestobjects
-            retry += 1
-        raise Exception('gsutil failed: {}'.format(' '.join(cmd)))
+
+        raise IOError('gsutil failed. Max attempts ({}) exceeded'.format(max_retries))
