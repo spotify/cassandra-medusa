@@ -65,7 +65,7 @@ class Storage(object):
 
     def list_cluster_backups(self):
         node_backups = sorted(self.list_node_backups(),
-                              key=operator.attrgetter('name'))
+                              key=operator.attrgetter('started'))
         return (
             ClusterBackup(name, node_backups)
             for name, node_backups in itertools.groupby(node_backups,
