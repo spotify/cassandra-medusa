@@ -23,6 +23,13 @@ from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
 
 
+def format_bytes_str(value):
+    for unit_shift, unit in enumerate(['B', 'KB', 'MB', 'GB', 'TB']):
+        if value >> (unit_shift * 10) < 1024:
+            break
+    return '{:.2f} {}'.format(value / (1<<(unit_shift * 10)), unit)
+
+
 class Storage(object):
     def __init__(self, *, config, client=None):
         self._config = config

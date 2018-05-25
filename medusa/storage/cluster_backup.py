@@ -75,3 +75,17 @@ class ClusterBackup(object):
         return [node_backup
                 for node_backup in self.node_backups.values()
                 if node_backup.finished is None]
+
+    def size(self):
+        return sum(
+            node_backup.size()
+            for node_backup in self.node_backups.values()
+            if node_backup.finished
+        )
+
+    def num_objects(self):
+        return sum(
+            node_backup.num_objects()
+            for node_backup in self.node_backups.values()
+            if node_backup.finished
+        )
