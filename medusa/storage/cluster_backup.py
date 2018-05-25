@@ -71,6 +71,11 @@ class ClusterBackup(object):
     def missing_nodes(self):
         return set(self.tokenmap.keys()) - set(self.node_backups.keys())
 
+    def complete_nodes(self):
+        return [node_backup
+                for node_backup in self.node_backups.values()
+                if node_backup.finished]
+
     def incomplete_nodes(self):
         return [node_backup
                 for node_backup in self.node_backups.values()
