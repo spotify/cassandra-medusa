@@ -77,7 +77,7 @@ class GSUtil(object):
                                        universal_newlines=True)
             for src in srcs:
                 process.stdin.write(str(src) + '\n')
-            process.stdin.flush()
+            process.stdin.close()
             if process.wait() == 0:
                 with open(manifest_log) as f:
                     manifestobjects = [
