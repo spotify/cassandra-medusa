@@ -47,7 +47,7 @@ def load_config(args):
     }
     config['ssh'] = {
         'username': os.environ.get('USER'),
-        'key_file': pathlib.Path(os.path.expanduser('~/.ssh/id_rsa'))
+        'key_file': str(pathlib.Path(os.path.expanduser('~/.ssh/id_rsa')))
     }
 
     if args.config:
