@@ -26,6 +26,7 @@ import medusa.listing
 import medusa.restore_cluster
 import medusa.restore_node
 import medusa.status
+import medusa.verify
 
 
 def debug_command(args, config):
@@ -116,6 +117,13 @@ def make_parser():
     status_parser.add_argument('backup_name', type=str,
                                metavar='BACKUP-NAME', help='Backup name')
     status_parser.set_defaults(func=medusa.status.status)
+
+    verify_parser = subparsers.add_parser('verify',
+                                          help='Verify the integrity of a backup',
+                                          parents=[subcommand_template])
+    verify_parser.add_argument('backup_name', type=str,
+                               metavar='BACKUP-NAME', help='Backup name')
+    verify_parser.set_defaults(func=medusa.verify.verify)
 
     return parser
 
