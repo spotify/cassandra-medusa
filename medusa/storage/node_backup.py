@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import pathlib
 
 
 class NodeBackup(object):
-    def __init__(self, *, storage, name, fqdn):
+    def __init__(self, *, storage, name, fqdn, preloaded_blobs=None):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
@@ -26,13 +27,23 @@ class NodeBackup(object):
         self._schema_path = self._meta_prefix / 'schema.cql'
         self._manifest_path = self._meta_prefix / 'manifest.json'
 
+        if preloaded_blobs is None:
+            preloaded_blobs = storage.bucket.list_blobs(
+                prefix='{}/'.format(self._meta_prefix)
+            )
+        self._cached_blobs = {pathlib.Path(blob.name): blob
+                              for blob in preloaded_blobs}
         self._cached_manifest = None
 
     def __repr__(self):
         return 'NodeBackup(name={0.name}, fqdn={0.fqdn})'.format(self)
 
     def _blob(self, path):
-        return self.bucket.blob(str(path))
+        blob = self._cached_blobs.get(path)
+        if blob is None:
+            blob = self.bucket.blob(str(path))
+            self._cached_blobs[path] = blob
+        return blob
 
     @property
     def name(self):
@@ -84,12 +95,12 @@ class NodeBackup(object):
 
     @property
     def started(self):
-        schema_blob = self.bucket.get_blob(str(self.schema_path))
+        schema_blob = self._blob(self.schema_path)
         return schema_blob.time_created if schema_blob else None
 
     @property
     def finished(self):
-        manifest_blob = self.bucket.get_blob(str(self.manifest_path))
+        manifest_blob = self._blob(self.manifest_path)
         return manifest_blob.time_created if manifest_blob else None
 
     @property
