@@ -54,14 +54,21 @@ class Storage(object):
             fqdn=fqdn
         )
 
+    @staticmethod
+    def _get_parent_from_blob(blob):
+        return pathlib.Path(blob.name).parent
+
     def list_node_backups(self, *, fqdn=None):
         prefix = self._meta_prefix / (fqdn or '')
-        return (
-            self.get_node_backup(fqdn=fqdn or pathlib.Path(blob.name).parts[-3],
-                                 name=pathlib.Path(blob.name).parts[-2])
-            for blob in self._bucket.list_blobs(prefix=str(prefix))
-            if blob.name.endswith('/schema.cql')
-        )
+        blobs = sorted(self._bucket.list_blobs(prefix='{}/'.format(prefix)),
+                       key=operator.attrgetter('name'))
+        for parent, blobs in itertools.groupby(blobs,
+                                               key=self._get_parent_from_blob):
+            *_, fqdn, name = parent.parts
+            blobs = list(blobs)
+            if any(map(lambda blob: blob.name.endswith('/schema.cql'), blobs)):
+                yield NodeBackup(storage=self, fqdn=fqdn, name=name,
+                                 preloaded_blobs=blobs)
 
     def list_cluster_backups(self):
         node_backups = sorted(self.list_node_backups(),
