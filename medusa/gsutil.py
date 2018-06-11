@@ -22,6 +22,7 @@ import pathlib
 import subprocess
 import tempfile
 import time
+import uuid
 
 ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
 
@@ -56,10 +57,12 @@ class GSUtil(object):
         if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
             srcs = [srcs]
 
-        fd, manifest_log = tempfile.mkstemp()
-        os.close(fd)
+        # TODO: Clean up these files in production
+        job_id = str(uuid.uuid4())
+        manifest_log = '/tmp/gsutil_{0}.manifest'.format(job_id)
+        gsutil_output = '/tmp/gsutil_{0}.output'.format(job_id)
 
-        cmd = ['gsutil', '-q', '-m', 'cp', '-c',
+        cmd = ['gsutil', '-D', '-m', 'cp', '-c',
                '-L', manifest_log, '-I', str(dst)]
 
         logging.debug(' '.join(cmd))
@@ -72,9 +75,12 @@ class GSUtil(object):
                     max_retries
                 ))
 
-            process = subprocess.Popen(cmd, env=self._env,
-                                       stdin=subprocess.PIPE,
-                                       universal_newlines=True)
+            with open(gsutil_output, 'w') as output:
+                process = subprocess.Popen(cmd, env=self._env,
+                                           stdin=subprocess.PIPE,
+                                           stdout=output,
+                                           stderr=subprocess.STDOUT,
+                                           universal_newlines=True)
             for src in srcs:
                 process.stdin.write(str(src) + '\n')
             process.stdin.close()
@@ -86,7 +92,6 @@ class GSUtil(object):
                                        row['Md5'])
                         for row in csv.DictReader(f, delimiter=',')
                     ]
-                pathlib.Path(manifest_log).unlink()
                 return manifestobjects
 
         raise IOError('gsutil failed. Max attempts ({}) exceeded'.format(max_retries))
