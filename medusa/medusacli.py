@@ -13,12 +13,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from collections import defaultdict
 
 import argparse
 import logging
 import pathlib
 import socket
+import click
+import traceback
+from pprint import pprint
+
 import medusa.backup
 import medusa.config
 import medusa.download
@@ -29,8 +33,112 @@ import medusa.status
 import medusa.verify
 
 
+class MyConfig(object):
+
+    def __init__(self, args, config):
+        # do something with config here ...
+        self.args = args
+        self.config = config
+
+
 def debug_command(args, config):
     logging.error("This command is not implemented yet")
+
+
+pass_MyConfig = click.make_pass_decorator(MyConfig)
+
+
+def cli_wrapper():
+    """
+    Main function that runs the cli
+    """
+    try:
+        cli()
+    except Exception:
+        traceback.print_exc()
+
+
+@click.group()
+@click.option('--config', help='Specify config file', type=click.Path(exists=True), required=True)
+@click.option('-v', '--verbosity', help='Verbosity', default=0)
+@click.option('--bucket-name', help='Bucket name')
+@click.option('--key-file', default=None, help='GCP credentials key file')
+@click.option('--prefix', default=None, help='Prefix for shared storage')
+@click.option('--fqdn', default=None, help='Act as another host')
+@click.pass_context
+def cli(ctx, **kwargs):
+    args = defaultdict(lambda: None, kwargs)
+    ctx.obj = MyConfig(args=args, config=medusa.config.load_config(args))
+
+
+@click.command()
+@click.option('--backup_name', help='Custom name for the backup')
+@pass_MyConfig
+def backup(myconfig, backup_name):
+    """
+    Backup Cassandra
+    """
+#    myconfig.args.update(kwargs)
+#    medusa.backup.main(myconfig.args, myconfig.config)
+
+
+@click.option('--all/--no-all', default=False)
+@click.command()
+@pass_MyConfig
+def list(myconfig, all):
+    """
+    List backups
+    """
+    medusa.listing.list(all, myconfig.args, myconfig.config)
+
+
+@click.command()
+def download():
+    """
+    Download backup
+    """
+    pass
+
+
+@click.command()
+def restore_cluster():
+    """
+    Restore Cassandra cluster
+    """
+    pass
+
+
+@click.command()
+def restore_node():
+    """
+    Restore single Cassandra node
+    """
+    pass
+
+
+@click.command()
+def status():
+    """
+    Show status of backups
+    """
+    pass
+
+
+@click.command()
+def verify():
+    """
+    Verify the integrity of a backup
+    """
+    pass
+
+
+cli.add_command(backup)
+cli.add_command(list)
+cli.add_command(download)
+cli.add_command(restore_cluster)
+cli.add_command(restore_node)
+cli.add_command(status)
+cli.add_command(verify)
 
 
 def make_parser():
@@ -154,4 +262,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    cli_wrapper()

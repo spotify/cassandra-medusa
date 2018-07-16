@@ -50,13 +50,9 @@ def load_config(args):
         'key_file': str(pathlib.Path(os.path.expanduser('~/.ssh/id_rsa')))
     }
 
-    if args.config:
-        if not args.config.exists():
-            logging.error('Configuration file {} does not exist'.format(args.config))
-            sys.exit(2)
-
-        logging.debug('Loading configuration from {}'.format(args.config))
-        config.read_file(args.config.open())
+    if args['config']:
+        logging.debug('Loading configuration from {}'.format(args['config']))
+        config.read_file(pathlib.Path(args['config']).open())
     elif DEFAULT_CONFIGURATION_PATH.exists():
         logging.debug('Loading configuration from {}'.format(DEFAULT_CONFIGURATION_PATH))
         config.read_file(DEFAULT_CONFIGURATION_PATH.open())
@@ -64,14 +60,14 @@ def load_config(args):
     config.read_dict({'storage': {
         key: value
         for key, value in zip(StorageConfig._fields,
-                              (args.bucket_name, args.key_file, args.prefix))
+                              (args['bucket_name'], args['key_file'], args['prefix']))
         if value is not None
     }})
 
     config.read_dict({'ssh': {
         key: value
         for key, value in zip(SSHConfig._fields,
-                              (args.ssh_username, args.ssh_key_file))
+                              (args['ssh_username'], args['ssh_key_file']))
         if value is not None
     }})
 
