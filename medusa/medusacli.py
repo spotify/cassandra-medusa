@@ -20,7 +20,7 @@ import logging
 import pathlib
 import socket
 import click
-import traceback
+from click import pass_context
 from pprint import pprint
 
 import medusa.backup
@@ -33,29 +33,19 @@ import medusa.status
 import medusa.verify
 
 
-class MyConfig(object):
-
-    def __init__(self, args, config):
-        # do something with config here ...
-        self.args = args
-        self.config = config
-
-
 def debug_command(args, config):
     logging.error("This command is not implemented yet")
 
 
-pass_MyConfig = click.make_pass_decorator(MyConfig)
-
-
-def cli_wrapper():
-    """
-    Main function that runs the cli
-    """
-    try:
-        cli()
-    except Exception:
-        traceback.print_exc()
+def configure_logging(verbosity):
+    loglevel = max(3 - verbosity, 0) * 10
+    logging.basicConfig(level=loglevel,
+                        format='[%(asctime)s] %(levelname)s: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+    if loglevel >= logging.DEBUG:
+        # Disable debugging logging for external libraries
+        for loggername in 'urllib3', 'google.auth.transport.requests':
+            logging.getLogger(loggername).setLevel(logging.CRITICAL)
 
 
 @click.group()
@@ -68,31 +58,33 @@ def cli_wrapper():
 @click.pass_context
 def cli(ctx, **kwargs):
     args = defaultdict(lambda: None, kwargs)
-    ctx.obj = MyConfig(args=args, config=medusa.config.load_config(args))
+    configure_logging(kwargs['verbosity'])
+    ctx.obj = medusa.config.load_config(args)
 
 
-@click.command()
+@cli.command()
 @click.option('--backup_name', help='Custom name for the backup')
-@pass_MyConfig
-def backup(myconfig, backup_name):
+def backup(ctx, backup_name):
     """
     Backup Cassandra
     """
-#    myconfig.args.update(kwargs)
-#    medusa.backup.main(myconfig.args, myconfig.config)
+    #    myconfig.args.update(kwargs)
+    #    medusa.backup.main(myconfig.args, myconfig.config)
+    pass
 
 
-@click.option('--all/--no-all', default=False)
-@click.command()
-@pass_MyConfig
-def list(myconfig, all):
+@cli.command()
+@click.option('--show-all/--no-show-all', default=False, help="List all backups in the bucket")
+@pass_context
+def list_backups(ctx, show_all):
     """
     List backups
     """
-    medusa.listing.list(all, myconfig.args, myconfig.config)
+    pprint(ctx.obj)
+    medusa.listing.list(show_all, ctx.obj)
 
 
-@click.command()
+@cli.command()
 def download():
     """
     Download backup
@@ -100,7 +92,7 @@ def download():
     pass
 
 
-@click.command()
+@cli.command()
 def restore_cluster():
     """
     Restore Cassandra cluster
@@ -108,7 +100,7 @@ def restore_cluster():
     pass
 
 
-@click.command()
+@cli.command()
 def restore_node():
     """
     Restore single Cassandra node
@@ -116,7 +108,7 @@ def restore_node():
     pass
 
 
-@click.command()
+@cli.command()
 def status():
     """
     Show status of backups
@@ -124,21 +116,12 @@ def status():
     pass
 
 
-@click.command()
+@cli.command()
 def verify():
     """
     Verify the integrity of a backup
     """
     pass
-
-
-cli.add_command(backup)
-cli.add_command(list)
-cli.add_command(download)
-cli.add_command(restore_cluster)
-cli.add_command(restore_node)
-cli.add_command(status)
-cli.add_command(verify)
 
 
 def make_parser():
@@ -234,32 +217,3 @@ def make_parser():
     verify_parser.set_defaults(func=medusa.verify.verify)
 
     return parser
-
-
-def main():
-    parser = make_parser()
-    args = parser.parse_args()
-
-    loglevel = max(3 - args.loglevel, 0) * 10
-    logging.basicConfig(level=loglevel,
-                        format='[%(asctime)s] %(levelname)s: %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
-    if loglevel >= logging.DEBUG:
-        # Disable debugging logging for external libraries
-        for loggername in 'urllib3', 'google.auth.transport.requests':
-            logging.getLogger(loggername).setLevel(logging.CRITICAL)
-
-    if args.command is None:
-        parser.print_help()
-        parser.exit(status=1, message='Please specify command')
-
-    logging.debug(args)
-
-    config = medusa.config.load_config(args)
-    logging.debug(config)
-
-    args.func(args, config)
-
-
-if __name__ == '__main__':
-    cli_wrapper()

@@ -23,7 +23,7 @@ import medusa.storage
 import medusa.cassandra
 
 StorageConfig = collections.namedtuple('StorageConfig',
-                                       ['bucket_name', 'key_file', 'prefix'])
+                                       ['bucket_name', 'key_file', 'prefix', 'fqdn'])
 CassandraConfig = collections.namedtuple('CassandraConfig',
                                          ['start_cmd', 'stop_cmd',
                                           'config_file',
@@ -60,7 +60,7 @@ def load_config(args):
     config.read_dict({'storage': {
         key: value
         for key, value in zip(StorageConfig._fields,
-                              (args['bucket_name'], args['key_file'], args['prefix']))
+                              (args['bucket_name'], args['key_file'], args['prefix'], args['fqdn']))
         if value is not None
     }})
 
