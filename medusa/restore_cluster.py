@@ -26,20 +26,20 @@ from medusa.storage import Storage
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
 
 
-def orchestrate(args, config):
+def orchestrate(config, backup_name, seed_target, temp_dir):
     storage = Storage(config=config.storage)
     try:
-        cluster_backup = storage.get_cluster_backup(args.backup_name)
+        cluster_backup = storage.get_cluster_backup(backup_name)
     except KeyError:
         logging.error('No such backup')
         sys.exit(1)
 
-    session_provider = CqlSessionProvider(args.seed_target,
+    session_provider = CqlSessionProvider(seed_target,
                                           username=config.cassandra.cql_username,
                                           password=config.cassandra.cql_password)
 
     restore = RestoreJob(cluster_backup, session_provider,
-                         config.ssh, args.temp_dir)
+                         config.ssh, temp_dir)
     restore.execute()
 
 

@@ -55,6 +55,8 @@ def configure_logging(verbosity):
 @click.option('--key-file', default=None, help='GCP credentials key file')
 @click.option('--prefix', default=None, help='Prefix for shared storage')
 @click.option('--fqdn', default=None, help='Act as another host')
+@click.option('--ssh-username')
+@click.option('--ssh-key-file')
 @click.pass_context
 def cli(ctx, **kwargs):
     args = defaultdict(lambda: None, kwargs)
@@ -64,13 +66,12 @@ def cli(ctx, **kwargs):
 
 @cli.command()
 @click.option('--backup_name', help='Custom name for the backup')
+@pass_context
 def backup(ctx, backup_name):
     """
     Backup Cassandra
     """
-    #    myconfig.args.update(kwargs)
-    #    medusa.backup.main(myconfig.args, myconfig.config)
-    pass
+    medusa.backup.main(ctx.obj, backup_name )
 
 
 @cli.command()
@@ -80,23 +81,30 @@ def list_backups(ctx, show_all):
     """
     List backups
     """
-    pprint(ctx.obj)
-    medusa.listing.list(show_all, ctx.obj)
+    medusa.listing.list(ctx.obj, show_all)
 
 
 @cli.command()
-def download():
+@click.option('--backup-name', help='Custom name for the backup')
+@click.option('--download-destination', help='Download destination')
+@pass_context
+def download(ctx, backup_name, download_destination):
     """
     Download backup
     """
-    pass
+    medusa.download.download_cmd(ctx.obj, backup_name, pathlib.Path(download_destination))
 
 
 @cli.command()
-def restore_cluster():
+@click.option('--backup-name')
+@click.option('--seed-target')
+@click.option('--temp-dir')
+@pass_context
+def restore_cluster(ctx, **kwargs):
     """
     Restore Cassandra cluster
     """
+    medusa.restore_cluster.orchestrate(ctx.obj, **kwargs)
     pass
 
 

@@ -73,20 +73,20 @@ class NodeBackupCache(object):
         return 'gs://{}/{}'.format(self._bucket_name, cached_item['path'])
 
 
-def main(args, config):
+def main(config, backup_name):
     start = datetime.datetime.now()
 
     logging.info('Starting backup')
-    backup_name = args.backup_name or start.strftime('%Y%m%d%H')
+    backup_name = backup_name or start.strftime('%Y%m%d%H')
 
     storage = Storage(config=config.storage)
     # TODO: Test permission
 
     node_backup_cache = NodeBackupCache(
-        node_backup=storage.latest_node_backup(fqdn=args.fqdn)
+        node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn)
     )
 
-    node_backup = storage.get_node_backup(fqdn=args.fqdn, name=backup_name)
+    node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
     if node_backup.exists():
         logging.error('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)

@@ -20,7 +20,7 @@ from medusa.storage import Storage
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def list(show_all, config):
+def list(config, show_all):
     storage = Storage(config=config.storage)
 
     cluster_backups = storage.list_cluster_backups()
