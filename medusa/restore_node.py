@@ -24,10 +24,10 @@ from medusa.download import download_data
 from medusa.storage import Storage
 
 
-def restore_node(args, config):
+def restore_node(config, restore_from, temp_dir, backup_name):
     storage = Storage(config=config.storage)
 
-    node_backup = storage.get_node_backup(fqdn=args.fqdn, name=args.backup_name)
+    node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
     if not node_backup.exists():
         logging.error('No such backup')
         sys.exit(1)
@@ -59,14 +59,14 @@ def restore_node(args, config):
             ))
             sys.exit(1)
 
-    if args.restore_from:
-        if not args.restore_from.is_dir():
-            logging.error('{} is not a directory'.format(args.restore_from))
+    if restore_from:
+        if not restore_from.is_dir():
+            logging.error('{} is not a directory'.format(restore_from))
             sys.exit(1)
-        download_dir = args.restore_from
+        download_dir = restore_from
         logging.info('Restoring data from {}'.format(download_dir))
     else:
-        download_dir = args.temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
+        download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
         logging.info('Downloading data from backup to {}'.format(download_dir))
         download_data(config.storage, node_backup, destination=download_dir)
 
