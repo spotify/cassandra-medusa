@@ -18,7 +18,6 @@ from collections import defaultdict
 import logging
 import socket
 import click
-from click import pass_context
 
 import medusa.backup
 import medusa.config
@@ -28,6 +27,8 @@ import medusa.restore_cluster
 import medusa.restore_node
 import medusa.status
 import medusa.verify
+
+pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
 
 def debug_command(args, config):
@@ -63,74 +64,74 @@ def cli(ctx, verbosity, **kwargs):
 
 @cli.command()
 @click.option('--backup_name', help='Custom name for the backup')
-@pass_context
-def backup(ctx, backup_name):
+@pass_MedusaConfig
+def backup(medusaconfig, backup_name):
     """
     Backup Cassandra
     """
-    medusa.backup.main(ctx.obj, backup_name)
+    medusa.backup.main(medusaconfig, backup_name)
 
 
 @cli.command()
 @click.option('--show-all/--no-show-all', default=False, help="List all backups in the bucket")
-@pass_context
-def list_backups(ctx, show_all):
+@pass_MedusaConfig
+def list_backups(medusaconfig, show_all):
     """
     List backups
     """
-    medusa.listing.list(ctx.obj, show_all)
+    medusa.listing.list(medusaconfig, show_all)
 
 
 @cli.command()
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--download-destination', help='Download destination', type=click.Path(exists=True))
-@pass_context
-def download(ctx, backup_name, download_destination):
+@pass_MedusaConfig
+def download(medusaconfig, backup_name, download_destination):
     """
     Download backup
     """
-    medusa.download.download_cmd(ctx.obj, backup_name, download_destination)
+    medusa.download.download_cmd(medusaconfig, backup_name, download_destination)
 
 
 @cli.command()
 @click.option('--backup-name', help='Backup name')
 @click.option('--seed-target', help='seed of the target hosts')
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp", type=click.Path(exists=True))
-@pass_context
-def restore_cluster(ctx, backup_name, seed_target, temp_dir):
+@pass_MedusaConfig
+def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir):
     """
     Restore Cassandra cluster
     """
-    medusa.restore_cluster.orchestrate(ctx.obj, backup_name, seed_target, temp_dir)
+    medusa.restore_cluster.orchestrate(medusaconfig, backup_name, seed_target, temp_dir)
 
 
 @cli.command()
 @click.option('--restore-from', help='Restore data from local directory', type=click.Path(exists=True))
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp", type=click.Path(exists=True))
 @click.option('--backup-name', help='Backup name')
-@pass_context
-def restore_node(ctx, restore_from, temp_dir, backup_name):
+@pass_MedusaConfig
+def restore_node(medusaconfig, restore_from, temp_dir, backup_name):
     """
     Restore single Cassandra node
     """
-    medusa.restore_node.restore_node(ctx.obj, restore_from, temp_dir, backup_name)
+    medusa.restore_node.restore_node(medusaconfig, restore_from, temp_dir, backup_name)
 
 
 @cli.command()
 @click.option('--backup-name', help='Backup name')
-@pass_context
-def status(ctx, backup_name):
+@pass_MedusaConfig
+def status(medusaconfig, backup_name):
     """
     Show status of backups
     """
-    medusa.status.status(ctx.obj, backup_name)
+    medusa.status.status(medusaconfig, backup_name)
 
 
 @cli.command()
 @click.option('--backup-name', help='Backup name')
-@pass_context
-def verify(ctx, backup_name):
+@pass_MedusaConfig
+def verify(medusaconfig, backup_name):
     """
     Verify the integrity of a backup
     """
-    medusa.verify.verify(ctx.obj, backup_name)
+    medusa.verify.verify(medusaconfig, backup_name)
