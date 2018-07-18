@@ -86,13 +86,13 @@ def list_backups(medusaconfig, show_all):
 
 @cli.command()
 @click.option('--backup-name', help='Custom name for the backup')
-@click.option('--download-destination', help='Download destination', type=click.Path(exists=True))
+@click.option('--download-destination', help='Download destination', required=True)
 @pass_MedusaConfig
 def download(medusaconfig, backup_name, download_destination):
     """
     Download backup
     """
-    medusa.download.download_cmd(medusaconfig, backup_name, download_destination)
+    medusa.download.download_cmd(medusaconfig, backup_name, Path(download_destination))
 
 
 @cli.command()
