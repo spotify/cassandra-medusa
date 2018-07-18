@@ -50,6 +50,9 @@ class RestoreJob(object):
         self.cluster_backup = cluster_backup
         self.session_provider = session_provider
         self.ssh_config = ssh_config
+        if not temp_dir.is_dir():
+            logging.error('{} is not a directory'.format(temp_dir))
+            sys.exit(1)
         self.temp_dir = temp_dir
 
     def execute(self):
@@ -105,7 +108,6 @@ class RestoreJob(object):
         # construct command for each target host
         # invoke `nohup medusa-wrapper #{command}` on each target host
         # wait for exit on each
-
         work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         logging.info('Medusa is working in: {}'.format(work))
         remotes = []

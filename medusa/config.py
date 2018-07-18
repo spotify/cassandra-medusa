@@ -35,7 +35,7 @@ MedusaConfig = collections.namedtuple('MedusaConfig',
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
 
-def load_config(args):
+def load_config(args, config_file):
     config = configparser.ConfigParser(interpolation=None)
 
     # Set defaults
@@ -50,12 +50,15 @@ def load_config(args):
         'key_file': str(pathlib.Path(os.path.expanduser('~/.ssh/id_rsa')))
     }
 
-    if args['config']:
+    if config_file:
         logging.debug('Loading configuration from {}'.format(args['config']))
-        config.read_file(pathlib.Path(args['config']).open())
+        config.read_file(config_file.open())
     elif DEFAULT_CONFIGURATION_PATH.exists():
         logging.debug('Loading configuration from {}'.format(DEFAULT_CONFIGURATION_PATH))
         config.read_file(DEFAULT_CONFIGURATION_PATH.open())
+    else:
+        logging.error("no configuration file provided via cli invocation and file not found in {}".format(DEFAULT_CONFIGURATION_PATH))
+        sys.exit(1)
 
     config.read_dict({'storage': {
         key: value

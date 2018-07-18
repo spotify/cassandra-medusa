@@ -18,6 +18,7 @@ from collections import defaultdict
 import logging
 import socket
 import click
+from pathlib import Path
 
 import medusa.backup
 import medusa.config
@@ -48,7 +49,7 @@ def configure_logging(verbosity):
 
 @click.group()
 @click.option('-v', '--verbosity', help='Verbosity', default=0, count=True)
-@click.option('--config', help='Specify config file', type=click.Path(exists=True), required=True)
+@click.option('--config_file', help='Specify config file')
 @click.option('--bucket-name', help='Bucket name')
 @click.option('--key-file', help='GCP credentials key file')
 @click.option('--prefix', help='Prefix for shared storage')
@@ -56,10 +57,11 @@ def configure_logging(verbosity):
 @click.option('--ssh-username')
 @click.option('--ssh-key-file')
 @click.pass_context
-def cli(ctx, verbosity, **kwargs):
+def cli(ctx, verbosity, config_file, **kwargs):
+    config_file = Path(config_file) if config_file else None
     args = defaultdict(lambda: None, kwargs)
     configure_logging(verbosity)
-    ctx.obj = medusa.config.load_config(args)
+    ctx.obj = medusa.config.load_config(args, config_file)
 
 
 @cli.command()
@@ -96,25 +98,26 @@ def download(medusaconfig, backup_name, download_destination):
 @cli.command()
 @click.option('--backup-name', help='Backup name')
 @click.option('--seed-target', help='seed of the target hosts')
-@click.option('--temp-dir', help='Directory for temporary storage', default="/tmp", type=click.Path(exists=True))
+@click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir):
     """
     Restore Cassandra cluster
     """
-    medusa.restore_cluster.orchestrate(medusaconfig, backup_name, seed_target, temp_dir)
+    medusa.restore_cluster.orchestrate(medusaconfig, backup_name, seed_target, Path(temp_dir))
 
 
 @cli.command()
-@click.option('--restore-from', help='Restore data from local directory', type=click.Path(exists=True))
-@click.option('--temp-dir', help='Directory for temporary storage', default="/tmp", type=click.Path(exists=True))
+@click.option('--restore-from', help='Restore data from local directory', required=True)
+@click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--backup-name', help='Backup name')
 @pass_MedusaConfig
 def restore_node(medusaconfig, restore_from, temp_dir, backup_name):
     """
     Restore single Cassandra node
     """
-    medusa.restore_node.restore_node(medusaconfig, restore_from, temp_dir, backup_name)
+    restore_from = Path(restore_from) if restore_from else None
+    medusa.restore_node.restore_node(medusaconfig, restore_from, Path(temp_dir), backup_name)
 
 
 @cli.command()
