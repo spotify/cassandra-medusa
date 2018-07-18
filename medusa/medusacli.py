@@ -46,8 +46,8 @@ def configure_logging(verbosity):
 
 
 @click.group()
+@click.option('-v', '--verbosity', help='Verbosity', default=0, count=True)
 @click.option('--config', help='Specify config file', type=click.Path(exists=True), required=True)
-@click.option('-v', '--verbosity', help='Verbosity', default=0)
 @click.option('--bucket-name', help='Bucket name')
 @click.option('--key-file', help='GCP credentials key file')
 @click.option('--prefix', help='Prefix for shared storage')
@@ -55,9 +55,9 @@ def configure_logging(verbosity):
 @click.option('--ssh-username')
 @click.option('--ssh-key-file')
 @click.pass_context
-def cli(ctx, **kwargs):
+def cli(ctx, verbosity, **kwargs):
     args = defaultdict(lambda: None, kwargs)
-    configure_logging(kwargs['verbosity'])
+    configure_logging(verbosity)
     ctx.obj = medusa.config.load_config(args)
 
 
