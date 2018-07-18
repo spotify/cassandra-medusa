@@ -108,7 +108,7 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir):
 
 
 @cli.command()
-@click.option('--restore-from', help='Restore data from local directory', required=True)
+@click.option('--restore-from', help='Restore data from local directory')
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--backup-name', help='Backup name')
 @pass_MedusaConfig
