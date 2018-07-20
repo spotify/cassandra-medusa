@@ -1,0 +1,12 @@
+Source: medusa
+Section: python
+Priority: extra
+Maintainer: Twan Wolthof <xeago@spotify.com>
+Build-Depends: debhelper (>= 9), python3, dh-virtualenv (>= 1.0), libffi-dev, libssl-dev
+Standards-Version: 3.9.5
+
+Package: medusa
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Backup tool for cassandra databases
+ Make immutable backups for cassandra bases and store them on GCS.
