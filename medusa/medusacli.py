@@ -13,12 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections import defaultdict
 
-
-import argparse
 import logging
-import pathlib
 import socket
+import click
+from pathlib import Path
+
 import medusa.backup
 import medusa.config
 import medusa.download
@@ -27,112 +28,17 @@ import medusa.restore_cluster
 import medusa.restore_node
 import medusa.status
 import medusa.verify
+import medusa.fetch_tokenmap
+
+pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
 
 def debug_command(args, config):
     logging.error("This command is not implemented yet")
 
 
-def make_parser():
-    parser = argparse.ArgumentParser()
-    parser.set_defaults(loglevel=0)
-
-    subcommand_template = argparse.ArgumentParser(add_help=False)
-    subcommand_template.add_argument('--config', type=pathlib.Path,
-                                     default=None,
-                                     help='Specify config file')
-    subcommand_template.add_argument('-v', '--verbose', dest='loglevel',
-                                     action='count',
-                                     help='Increase verbosity')
-    subcommand_template.add_argument('--bucket-name', type=str,
-                                     default=None, help='Bucket name')
-    subcommand_template.add_argument('--key-file', type=str, default=None,
-                                     help='GCP credentials key file')
-    subcommand_template.add_argument('--prefix', type=str, default=None,
-                                     help='Prefix for shared storage')
-    subcommand_template.add_argument('--fqdn', type=str, default=None,
-                                     help='Act as another host')
-    subcommand_template.set_defaults(func=debug_command,
-                                     fqdn=socket.gethostname(),
-                                     loglevel=0,
-                                     ssh_username=None,
-                                     ssh_key_file=None)
-
-    subparsers = parser.add_subparsers(title='command', dest='command')
-    backup_parser = subparsers.add_parser('backup', help='Backup Cassandra',
-                                          parents=[subcommand_template])
-    backup_parser.add_argument('-n', '--backup_name', type=str, default=None,
-                               help='Custom name for the backup')
-    backup_parser.set_defaults(func=medusa.backup.main)
-
-    list_parser = subparsers.add_parser('list', help='List backups',
-                                        parents=[subcommand_template])
-    list_parser.add_argument('--all', action='store_true',
-                             help='List all backups in the bucket')
-    list_parser.set_defaults(func=medusa.listing.list)
-
-    download_parser = subparsers.add_parser('download', help='Download backup',
-                                            parents=[subcommand_template])
-    download_parser.add_argument('backup_name', type=str,
-                                 metavar='BACKUP-NAME', help='Backup name')
-    download_parser.add_argument('destination', type=pathlib.Path,
-                                 metavar='DESTINATION',
-                                 help='Download destination')
-    download_parser.set_defaults(func=medusa.download.download_cmd)
-
-    restore_cluster_parser = subparsers.add_parser('restore_cluster',
-                                                   help='Restore Cassandra cluster',
-                                                   parents=[subcommand_template])
-    restore_cluster_parser.add_argument('--ssh_username', type=str,
-                                        default=None, help='SSH username to use')
-    restore_cluster_parser.add_argument('--ssh_key_file', type=str,
-                                        default=None, help='SSH keyfile to use')
-    restore_cluster_parser.add_argument('backup_name', type=str,
-                                        metavar='BACKUP-NAME', help='Backup name')
-    restore_cluster_parser.add_argument('seed_target', type=str,
-                                        metavar='HOST', help='Seed of the target hosts')
-    restore_cluster_parser.add_argument('--temp_dir', type=pathlib.Path,
-                                        metavar='PATH',
-                                        default=pathlib.Path('/tmp'),
-                                        help='Directory for temporary storage')
-    restore_cluster_parser.set_defaults(func=medusa.restore_cluster.orchestrate)
-
-    restore_node_parser = subparsers.add_parser('restore_node',
-                                                help='Restore single Cassandra node',
-                                                parents=[subcommand_template])
-    restore_node_parser.add_argument('--restore_from', type=pathlib.Path,
-                                     metavar='PATH',
-                                     help='Restore data from local directory')
-    restore_node_parser.add_argument('--temp_dir', type=pathlib.Path,
-                                     metavar='PATH',
-                                     default=pathlib.Path('/tmp'),
-                                     help='Directory for temporary storage')
-    restore_node_parser.add_argument('backup_name', type=str,
-                                     metavar='BACKUP-NAME', help='Backup name')
-    restore_node_parser.set_defaults(func=medusa.restore_node.restore_node)
-
-    status_parser = subparsers.add_parser('status',
-                                          help='Show status of backups',
-                                          parents=[subcommand_template])
-    status_parser.add_argument('backup_name', type=str,
-                               metavar='BACKUP-NAME', help='Backup name')
-    status_parser.set_defaults(func=medusa.status.status)
-
-    verify_parser = subparsers.add_parser('verify',
-                                          help='Verify the integrity of a backup',
-                                          parents=[subcommand_template])
-    verify_parser.add_argument('backup_name', type=str,
-                               metavar='BACKUP-NAME', help='Backup name')
-    verify_parser.set_defaults(func=medusa.verify.verify)
-
-    return parser
-
-
-def main():
-    parser = make_parser()
-    args = parser.parse_args()
-
-    loglevel = max(3 - args.loglevel, 0) * 10
+def configure_logging(verbosity):
+    loglevel = max(3 - verbosity, 0) * 10
     logging.basicConfig(level=loglevel,
                         format='[%(asctime)s] %(levelname)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -141,17 +47,104 @@ def main():
         for loggername in 'urllib3', 'google.auth.transport.requests':
             logging.getLogger(loggername).setLevel(logging.CRITICAL)
 
-    if args.command is None:
-        parser.print_help()
-        parser.exit(status=1, message='Please specify command')
 
-    logging.debug(args)
+@click.group()
+@click.option('-v', '--verbosity', help='Verbosity', default=0, count=True)
+@click.option('--config_file', help='Specify config file')
+@click.option('--bucket-name', help='Bucket name')
+@click.option('--key-file', help='GCP credentials key file')
+@click.option('--prefix', help='Prefix for shared storage')
+@click.option('--fqdn', help='Act as another host', default=socket.gethostname())
+@click.option('--ssh-username')
+@click.option('--ssh-key-file')
+@click.pass_context
+def cli(ctx, verbosity, config_file, **kwargs):
+    config_file = Path(config_file) if config_file else None
+    args = defaultdict(lambda: None, kwargs)
+    configure_logging(verbosity)
+    ctx.obj = medusa.config.load_config(args, config_file)
 
-    config = medusa.config.load_config(args)
-    logging.debug(config)
 
-    args.func(args, config)
+@cli.command()
+@click.option('--backup_name', help='Custom name for the backup')
+@pass_MedusaConfig
+def backup(medusaconfig, backup_name):
+    """
+    Backup Cassandra
+    """
+    medusa.backup.main(medusaconfig, backup_name)
+
+@cli.command()
+@click.option('--backup_name', help='backup name', required=True)
+@pass_MedusaConfig
+def fetch_tokenmap(medusaconfig, backup_name):
+    """
+    Backup Cassandra
+    """
+    medusa.fetch_tokenmap.main(medusaconfig, backup_name)
 
 
-if __name__ == '__main__':
-    main()
+@cli.command()
+@click.option('--show-all/--no-show-all', default=False, help="List all backups in the bucket")
+@pass_MedusaConfig
+def list_backups(medusaconfig, show_all):
+    """
+    List backups
+    """
+    medusa.listing.list(medusaconfig, show_all)
+
+
+@cli.command()
+@click.option('--backup-name', help='Custom name for the backup')
+@click.option('--download-destination', help='Download destination', required=True)
+@pass_MedusaConfig
+def download(medusaconfig, backup_name, download_destination):
+    """
+    Download backup
+    """
+    medusa.download.download_cmd(medusaconfig, backup_name, Path(download_destination))
+
+
+@cli.command()
+@click.option('--backup-name', help='Backup name')
+@click.option('--seed-target', help='seed of the target hosts')
+@click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
+@pass_MedusaConfig
+def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir):
+    """
+    Restore Cassandra cluster
+    """
+    medusa.restore_cluster.orchestrate(medusaconfig, backup_name, seed_target, Path(temp_dir))
+
+
+@cli.command()
+@click.option('--restore-from', help='Restore data from local directory')
+@click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
+@click.option('--backup-name', help='Backup name')
+@pass_MedusaConfig
+def restore_node(medusaconfig, restore_from, temp_dir, backup_name):
+    """
+    Restore single Cassandra node
+    """
+    restore_from = Path(restore_from) if restore_from else None
+    medusa.restore_node.restore_node(medusaconfig, restore_from, Path(temp_dir), backup_name)
+
+
+@cli.command()
+@click.option('--backup-name', help='Backup name')
+@pass_MedusaConfig
+def status(medusaconfig, backup_name):
+    """
+    Show status of backups
+    """
+    medusa.status.status(medusaconfig, backup_name)
+
+
+@cli.command()
+@click.option('--backup-name', help='Backup name')
+@pass_MedusaConfig
+def verify(medusaconfig, backup_name):
+    """
+    Verify the integrity of a backup
+    """
+    medusa.verify.verify(medusaconfig, backup_name)

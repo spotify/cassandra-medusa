@@ -20,13 +20,13 @@ from medusa.storage import Storage
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def list(args, config):
+def list(config, show_all):
     storage = Storage(config=config.storage)
 
     cluster_backups = storage.list_cluster_backups()
-    if not args.all:
+    if not show_all:
         cluster_backups = filter(
-            lambda cluster_backup: args.fqdn in cluster_backup.node_backups,
+            lambda cluster_backup: config.storage.fqdn in cluster_backup.node_backups,
             cluster_backups
         )
 

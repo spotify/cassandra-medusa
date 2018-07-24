@@ -53,11 +53,11 @@ def validate_manifest(node_backup):
         yield("  - [{}] exists in storage, but not in manifest".format(path))
 
 
-def verify(args, config):
+def verify(config, backup_name):
     storage = Storage(config=config.storage)
 
     try:
-        cluster_backup = storage.get_cluster_backup(args.backup_name)
+        cluster_backup = storage.get_cluster_backup(backup_name)
     except KeyError:
         logging.error('No such backup')
         sys.exit(1)

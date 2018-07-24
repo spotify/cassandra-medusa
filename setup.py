@@ -48,7 +48,7 @@ setuptools.setup(
     ],
     entry_points={
         'console_scripts': [
-            'medusa=medusa.medusacli:main',
+            'medusa=medusa.medusacli:cli',
         ]},
     scripts=['bin/medusa-wrapper']
 )

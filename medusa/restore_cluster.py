@@ -26,20 +26,20 @@ from medusa.storage import Storage
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
 
 
-def orchestrate(args, config):
+def orchestrate(config, backup_name, seed_target, temp_dir):
     storage = Storage(config=config.storage)
     try:
-        cluster_backup = storage.get_cluster_backup(args.backup_name)
+        cluster_backup = storage.get_cluster_backup(backup_name)
     except KeyError:
         logging.error('No such backup')
         sys.exit(1)
 
-    session_provider = CqlSessionProvider(args.seed_target,
+    session_provider = CqlSessionProvider(seed_target,
                                           username=config.cassandra.cql_username,
                                           password=config.cassandra.cql_password)
 
     restore = RestoreJob(cluster_backup, session_provider,
-                         config.ssh, args.temp_dir)
+                         config.ssh, temp_dir)
     restore.execute()
 
 
@@ -50,6 +50,9 @@ class RestoreJob(object):
         self.cluster_backup = cluster_backup
         self.session_provider = session_provider
         self.ssh_config = ssh_config
+        if not temp_dir.is_dir():
+            logging.error('{} is not a directory'.format(temp_dir))
+            sys.exit(1)
         self.temp_dir = temp_dir
 
     def execute(self):
@@ -105,7 +108,6 @@ class RestoreJob(object):
         # construct command for each target host
         # invoke `nohup medusa-wrapper #{command}` on each target host
         # wait for exit on each
-
         work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         logging.info('Medusa is working in: {}'.format(work))
         remotes = []
@@ -124,7 +126,8 @@ class RestoreJob(object):
             sftp.mkdir(str(work))
             sftp.close()
             # TODO: If this command fails, the node is currently still marked as finished and not as broken.
-            command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa restore_node -vvv --fqdn={fqdn} {backup}'.format(
+            command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper ~parmus/medusa/env/bin/medusa --fqdn={fqdn} ' \
+                      '-vvv restore_node --backup-name {backup}'.format(
                 work=work,
                 fqdn=source,
                 backup=self.cluster_backup.name
