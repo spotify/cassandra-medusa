@@ -28,6 +28,7 @@ import medusa.restore_cluster
 import medusa.restore_node
 import medusa.status
 import medusa.verify
+import medusa.fetch_tokenmap
 
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
@@ -72,6 +73,15 @@ def backup(medusaconfig, backup_name):
     Backup Cassandra
     """
     medusa.backup.main(medusaconfig, backup_name)
+
+@cli.command()
+@click.option('--backup_name', help='backup name', required=True)
+@pass_MedusaConfig
+def fetch_tokenmap(medusaconfig, backup_name):
+    """
+    Backup Cassandra
+    """
+    medusa.fetch_tokenmap.main(medusaconfig, backup_name)
 
 
 @cli.command()
