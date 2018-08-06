@@ -50,7 +50,7 @@ def configure_logging(verbosity):
 
 @click.group()
 @click.option('-v', '--verbosity', help='Verbosity', default=0, count=True)
-@click.option('--config_file', help='Specify config file')
+@click.option('--config-file', help='Specify config file')
 @click.option('--bucket-name', help='Bucket name')
 @click.option('--key-file', help='GCP credentials key file')
 @click.option('--prefix', help='Prefix for shared storage')
@@ -95,7 +95,7 @@ def list_backups(medusaconfig, show_all):
 
 
 @cli.command()
-@click.option('--backup-name', help='Custom name for the backup')
+@click.option('--backup-name', help='Custom name for the backup', required=True)
 @click.option('--download-destination', help='Download destination', required=True)
 @pass_MedusaConfig
 def download(medusaconfig, backup_name, download_destination):
