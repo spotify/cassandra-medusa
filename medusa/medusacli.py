@@ -95,7 +95,7 @@ def list_backups(medusaconfig, show_all):
 
 
 @cli.command()
-@click.option('--backup-name', help='Custom name for the backup')
+@click.option('--backup-name', help='Custom name for the backup', required=True)
 @click.option('--download-destination', help='Download destination', required=True)
 @pass_MedusaConfig
 def download(medusaconfig, backup_name, download_destination):
