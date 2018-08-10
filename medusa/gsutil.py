@@ -62,7 +62,7 @@ class GSUtil(object):
         manifest_log = '/tmp/gsutil_{0}.manifest'.format(job_id)
         gsutil_output = '/tmp/gsutil_{0}.output'.format(job_id)
 
-        cmd = ['gsutil', '-D', '-m', 'cp', '-c',
+        cmd = ['gsutil', '-m', 'cp', '-c',
                '-L', manifest_log, '-I', str(dst)]
 
         logging.debug(' '.join(cmd))
@@ -77,6 +77,7 @@ class GSUtil(object):
 
             with open(gsutil_output, 'w') as output:
                 process = subprocess.Popen(cmd, env=self._env,
+                                           bufsize=0,
                                            stdin=subprocess.PIPE,
                                            stdout=output,
                                            stderr=subprocess.STDOUT,
