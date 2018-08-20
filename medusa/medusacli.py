@@ -15,6 +15,7 @@
 # limitations under the License.
 from collections import defaultdict
 
+import datetime
 import logging
 import socket
 import click
@@ -67,12 +68,14 @@ def cli(ctx, verbosity, config_file, **kwargs):
 
 @cli.command()
 @click.option('--backup_name', help='Custom name for the backup')
+@click.option('--stagger', default=None, type=int, help='Check for staggering initial backups for duration seconds')
 @pass_MedusaConfig
-def backup(medusaconfig, backup_name):
+def backup(medusaconfig, backup_name, stagger):
     """
     Backup Cassandra
     """
-    medusa.backup.main(medusaconfig, backup_name)
+    stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
+    medusa.backup.main(medusaconfig, backup_name, stagger_time)
 
 @cli.command()
 @click.option('--backup_name', help='backup name', required=True)
