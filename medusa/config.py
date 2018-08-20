@@ -46,7 +46,7 @@ def load_config(args, config_file):
         'stop_cmd': 'sudo spcassandra-stop'
     }
     config['ssh'] = {
-        'username': os.environ.get('USER'),
+        'username': os.environ.get('USER') or '',
         'key_file': str(pathlib.Path(os.path.expanduser('~/.ssh/id_rsa')))
     }
 
