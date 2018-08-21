@@ -1,0 +1,9 @@
+#!/usr/bin/make -f
+export DH_ALWAYS_EXCLUDE = .git
+export DH_VIRTUALENV_INSTALL_ROOT = /usr/share
+%:
+	dh $@ --with python-virtualenv
+
+override_dh_virtualenv:
+	dh_virtualenv --python=python3 \
+		--preinstall=setuptools==40.0.0 # needed for cryptography
