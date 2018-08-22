@@ -113,13 +113,14 @@ def main(config, backup_name, stagger_time):
         logging.info('Staggering backup run, trying until {}', stagger_end)
         with cassandra.new_session() as cql_session:
             tokenmap = cql_session.tokenmap()
-        while not stagger(config.storage.fqdn, storage, tokenmap) and datetime.datetime.now() < stagger_end:
-            logging.info('Staggering this backup run...')
-            time.sleep(60)
-        if datetime.datetime.now() >= stagger_end:
-            logging.warning('Previous backup did not complete within our stagger time.')
-            sys.exit(1)
-        # TODO: instrument exceeding the stagger duration
+        while not stagger(config.storage.fqdn, storage, tokenmap):
+            if datetime.datetime.now() < stagger_end:
+                logging.info('Staggering this backup run...')
+                time.sleep(60)
+            else:
+                logging.warning('Previous backup did not complete within our stagger time.')
+                # TODO: instrument exceeding the stagger duration
+                sys.exit(1)
 
     logging.info('Starting backup')
     backup_name = backup_name or start.strftime('%Y%m%d%H')
