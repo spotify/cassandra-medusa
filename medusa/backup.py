@@ -17,7 +17,6 @@
 import datetime
 import json
 import logging
-import operator
 import pathlib
 import sys
 import time
@@ -86,7 +85,7 @@ def stagger(fqdn, storage, tokenmap):
     """
     # If we already have a backup for ourselves, bail early.
     previous_backups = storage.list_node_backups(fqdn=fqdn)
-    if any(filter(operator.attrgetter('finished'), previous_backups)):
+    if any(backup.finished for backup in previous_backups):
         return True
 
     ordered_tokenmap = sorted(tokenmap.items(), key=lambda item: item[1]['token'])
@@ -95,7 +94,7 @@ def stagger(fqdn, storage, tokenmap):
         return True
     previous_host = ordered_tokenmap[index - 1][0]
     previous_host_backups = storage.list_node_backups(fqdn=previous_host)
-    has_backup = any(filter(operator.attrgetter('finished'), previous_host_backups))
+    has_backup = any(backup.finished for backup in previous_host_backups)
     if not has_backup:
         logging.info('Still waiting for {} to finish a backup.'.format(previous_host))
     return has_backup
