@@ -1,4 +1,12 @@
-medusa (0.0.1) trusty; urgency=low
+spotify-medusa (0.0.2) trusty; urgency=medium
+
+  * Add --stagger=seconds to backup
+  * Set ssh.username to empty string on empty environment
+  * removed hardcoded medusa paths
+
+ -- Twan Wolthof <xeago@spotify.com>  Tue, 21 Aug 2018 14:51:38 +0000
+
+spotify-medusa (0.0.1) trusty; urgency=low
 
   * Initial packaging
 
