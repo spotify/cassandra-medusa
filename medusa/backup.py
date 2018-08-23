@@ -19,6 +19,7 @@ import json
 import logging
 import pathlib
 import sys
+import time
 from medusa.cassandra import Cassandra
 from medusa.gsutil import GSUtil
 from medusa.storage import Storage, format_bytes_str
@@ -73,14 +74,56 @@ class NodeBackupCache(object):
         return 'gs://{}/{}'.format(self._bucket_name, cached_item['path'])
 
 
-def main(config, backup_name):
-    start = datetime.datetime.now()
+def stagger(fqdn, storage, tokenmap):
+    """
+    Checks whether the previous node in the tokenmap has completed a backup.
 
-    logging.info('Starting backup')
-    backup_name = backup_name or start.strftime('%Y%m%d%H')
+    :param tokenmap:
+    :param storage:
+    :param fqdn:
+    :return: True if this host has sufficiently been staggered, False otherwise.
+    """
+    # If we already have a backup for ourselves, bail early.
+    previous_backups = storage.list_node_backups(fqdn=fqdn)
+    if any(backup.finished for backup in previous_backups):
+        return True
+
+    ordered_tokenmap = sorted(tokenmap.items(), key=lambda item: item[1]['token'])
+    index = ordered_tokenmap.index((fqdn, tokenmap[fqdn]))
+    if index == 0:  # Always run if we're the first node
+        return True
+    previous_host = ordered_tokenmap[index - 1][0]
+    previous_host_backups = storage.list_node_backups(fqdn=previous_host)
+    has_backup = any(backup.finished for backup in previous_host_backups)
+    if not has_backup:
+        logging.info('Still waiting for {} to finish a backup.'.format(previous_host))
+    return has_backup
+
+
+def main(config, backup_name, stagger_time):
+    start = datetime.datetime.now()
 
     storage = Storage(config=config.storage)
     # TODO: Test permission
+
+    cassandra = Cassandra(config.cassandra)
+
+    if stagger_time:
+        stagger_end = start + stagger_time
+        logging.info('Staggering backup run, trying until {}', stagger_end)
+        with cassandra.new_session() as cql_session:
+            tokenmap = cql_session.tokenmap()
+        while not stagger(config.storage.fqdn, storage, tokenmap):
+            if datetime.datetime.now() < stagger_end:
+                logging.info('Staggering this backup run...')
+                time.sleep(60)
+            else:
+                logging.warning('Previous backup did not complete within our stagger time.')
+                # TODO: instrument exceeding the stagger duration
+                sys.exit(1)
+
+    logging.info('Starting backup')
+    backup_name = backup_name or start.strftime('%Y%m%d%H')
 
     node_backup_cache = NodeBackupCache(
         node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn)
@@ -90,8 +133,6 @@ def main(config, backup_name):
     if node_backup.exists():
         logging.error('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)
-
-    cassandra = Cassandra(config.cassandra)
 
     logging.info('Creating snapshot')
     with cassandra.create_snapshot() as snapshot:
