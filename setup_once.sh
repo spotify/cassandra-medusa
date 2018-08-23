@@ -38,7 +38,8 @@ gsutil iam set <(gsutil iam get gs://${ROLE}-test | jq ".bindings += [{\"members
 mkdir -p spotify-puppet/hiera-data/role/$ROLE
 echo "classes:
   medusa
-medusa::bucket: $ROLE-test" >> spotify-puppet/hiera-data/role/$ROLE/$POD.yaml
+medusa::bucket: $ROLE-test
+medusa::stagger: 75600 # 21 hours"  >> spotify-puppet/hiera-data/role/$ROLE/$POD.yaml
 echo "Make sure that the yaml file actually looks proper"
 
 
