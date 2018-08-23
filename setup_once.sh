@@ -13,6 +13,12 @@ export ROLE=$2
 export POD=$3
 export LOCATION=$4
 
+if [ ! -d spotify-puppet ]
+then
+	echo "run this script relative to spotify-puppet."
+	exit 1
+fi
+
 #Create bucket
 gsutil mb -p $GCP_PROJECT -c regional -l $LOCATION gs://$ROLE-test/
 
@@ -29,7 +35,7 @@ curl --fail -u $USER -X POST https://celo.spotify.net/role/$ROLE/production -d k
 gsutil iam set <(gsutil iam get gs://${ROLE}-test | jq ".bindings += [{\"members\":[\"serviceAccount:${ROLE}-test@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/xpn-scarifprototype-1/roles/MedusaStorageAgent\"}]") gs://${ROLE}-test
 
 #Append 3 lines to hiera-data/roles/$role/gew1.yaml
-[ -d spotify-puppet ] && mkdir -p spotify-puppet/hiera-data/role/$ROLE
+mkdir -p spotify-puppet/hiera-data/role/$ROLE
 echo "classes:
   medusa
 medusa::bucket: $ROLE-test" >> spotify-puppet/hiera-data/role/$ROLE/$POD.yaml
