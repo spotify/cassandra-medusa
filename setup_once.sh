@@ -2,7 +2,7 @@
 set -e
 
 if [ "$#" -ne 4 ]; then
-  echo "Usage: $0 GCP_PROJECT ROLE LOCATION" >&2
+  echo "Usage: $0 GCP_PROJECT ROLE POD LOCATION" >&2
   echo "Example: $0 xpn-scarifprototype-1 identity2 gew1 europe-west1" >&2
   exit 1
 fi
