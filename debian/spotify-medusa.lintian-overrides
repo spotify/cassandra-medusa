@@ -2,19 +2,15 @@
 new-package-should-close-itp-bug
 
 # Don't lint libraries packaged in the virtualenv
-executable-not-elf-or-script usr/share/medusa/lib/**/*
-extra-license-file usr/share/medusa/lib/**/*
+executable-not-elf-or-script usr/share/spotify-medusa/lib/**/*
+extra-license-file usr/share/spotify-medusa/lib/**/*
 
 # Don't lint executables installed by dependencies
-wrong-path-for-interpreter usr/share/medusa/bin/*
-python-script-but-no-python-dep usr/share/medusa/bin/*
+wrong-path-for-interpreter usr/share/spotify-medusa/bin/*
+python-script-but-no-python-dep usr/share/spotify-medusa/bin/*
 
 # Ignore pycache created when running code of dependencies
 package-installs-python-pycache-dir
-
-# Python is bundled, ignore
-python-script-but-no-python-dep
-wrong-path-for-interpreter
 
 # Where else?
 arch-dependent-file-in-usr-share
