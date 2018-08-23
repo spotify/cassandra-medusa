@@ -51,7 +51,7 @@ def load_config(args, config_file):
     }
 
     if config_file:
-        logging.debug('Loading configuration from {}'.format(args['config']))
+        logging.debug('Loading configuration from {}'.format(config))
         config.read_file(config_file.open())
     elif DEFAULT_CONFIGURATION_PATH.exists():
         logging.debug('Loading configuration from {}'.format(DEFAULT_CONFIGURATION_PATH))
