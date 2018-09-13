@@ -71,7 +71,7 @@ class GSUtil(object):
             if retry > 0:
                 time.sleep(3)  # TODO: Move this magic number
                 logging.debug('Retrying ({}/{})....'.format(
-                    retry+1,
+                    retry + 1,
                     max_retries
                 ))
 

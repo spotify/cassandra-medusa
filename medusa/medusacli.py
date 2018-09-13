@@ -77,6 +77,7 @@ def backup(medusaconfig, backup_name, stagger):
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
     medusa.backup.main(medusaconfig, backup_name, stagger_time)
 
+
 @cli.command()
 @click.option('--backup_name', help='backup name', required=True)
 @pass_MedusaConfig

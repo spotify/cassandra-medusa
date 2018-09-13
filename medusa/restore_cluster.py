@@ -22,7 +22,6 @@ import uuid
 from medusa.cassandra import CqlSessionProvider
 from medusa.storage import Storage
 
-
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
 
 
@@ -127,11 +126,8 @@ class RestoreJob(object):
             sftp.close()
             # TODO: If this command fails, the node is currently still marked as finished and not as broken.
             command = 'cd {work}; medusa-wrapper medusa --fqdn={fqdn} ' \
-                      '-vvv restore_node --backup-name {backup}'.format(
-                work=work,
-                fqdn=source,
-                backup=self.cluster_backup.name
-            )
+                      '-vvv restore_node --backup-name {backup}'.format(work=work, fqdn=source,
+                                                                        backup=self.cluster_backup.name)
             stdin, stdout, stderr = client.exec_command(command)
             stdin.close()
             stdout.close()

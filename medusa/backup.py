@@ -157,8 +157,7 @@ def main(config, backup_name, stagger_time):
 
                 dst = 'gs://{}/{}'.format(
                     config.storage.bucket_name,
-                    node_backup.datapath(keyspace=snapshotpath.keyspace,
-                                          columnfamily=snapshotpath.columnfamily)
+                    node_backup.datapath(keyspace=snapshotpath.keyspace, columnfamily=snapshotpath.columnfamily)
                 )
 
                 manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
@@ -175,7 +174,7 @@ def main(config, backup_name, stagger_time):
 
         logging.info('Backup done')
         logging.info('- Started: {:%Y-%m-%d %H:%M:%S}, Finished: {:%Y-%m-%d %H:%M:%S}'.format(start, end))
-        logging.info('- Duration: {}'.format(end-start))
+        logging.info('- Duration: {}'.format(end - start))
         logging.info('- {} files, {}'.format(
             node_backup.num_objects(),
             format_bytes_str(node_backup.size())

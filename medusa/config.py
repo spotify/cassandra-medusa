@@ -57,7 +57,8 @@ def load_config(args, config_file):
         logging.debug('Loading configuration from {}'.format(DEFAULT_CONFIGURATION_PATH))
         config.read_file(DEFAULT_CONFIGURATION_PATH.open())
     else:
-        logging.error("no configuration file provided via cli invocation and file not found in {}".format(DEFAULT_CONFIGURATION_PATH))
+        logging.error("no configuration file provided via cli invocation and file not found in {}"
+                      .format(DEFAULT_CONFIGURATION_PATH))
         sys.exit(1)
 
     config.read_dict({'storage': {
