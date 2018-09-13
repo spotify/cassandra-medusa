@@ -1,0 +1,21 @@
+version: 2
+
+pipelines:
+  - pipeline: 'shared'
+    ref: '.*'
+    stages:
+      - stage: 'tox'
+        tasks:
+          - task: 'tox'
+            steps:
+              - action: 'gcr.io/action-containers/tox:3.0.0-2'
+                args: ['-c', 'tox.ini']
+  - pipeline: 'master'
+    ref: 'master'
+    stages:
+      - stage: 'build debian package'
+        tasks:
+          - task: 'debbuild'
+            steps:
+              - action: 'gcr.io/action-containers/debian-packages:13'
+                args: ['build', 'publish']

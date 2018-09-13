@@ -1,0 +1,63 @@
+# Service Information File for System-Z in YAML format.
+
+# Basic YAML syntax here: http://www.yaml.org/spec/1.2/spec.html
+# Online parser here: http://yaml-online-parser.appspot.com/
+# Short version:
+#   Strings: single, double or no quotes. Multiline string? Read docs.
+#   Lists: with [] or each entry indented on a line with a - .
+#   Maps: with {key: val} or each pair indented on a line.
+#     (also, x means "x", but no means false, because reasons.)
+
+# Unique ID for this component (in System-Z):
+id: medusa
+
+# Brief description of this component:
+description: cassandra backup tool
+
+
+# The system this component belongs to:
+system: backups
+
+# Main owner of this component (LDAP group or individual):
+owner: data-bye
+
+# Intended usage of this component:
+#   'private' - only for use by the owner
+#   'public'  - exposes an api for other squads (like metadata)
+# Components that are under development, experimental, not
+# supported, replaced, liable to change without warning, etc.
+# should generally be marked as private.
+visibility: private
+
+# A list of other components (services, data stores, etc.) on which
+# this component depends. Must be valid service_discovery names
+# registered in the Nameless service.
+dependencies: []
+
+facts:
+  lifecycle: production
+  
+  # A list of the names under which this component can be discovered
+  # on production machines. Must be valid service_discovery names
+  # registered in the Nameless service.
+  service_discovery: []
+
+  # Links to the latest definitive documentation for this service.
+  # Markdown is supported, e.g. docs: "[Title](URL)", but you must
+  #    use quotes, or it will fail to parse (as a list).
+  docs:
+    - backups
+
+  # The Puppet role of this component in a production environment:
+  role: medusa
+
+  # Any tags you like, to help refine search results.
+  tags:
+    - data-bye
+  
+  # Links to support systems. Remove hash to enable.
+  slack_channel: backup-users  # Link to Slack channel.
+  pagerdutykey:   # PagerDuty API key.
+  
+  # Custom key-values, for owner's own use.
+  #custom_key: custom_value
