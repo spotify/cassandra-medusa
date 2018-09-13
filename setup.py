@@ -25,6 +25,7 @@ setuptools.setup(
     version='0.0.2',
     author='Spotify',
     author_email='data-bye@spotify.com',
+    url='https://ghe.spotify.net/data-bye/medusa',
     description='Prototype',
     long_description=long_description,
     long_description_content_type="text/markdown",
