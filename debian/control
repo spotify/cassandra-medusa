@@ -2,11 +2,20 @@ Source: spotify-medusa
 Section: python
 Priority: extra
 Maintainer: Twan Wolthof <xeago@spotify.com>
-Build-Depends: debhelper (>= 9), python3, dh-virtualenv (>= 1.0), libffi-dev, libssl-dev, python3-dev libxml2-dev libxslt-dev, build-essential
+Build-Depends:
+ debhelper (>= 9),
+ python3,
+ dh-virtualenv (>= 1.0),
+ libffi-dev,
+ libssl-dev,
+ python3-dev,
+ libxml2-dev,
+ libxslt-dev,
+ build-essential
 Standards-Version: 3.9.5
 
 Package: spotify-medusa
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Backup tool for cassandra databases
  Make immutable backups for cassandra bases and store them on GCS.
