@@ -30,8 +30,7 @@ gcloud --project $GCP_PROJECT iam service-accounts create ${SERVICE_ACCOUNT_NAME
 gcloud --project $GCP_PROJECT iam service-accounts keys create ${SERVICE_ACCOUNT_NAME}.json --iam-account=${SERVICE_ACCOUNT_NAME}@$GCP_PROJECT.iam.gserviceaccount.com
 
 #Add credentials to celo
-curl --fail -u $USER -X POST https://celo.spotify.net/role/$ROLE/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json
-
+curl --fail -u $USER -X POST https://celo.spotify.net/role/$ROLE/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm $ROLE-test.json
 
 #Grant permissions
 #TODO move Medusa role to its own project
