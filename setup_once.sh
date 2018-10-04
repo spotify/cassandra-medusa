@@ -13,6 +13,9 @@ export ROLE=$2
 export POD=$3
 export LOCATION=$4
 
+export SERVICE_ACCOUNT_NAME="{$ROLE}-medusa-backup"
+export BUCKET_NAME="gs://${ROLE}-medusa-backup"
+
 if [ ! -d spotify-puppet ]
 then
 	echo "run this script relative to spotify-puppet."
@@ -20,19 +23,19 @@ then
 fi
 
 #Create bucket
-gsutil mb -p $GCP_PROJECT -c regional -l $LOCATION gs://$ROLE-test/
+gsutil mb -p $GCP_PROJECT -c regional -l $LOCATION ${BUCKET_NAME}
 
 #Service account
-gcloud --project $GCP_PROJECT iam service-accounts create  $ROLE-test --display-name  $ROLE-test
-gcloud --project $GCP_PROJECT iam service-accounts keys create $ROLE-test.json --iam-account=$ROLE-test@$GCP_PROJECT.iam.gserviceaccount.com
+gcloud --project $GCP_PROJECT iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
+gcloud --project $GCP_PROJECT iam service-accounts keys create ${SERVICE_ACCOUNT_NAME}.json --iam-account=${SERVICE_ACCOUNT_NAME}@$GCP_PROJECT.iam.gserviceaccount.com
 
 #Add credentials to celo
-curl --fail -u $USER -X POST https://celo.spotify.net/role/$ROLE/production -d key='medusa::credentials' --data-urlencode secret@$ROLE-test.json
+curl --fail -u $USER -X POST https://celo.spotify.net/role/$ROLE/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json
 
 
 #Grant permissions
 #TODO move Medusa role to its own project
-gsutil iam set <(gsutil iam get gs://${ROLE}-test | jq ".bindings += [{\"members\":[\"serviceAccount:${ROLE}-test@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/xpn-scarifprototype-1/roles/MedusaStorageAgent\"}]") gs://${ROLE}-test
+gsutil iam set <(gsutil iam get ${BUCKET_NAME} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/xpn-scarifprototype-1/roles/MedusaStorageAgent\"}]") ${BUCKET_NAME}
 
 #Append 3 lines to hiera-data/roles/$role/gew1.yaml
 mkdir -p spotify-puppet/hiera-data/role/$ROLE
