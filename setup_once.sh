@@ -13,7 +13,7 @@ export ROLE=$2
 export POD=$3
 export LOCATION=$4
 
-export SERVICE_ACCOUNT_NAME="{$ROLE}-medusa-backup"
+export SERVICE_ACCOUNT_NAME="${ROLE}-medusa-backup"
 export BUCKET_NAME="gs://${ROLE}-medusa-backup"
 
 if [ ! -d spotify-puppet ]
