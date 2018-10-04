@@ -23,25 +23,24 @@ then
 fi
 
 #Create bucket
-gsutil mb -p $GCP_PROJECT -c regional -l $LOCATION ${BUCKET_NAME}
+gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_NAME}
 
 #Service account
-gcloud --project $GCP_PROJECT iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
-gcloud --project $GCP_PROJECT iam service-accounts keys create ${SERVICE_ACCOUNT_NAME}.json --iam-account=${SERVICE_ACCOUNT_NAME}@$GCP_PROJECT.iam.gserviceaccount.com
+gcloud --project ${GCP_PROJECT} iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
+gcloud --project ${GCP_PROJECT} iam service-accounts keys create ${SERVICE_ACCOUNT_NAME}.json --iam-account=${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com
 
 #Add credentials to celo
-curl --fail -u $USER -X POST https://celo.spotify.net/role/$ROLE/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm $ROLE-test.json
+curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${ROLE}/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm ${SERVICE_ACCOUNT_NAME}.json
 
 #Grant permissions
-#TODO move Medusa role to its own project
-gsutil iam set <(gsutil iam get ${BUCKET_NAME} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/xpn-scarifprototype-1/roles/MedusaStorageAgent\"}]") ${BUCKET_NAME}
+gsutil iam set <(gsutil iam get ${BUCKET_NAME} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/medusa-backups/roles/MedusaStorageAgent\"}]") ${BUCKET_NAME}
 
 #Append 3 lines to hiera-data/roles/$role/gew1.yaml
-mkdir -p spotify-puppet/hiera-data/role/$ROLE
+mkdir -p spotify-puppet/hiera-data/role/${ROLE}
 echo "classes:
   medusa
 medusa::bucket: $ROLE-test
-medusa::stagger: 75600 # 21 hours"  >> spotify-puppet/hiera-data/role/$ROLE/$POD.yaml
+medusa::stagger: 75600 # 21 hours"  >> spotify-puppet/hiera-data/role/${ROLE}/${POD}.yaml
 echo "Make sure that the yaml file actually looks proper"
 
 
