@@ -38,10 +38,14 @@ def debug_command(args, config):
     logging.error("This command is not implemented yet")
 
 
-def configure_logging(verbosity):
+def configure_logging(verbosity, without_log_timestamp):
     loglevel = max(3 - verbosity, 0) * 10
+    if without_log_timestamp:
+        log_format = '%(levelname)s: %(message)s'
+    else:
+        log_format = '[%(asctime)s] %(levelname)s: %(message)s'
     logging.basicConfig(level=loglevel,
-                        format='[%(asctime)s] %(levelname)s: %(message)s',
+                        format=log_format,
                         datefmt='%Y-%m-%d %H:%M:%S')
     if loglevel >= logging.DEBUG:
         # Disable debugging logging for external libraries
@@ -51,6 +55,7 @@ def configure_logging(verbosity):
 
 @click.group()
 @click.option('-v', '--verbosity', help='Verbosity', default=0, count=True)
+@click.option('--without-log-timestamp', help='Do not show timestamp in logs', default=False, is_flag=True)
 @click.option('--config-file', help='Specify config file')
 @click.option('--bucket-name', help='Bucket name')
 @click.option('--key-file', help='GCP credentials key file')
@@ -59,10 +64,10 @@ def configure_logging(verbosity):
 @click.option('--ssh-username')
 @click.option('--ssh-key-file')
 @click.pass_context
-def cli(ctx, verbosity, config_file, **kwargs):
+def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
     config_file = Path(config_file) if config_file else None
     args = defaultdict(lambda: None, kwargs)
-    configure_logging(verbosity)
+    configure_logging(verbosity, without_log_timestamp)
     ctx.obj = medusa.config.load_config(args, config_file)
 
 
