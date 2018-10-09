@@ -8,41 +8,44 @@ if [ "$#" -ne 4 ]; then
 fi
 
 set -x
+
 export GCP_PROJECT=$1
 export ROLE=$2
 export POD=$3
 export LOCATION=$4
 
 export SERVICE_ACCOUNT_NAME="${ROLE}-medusa-backup"
-export BUCKET_NAME="gs://${ROLE}-medusa-backup"
-
-if [ ! -d spotify-puppet ]
-then
-	echo "run this script relative to spotify-puppet."
-	exit 1
-fi
+export BUCKET_NAME="${ROLE}-medusa-backup"
+export BUCKET_URL="gs://${BUCKET_NAME}"
 
 #Create bucket
-gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_NAME}
+echo "Creating GCP bucket ${BUCKET_NAME}"
+gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
+echo
 
 #Service account
+echo "Setting up service account"
 gcloud --project ${GCP_PROJECT} iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
 gcloud --project ${GCP_PROJECT} iam service-accounts keys create ${SERVICE_ACCOUNT_NAME}.json --iam-account=${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com
+echo
 
 #Add credentials to celo
+echo "Pushing service account's secret to CELO. Will ask for password"
 curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${ROLE}/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm ${SERVICE_ACCOUNT_NAME}.json
+echo
 
 #Grant permissions
-gsutil iam set <(gsutil iam get ${BUCKET_NAME} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/medusa-backups/roles/MedusaStorageAgent\"}]") ${BUCKET_NAME}
+echo "Granting bucket permissions to the service account"
+gsutil iam set <(gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/medusa-backups/roles/MedusaStorageAgent\"}]") ${BUCKET_URL}
+echo
 
-#Append 3 lines to hiera-data/roles/$role/gew1.yaml
-mkdir -p spotify-puppet/hiera-data/role/${ROLE}
-echo "classes:
-  medusa
-medusa::bucket: $ROLE-test
-medusa::stagger: 75600 # 21 hours"  >> spotify-puppet/hiera-data/role/${ROLE}/${POD}.yaml
-echo "Make sure that the yaml file actually looks proper"
+#Configure the source cluster
+echo "Calling hecuba-cli to configure the C* cluster"
+hecuba2-cli enable-medusa --role ${ROLE} --pod ${POD} --bucket ${BUCKET_NAME} --frequency daily
+echo
 
+echo "Setup done. Please review & merge the PR above"
+echo
 
 #example:
 #https://ghe.spotify.net/puppet/spotify-puppet/pull/38673
