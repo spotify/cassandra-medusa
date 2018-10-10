@@ -1,3 +1,8 @@
+spotify-medusa (0.0.3) trusty; urgency=medium
+
+  * Make the setup_once.sh script (now medusa-setup) generally usable
+  * Install that script together with the package
+
 spotify-medusa (0.0.2) trusty; urgency=medium
 
   * Add --stagger=seconds to backup

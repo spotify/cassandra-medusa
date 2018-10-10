@@ -13,9 +13,9 @@ The package has the following naming pattern:
 0.0.2-2018-10-09-025475e
 ```
 
-The version comes from `setup.py` in the root of this repo.
+The version comes from `debian/changelog`. The version in `setup.py` has unknown effect so far.
 
-**It is important to bump the version in `setup.py` diligently. Failing to do so leads to undesired behaviour.**
+**It is important to bump the version in diligently. Failing to do so leads to undesired behaviour.**
 
 Two commits to master using the same version might result in something like this:
 
