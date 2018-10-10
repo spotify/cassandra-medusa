@@ -3,6 +3,8 @@ spotify-medusa (0.0.3) trusty; urgency=medium
   * Make the setup_once.sh script (now medusa-setup) generally usable
   * Install that script together with the package
 
+ -- Radovan Zvoncek <radovanz@spotify.com>  Wed, 10 Oct 2018 14:51:38 +0000
+
 spotify-medusa (0.0.2) trusty; urgency=medium
 
   * Add --stagger=seconds to backup
