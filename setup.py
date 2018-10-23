@@ -45,7 +45,8 @@ setuptools.setup(
         'PyYAML>=3.10',
         'google-cloud-storage>=1.7.0',
         'cassandra-driver>=3.14.0',
-        'paramiko>=2.4.1'
+        'paramiko>=2.4.1',
+        'ffwd>=0.0.2'
     ],
     entry_points={
         'console_scripts': [
