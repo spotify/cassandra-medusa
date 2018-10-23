@@ -32,13 +32,13 @@ def report_latest(config, report_to_ffwd):
 
     finished = latest_backup.finished
     finished_ago = (datetime.datetime.now(finished.tzinfo) - finished)
-    logging.info('Latest backup finished ago: {} seconds'.format(finished_ago.seconds))
+    logging.info('Latest backup finished {} seconds ago'.format(finished_ago.seconds))
 
     if not report_to_ffwd:
-        logging.info('Not sending to ffwd')
+        logging.debug('Not sending to ffwd')
         return
 
-    logging.info('Sending time since last backup to ffwd')
+    logging.debug('Sending time since last backup to ffwd')
     ffwd_client = ffwd.FFWD(transport=MedusaTransport)
     finished_ago_metric = ffwd_client.metric(key='medusa-backup', what='seconds-since-backup')
     finished_ago_metric.send(finished_ago.seconds)

@@ -193,7 +193,7 @@ def main(config, backup_name, stagger_time):
                 node_backup_cache.backup_name
             ))
 
-        logging.info('Emitting metrics')
+        logging.debug('Emitting metrics')
 
         backup_duration_metric = ffwd_client.metric(key='medusa-backup', what='backup-duration')
         backup_duration_metric.send(backup_duration.seconds)
