@@ -25,6 +25,7 @@ import medusa.backup
 import medusa.config
 import medusa.download
 import medusa.listing
+import medusa.report_latest
 import medusa.restore_cluster
 import medusa.restore_node
 import medusa.status
@@ -157,3 +158,14 @@ def verify(medusaconfig, backup_name):
     Verify the integrity of a backup
     """
     medusa.verify.verify(medusaconfig, backup_name)
+
+
+@cli.command()
+@click.option('--ffwd', default=False, is_flag=True, help='Report to ffwd')
+@pass_MedusaConfig
+def report_last_backup(medusa_config, ffwd):
+    """
+    Find time since last backup
+    :return:
+    """
+    medusa.report_latest.report_latest(medusa_config, ffwd)
