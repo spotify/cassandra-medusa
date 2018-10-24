@@ -48,8 +48,7 @@ class CqlSessionProvider(object):
 
 
 class CqlSession(object):
-    RESERVED_KEYSPACES = ['system', 'system_distributed',
-                          'system_auth', 'system_traces']
+    EXCLUDED_KEYSPACES = ['system_traces']
 
     def __init__(self, session):
         self._session = session
@@ -104,13 +103,13 @@ class CqlSession(object):
         keyspaces = self.session.cluster.metadata.keyspaces
         return '\n\n'.join(metadata.export_as_string()
                            for keyspace, metadata in keyspaces.items()
-                           if keyspace not in self.RESERVED_KEYSPACES)
+                           if keyspace not in self.EXCLUDED_KEYSPACES)
 
     def schema_path_mapping(self):
         query = 'SELECT keyspace_name, columnfamily_name, cf_id FROM system.schema_columnfamilies'
 
         return (row for row in self.session.execute(query)
-                if row.keyspace_name not in self.RESERVED_KEYSPACES)
+                if row.keyspace_name not in self.EXCLUDED_KEYSPACES)
 
 
 SnapshotPath = collections.namedtuple('SnapshotPath',
@@ -137,6 +136,20 @@ class CassandraConfigReader(object):
         return pathlib.Path(data_file_directories[0])
 
     @property
+    def commitlog_directory(self):
+        commitlog_directory = self._config.get('commitlog_directory')
+        if not commitlog_directory:
+            raise RuntimeError('commitlog_directory must be properly configured')
+        return pathlib.Path(commitlog_directory)
+
+    @property
+    def saved_caches_directory(self):
+        saved_caches_directory = self._config.get('saved_caches_directory')
+        if not saved_caches_directory:
+            raise RuntimeError('saved_caches_directory must be properly configured')
+        return pathlib.Path(saved_caches_directory)
+
+    @property
     def listen_address(self):
         if 'listen_address' in self._config:
             if self._config['listen_address']:
@@ -156,6 +169,8 @@ class Cassandra(object):
 
         config_reader = CassandraConfigReader(cassandra_config.config_file)
         self._root = config_reader.root
+        self._commitlog_path = config_reader.commitlog_directory
+        self._saved_caches_path = config_reader.saved_caches_directory
         self._hostname = config_reader.listen_address
         self._cql_session_provider = CqlSessionProvider(
             self._hostname,
@@ -169,6 +184,14 @@ class Cassandra(object):
     @property
     def root(self):
         return self._root
+
+    @property
+    def commit_logs_path(self):
+        return self._commitlog_path
+
+    @property
+    def saved_caches_path(self):
+        return self._saved_caches_path
 
     class Snapshot(object):
         def __init__(self, parent, tag):
@@ -204,7 +227,7 @@ class Cassandra(object):
                     Cassandra.SNAPSHOT_PATTERN.format(self._tag)
                 )
                 if (snapshot_dir.is_dir() and
-                    snapshot_dir.parts[-4] not in CqlSession.RESERVED_KEYSPACES)
+                    snapshot_dir.parts[-4] not in CqlSession.EXCLUDED_KEYSPACES)
             ]
 
         def delete(self):
@@ -260,13 +283,32 @@ class Cassandra(object):
                 directory_postfix
             ))
 
+    def _full_columnfamily_name(self, keyspace_name, columnfamily_name, cf_id):
+        root = pathlib.Path(self._root)
+        keyspace_path = root / keyspace_name / columnfamily_name
+        if keyspace_path.exists() and keyspace_path.is_dir():
+            return columnfamily_name
+        else:
+            # Notice: Cassandra use dashes in the cf_id in the system table,
+            # but not in the directory names
+            directory_postfix = str(cf_id).replace('-', '')
+            return '{}-{}'.format(columnfamily_name, directory_postfix)
+
     def schema_path_mapping(self):
         with self._cql_session_provider.new_session() as session:
             return {
-                (row.keyspace_name, row.columnfamily_name):
-                    self._columnfamily_path(row.keyspace_name,
-                                            row.columnfamily_name,
-                                            row.cf_id)
+                (
+                    row.keyspace_name,
+                    self._full_columnfamily_name(
+                        row.keyspace_name,
+                        row.columnfamily_name,
+                        row.cf_id
+                    )
+                ): self._columnfamily_path(
+                    row.keyspace_name,
+                    row.columnfamily_name,
+                    row.cf_id
+                )
                 for row in session.schema_path_mapping()
             }
 

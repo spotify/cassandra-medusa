@@ -23,10 +23,10 @@ network bandwidth.
 #### Data structures
 The backed up data is stored in a Google Cloud Storage using the following structure:
 ```
-gs://<bucket name>/<optional prefix>/data/<fqdn>/<backup name>/<keyspace>/<column family>/<SSTAble files ...>
-gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/schema.cql
-gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/tokenmap.json
-gs://<bucket name>/<optional prefix>/meta/<fqdn>/<backup name>/manifest.json
+gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/data/<keyspace>/<column family>/<SSTAble files ...>
+gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/meta/schema.cql
+gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/meta/tokenmap.json
+gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/meta/manifest.json
 ```
 
 - `<optional prefix>` allows several clusters to share the same bucket, but is not encouraged as
@@ -44,8 +44,8 @@ buckets are cheap anyway. The support for this prefix might be dropped in later 
   The content of `manifest.json` is generated on the node as part of the upload process.
   This is the last file to be uploaded to the bucket, thus the existance of this file means that the
   backup is complete.
-  
-#### Optimizations 
+
+#### Optimizations
 As Cassandra's SSTables are immutable, it is possible to optimize the backup operation by
 recognizing duplicate files in precious backups and avoid copying them twice. This optimization is
 planned, but not implemented yet.
@@ -64,7 +64,7 @@ SystemD.
   configuration to the backed up data's topology, and make sure the token configurations match.
 - If the topology matches, download all the backed up data to a temporary location.
 - Stop the Cassandra process
-- Delete any existing data 
+- Delete any existing data
 - Move the backed up data to Cassandra's data directory
 - Start the Cassandra process
 - Apply the schema from the backed up data

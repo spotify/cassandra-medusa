@@ -15,11 +15,12 @@
 import collections
 import logging
 import paramiko
+import binascii
 import sys
 import time
 import uuid
 
-from medusa.cassandra import CqlSessionProvider
+from medusa.cassandra_utils import CqlSessionProvider
 from medusa.storage import Storage
 
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
@@ -59,7 +60,6 @@ class RestoreJob(object):
             raise Exception("Backup is not complete")
         with self.session_provider.new_session() as session:
             self._populate_ringmap(session)
-            self._restore_schema(session)
         self._restore_data()
 
     def _populate_ringmap(self, session):
@@ -113,22 +113,60 @@ class RestoreJob(object):
         for source, target in self.ringmap.values():
             client = paramiko.SSHClient()
             client.load_system_host_keys()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             connect_args = {
                 'hostname': target,
                 'username': self.ssh_config.username,
-                # TODO: consider restricting the authentication to just the key provided
-                # TODO: consider forwarding agent
                 'key_filename': self.ssh_config.key_file,
+                'allow_agent': True
             }
-            client.connect(**connect_args)
+
+            try:
+                client.connect(**connect_args)
+            except (paramiko.ssh_exception.AuthenticationException, FileNotFoundError) as e:
+                if isinstance(e, paramiko.ssh_exception.AuthenticationException):
+                    logging.info('SSH connection failed with the provided key {}, \
+                                 trying from ssh agent keys'.format(connect_args['key_filename']))
+                else:
+                    logging.info('No ssh key was given. Trying from \
+                                 ssh agent keys'.format(connect_args['key_filename']))
+
+                # Trying to connect through ssh agent keys available
+                transport = client.get_transport()
+                agent = paramiko.Agent()
+                agent_keys = agent.get_keys()
+
+                if not agent_keys:
+                    logging.info("No key found on the ssh agent")
+
+                for key in agent_keys:
+                    fp = binascii.hexlify(key.get_fingerprint())
+                    logging.debug("Trying ssh-agent key {}".format(fp))
+                    try:
+                        transport.auth_publickey(connect_args['username'], key)
+                        logging.info("Successfully connected to \
+                                     {}@{}!".format(connect_args['username'], connect_args['hostname']))
+                        break
+                    except paramiko.SSHException:
+                        logging.debug('SSH connection using key {} in the agent did not work'.format(fp))
+
+                    exit(1)
+
             sftp = client.open_sftp()
             sftp.mkdir(str(work))
             sftp.close()
+
+            # Forwarding argent for the following exec_command
+            transport = transport or client.get_transport()
+            session = transport.open_session()
+            paramiko.agent.AgentRequestHandler(session)
+
             # TODO: If this command fails, the node is currently still marked as finished and not as broken.
-            command = 'cd {work}; medusa-wrapper medusa --fqdn={fqdn} ' \
-                      '-vvv restore_node --backup-name {backup}'.format(work=work, fqdn=source,
-                                                                        backup=self.cluster_backup.name)
+            command = 'nohup sh -c "cd {work} && medusa-wrapper medusa --fqdn={fqdn} ' \
+                      '-vvv restore-node --backup-name {backup}"'.format(work=work, fqdn=source,
+                                                                         backup=self.cluster_backup.name)
             stdin, stdout, stderr = client.exec_command(command)
+            logging.debug('Running {} remotely on {}'.format(command, connect_args['hostname']))
             stdin.close()
             stdout.close()
             stderr.close()
@@ -155,6 +193,7 @@ class RestoreJob(object):
 
                 # If the remote does not set an exit status and the channel closes
                 # the exit_status is negative.
+                logging.debug("remote.channel.exit_status: {}".format(remote.channel.exit_status))
                 if remote.channel.exit_status_ready and remote.channel.exit_status >= 0:
                     if remote.channel.exit_status == 0:
                         finished.append(remote)
@@ -171,11 +210,12 @@ class RestoreJob(object):
                     logging.debug("Keeping {} alive.".format(remote.target))
                     remote.client.get_transport().send_ignore()
                 else:
-                    client = paramiko.SSHClient()
+                    client = paramiko.client.SSHClient()
                     client.load_system_host_keys()
                     client.connect(**remote.connect_args)
+
                     # TODO: check pid to exist before assuming medusa-wrapper to pick it up
-                    command = 'cd {work}; ~parmus/medusa/env/bin/medusa-wrapper'.format(work=work)
+                    command = 'cd {work}; medusa-wrapper'.format(work=work)
                     stdin, stdout, stderr = client.exec_command(command)
                     stdin.close()
                     stdout.close()
