@@ -120,8 +120,7 @@ class CassandraConfigReader(object):
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
 
     def __init__(self, cassandra_config=None):
-        config_file = pathlib.Path(cassandra_config or
-                                   self.DEFAULT_CASSANDRA_CONFIG)
+        config_file = pathlib.Path(cassandra_config or self.DEFAULT_CASSANDRA_CONFIG)
         if not config_file.is_file():
             raise RuntimeError('{} is not a file'.format(config_file))
         self._config = yaml.load(config_file.open())
@@ -226,8 +225,8 @@ class Cassandra(object):
                 for snapshot_dir in self.root.glob(
                     Cassandra.SNAPSHOT_PATTERN.format(self._tag)
                 )
-                if (snapshot_dir.is_dir() and
-                    snapshot_dir.parts[-4] not in CqlSession.EXCLUDED_KEYSPACES)
+                if (snapshot_dir.is_dir() and snapshot_dir.parts[-4]
+                    not in CqlSession.EXCLUDED_KEYSPACES)
             ]
 
         def delete(self):

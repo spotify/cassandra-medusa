@@ -15,6 +15,7 @@
 
 
 import datetime
+import ffwd
 import json
 import logging
 import pathlib
@@ -26,6 +27,7 @@ import os
 from medusa.cassandra_utils import Cassandra
 from medusa.gsutil import GSUtil
 from medusa.storage import Storage, format_bytes_str
+from medusa.metrics.transport import MedusaTransport
 
 
 def url_to_path(url):
@@ -120,6 +122,8 @@ def main(config, backup_name, stagger_time):
 
     cassandra = Cassandra(config.cassandra)
 
+    ffwd_client = ffwd.FFWD(transport=MedusaTransport)
+
     if stagger_time:
         stagger_end = start + stagger_time
         logging.info('Staggering backup run, trying until {}', stagger_end)
@@ -159,6 +163,7 @@ def main(config, backup_name, stagger_time):
         manifest = []
         num_files = 0
         with GSUtil(config.storage) as gsutil:
+            logging.info('Starting backup')
             for snapshotpath in snapshot.find_dirs():
                 srcs = [
                     node_backup_cache.replace_if_cached(
@@ -174,7 +179,6 @@ def main(config, backup_name, stagger_time):
                     config.storage.bucket_name,
                     node_backup.datapath(keyspace=snapshotpath.keyspace, columnfamily=snapshotpath.columnfamily)
                 )
-
                 manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
                 manifest.append({'keyspace': snapshotpath.keyspace,
                                  'columnfamily': snapshotpath.columnfamily,
@@ -186,10 +190,11 @@ def main(config, backup_name, stagger_time):
 
         node_backup.manifest = json.dumps(manifest)
         end = datetime.datetime.now()
+        backup_duration = end - start
 
         logging.info('Backup done')
         logging.info('- Started: {:%Y-%m-%d %H:%M:%S}, Finished: {:%Y-%m-%d %H:%M:%S}'.format(start, end))
-        logging.info('- Duration: {}'.format(end - start))
+        logging.info('- Duration: {}'.format(backup_duration))
         logging.info('- {} files, {}'.format(
             node_backup.num_objects(),
             format_bytes_str(node_backup.size())
@@ -202,3 +207,11 @@ def main(config, backup_name, stagger_time):
                 node_backup_cache.replaced,
                 node_backup_cache.backup_name
             ))
+
+        logging.debug('Emitting metrics')
+
+        backup_duration_metric = ffwd_client.metric(key='medusa-backup', what='backup-duration')
+        backup_duration_metric.send(backup_duration.seconds)
+
+        backup_size_metric = ffwd_client.metric(key='medusa-backup', what='backup-size')
+        backup_size_metric.send(node_backup.size())
