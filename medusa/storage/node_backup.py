@@ -21,8 +21,8 @@ class NodeBackup(object):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
-        self._meta_prefix = self._storage._meta_prefix / fqdn / name
-        self._data_prefix = self._storage._data_prefix / fqdn / name
+        self._meta_prefix = name / fqdn / self._storage._meta_prefix
+        self._data_prefix = name / fqdn / self._storage._data_prefix
         self._tokenmap_path = self._meta_prefix / 'tokenmap.json'
         self._schema_path = self._meta_prefix / 'schema.cql'
         self._manifest_path = self._meta_prefix / 'manifest.json'

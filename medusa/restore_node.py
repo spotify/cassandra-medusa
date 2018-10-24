@@ -19,7 +19,7 @@ import subprocess
 import sys
 import uuid
 
-from medusa.cassandra import Cassandra
+from medusa.cassandra_utils import Cassandra
 from medusa.download import download_data
 from medusa.storage import Storage
 
@@ -34,30 +34,8 @@ def restore_node(config, restore_from, temp_dir, backup_name):
 
     cassandra = Cassandra(config.cassandra)
 
-    logging.info('Validating token')
-    tokenmap = json.loads(node_backup.tokenmap)
-    with cassandra.new_session() as session:
-        current_token = session.token()
-        backup_token = tokenmap[node_backup.fqdn]['token']
-        if current_token != backup_token:
-            logging.error('Token mismatch: Current ({}) != Backup ({})'.format(
-                current_token,
-                backup_token
-            ))
-            sys.exit(1)
-
     manifest = json.loads(node_backup.manifest)
     schema_path_mapping = cassandra.schema_path_mapping()
-
-    # Validate existance of column families
-    logging.info('Validate existance of column families')
-    for section in manifest:
-        if (section['keyspace'], section['columnfamily']) not in schema_path_mapping:
-            logging.error("Current schema is missing ({}.{})".format(
-                section['keyspace'],
-                section['columnfamily']
-            ))
-            sys.exit(1)
 
     if restore_from:
         if not restore_from.is_dir():
@@ -73,7 +51,20 @@ def restore_node(config, restore_from, temp_dir, backup_name):
     logging.info('Stopping Cassandra')
     cassandra.shutdown()
 
-    # Move backup data to Cassandra data directory according to system table
+    # Clean the commitlogs, the saved cache to prevent any kind of conflict
+    # especially around system tables.
+    commit_logs_path = cassandra.commit_logs_path
+    saved_caches_path = cassandra.saved_caches_path
+    if commit_logs_path.exists():
+        logging.debug('Cleaning commitlogs ({})'.format(commit_logs_path))
+        subprocess.check_output(['sudo', '-u', commit_logs_path.owner(),
+                                 'rm', '-rf', str(commit_logs_path)])
+    if saved_caches_path.exists():
+        logging.debug('Cleaning saved caches ({})'.format(saved_caches_path))
+        subprocess.check_output(['sudo', '-u', saved_caches_path.owner(),
+                                 'rm', '-rf', str(saved_caches_path)])
+
+    # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
     file_ownership = '{}:{}'.format(cassandra.root.owner(),
                                     cassandra.root.group())
@@ -81,6 +72,7 @@ def restore_node(config, restore_from, temp_dir, backup_name):
         src = download_dir / section['keyspace'] / section['columnfamily']
         dst = schema_path_mapping[(section['keyspace'], section['columnfamily'])]
         if dst.exists():
+            logging.debug('Cleaning directory {}'.format(dst))
             subprocess.check_output(['sudo', '-u', cassandra.root.owner(),
                                      'rm', '-rf', str(dst)])
         subprocess.check_output(['sudo', 'mv', str(src), str(dst)])

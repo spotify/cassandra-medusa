@@ -73,7 +73,7 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 
 
 @cli.command()
-@click.option('--backup_name', help='Custom name for the backup')
+@click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Check for staggering initial backups for duration seconds')
 @pass_MedusaConfig
 def backup(medusaconfig, backup_name, stagger):
@@ -85,7 +85,7 @@ def backup(medusaconfig, backup_name, stagger):
 
 
 @cli.command()
-@click.option('--backup_name', help='backup name', required=True)
+@click.option('--backup-name', help='backup name', required=True)
 @pass_MedusaConfig
 def fetch_tokenmap(medusaconfig, backup_name):
     """
@@ -116,8 +116,8 @@ def download(medusaconfig, backup_name, download_destination):
 
 
 @cli.command()
-@click.option('--backup-name', help='Backup name')
-@click.option('--seed-target', help='seed of the target hosts')
+@click.option('--backup-name', help='Backup name', required=True)
+@click.option('--seed-target', help='seed of the target hosts', required=True)
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir):
@@ -130,7 +130,7 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir):
 @cli.command()
 @click.option('--restore-from', help='Restore data from local directory')
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
-@click.option('--backup-name', help='Backup name')
+@click.option('--backup-name', help='Backup name', required=True)
 @pass_MedusaConfig
 def restore_node(medusaconfig, restore_from, temp_dir, backup_name):
     """
@@ -141,7 +141,7 @@ def restore_node(medusaconfig, restore_from, temp_dir, backup_name):
 
 
 @cli.command()
-@click.option('--backup-name', help='Backup name')
+@click.option('--backup-name', help='Backup name', required=True)
 @pass_MedusaConfig
 def status(medusaconfig, backup_name):
     """
@@ -151,7 +151,7 @@ def status(medusaconfig, backup_name):
 
 
 @cli.command()
-@click.option('--backup-name', help='Backup name')
+@click.option('--backup-name', help='Backup name', required=True)
 @pass_MedusaConfig
 def verify(medusaconfig, backup_name):
     """

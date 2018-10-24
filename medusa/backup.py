@@ -21,7 +21,10 @@ import logging
 import pathlib
 import sys
 import time
-from medusa.cassandra import Cassandra
+import psutil
+import os
+
+from medusa.cassandra_utils import Cassandra
 from medusa.gsutil import GSUtil
 from medusa.storage import Storage, format_bytes_str
 from medusa.metrics.transport import MedusaTransport
@@ -74,6 +77,15 @@ class NodeBackupCache(object):
         logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
         self._replaced += 1
         return 'gs://{}/{}'.format(self._bucket_name, cached_item['path'])
+
+
+def throttle_backup():
+    """
+    Makes sure to only us idle IO for backups
+    """
+    p = psutil.Process(os.getpid())
+    p.ionice(psutil.IOPRIO_CLASS_IDLE)
+    logging.debug("Processus {} was set to use only idle IO".format(p))
 
 
 def stagger(fqdn, storage, tokenmap):
@@ -137,6 +149,9 @@ def main(config, backup_name, stagger_time):
     if node_backup.exists():
         logging.error('Error: Backup {} already exists'.format(backup_name))
         sys.exit(1)
+
+    # Make sure that priority remains to Cassandra/limiting backups resource usage
+    throttle_backup()
 
     logging.info('Creating snapshot')
     with cassandra.create_snapshot() as snapshot:

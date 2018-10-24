@@ -20,7 +20,7 @@ import os
 import pathlib
 import sys
 import medusa.storage
-import medusa.cassandra
+import medusa.cassandra_utils
 
 StorageConfig = collections.namedtuple('StorageConfig',
                                        ['bucket_name', 'key_file', 'prefix', 'fqdn'])
@@ -41,13 +41,14 @@ def load_config(args, config_file):
     # Set defaults
     config['storage'] = {}
     config['cassandra'] = {
-        'config_file': medusa.cassandra.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
+        'config_file': medusa.cassandra_utils.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
         'start_cmd': 'sudo spcassandra-enable-hecuba',
         'stop_cmd': 'sudo spcassandra-stop'
     }
+    #
     config['ssh'] = {
         'username': os.environ.get('USER') or '',
-        'key_file': str(pathlib.Path(os.path.expanduser('~/.ssh/id_rsa')))
+        'key_file': ''
     }
 
     if config_file:
