@@ -64,8 +64,8 @@ class ClusterBackup(object):
         return self._schema
 
     def is_complete(self):
-        return (not self.missing_nodes() and
-                all(map(operator.attrgetter('finished'),
+        return (not self.missing_nodes()
+                and all(map(operator.attrgetter('finished'),
                         self.node_backups.values())))
 
     def missing_nodes(self):
