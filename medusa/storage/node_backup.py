@@ -21,15 +21,16 @@ class NodeBackup(object):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
-        self._meta_prefix = name / fqdn / self._storage._meta_prefix
-        self._data_prefix = name / fqdn / self._storage._data_prefix
-        self._tokenmap_path = self._meta_prefix / 'tokenmap.json'
-        self._schema_path = self._meta_prefix / 'schema.cql'
-        self._manifest_path = self._meta_prefix / 'manifest.json'
+        self._node_backup_path = self._storage._prefix / fqdn / name
+        self._meta_path = self._node_backup_path / 'meta'
+        self._data_path = self._node_backup_path / 'data'
+        self._tokenmap_path = self._meta_path / 'tokenmap.json'
+        self._schema_path = self._meta_path / 'schema.cql'
+        self._manifest_path = self._meta_path / 'manifest.json'
 
         if preloaded_blobs is None:
             preloaded_blobs = storage.bucket.list_blobs(
-                prefix='{}/'.format(self._meta_prefix)
+                prefix='{}/'.format(self._meta_path)
             )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
@@ -54,8 +55,8 @@ class NodeBackup(object):
         return self._fqdn
 
     @property
-    def data_prefix(self):
-        return self._data_prefix
+    def data_path(self):
+        return self._data_path
 
     @property
     def bucket(self):
@@ -121,7 +122,7 @@ class NodeBackup(object):
         manifest_blob.upload_from_string(manifest)
 
     def datapath(self, *, keyspace, columnfamily):
-        return self.data_prefix / keyspace / columnfamily
+        return self.data_path / keyspace / columnfamily
 
     def exists(self):
         return self._blob(self.schema_path).exists()

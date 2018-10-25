@@ -36,8 +36,6 @@ class Storage(object):
         self._client = client or google.cloud.storage.Client.from_service_account_json(config.key_file)
         self._bucket = self._client.get_bucket(config.bucket_name)
         self._prefix = pathlib.Path(config.prefix or '.')
-        self._meta_prefix = self._prefix / 'meta'
-        self._data_prefix = self._prefix / 'data'
 
     @property
     def config(self):
@@ -59,12 +57,12 @@ class Storage(object):
         return pathlib.Path(blob.name).parent
 
     def list_node_backups(self, *, fqdn=None):
-        prefix = self._meta_prefix / (fqdn or '')
+        prefix = self._prefix / (fqdn or '')
         blobs = sorted(self._bucket.list_blobs(prefix='{}/'.format(prefix)),
                        key=operator.attrgetter('name'))
         for parent, blobs in itertools.groupby(blobs,
                                                key=self._get_parent_from_blob):
-            *_, fqdn, name = parent.parts
+            fqdn, name, *_ = parent.parts
             blobs = list(blobs)
             if any(map(lambda blob: blob.name.endswith('/schema.cql'), blobs)):
                 yield NodeBackup(storage=self, fqdn=fqdn, name=name,
