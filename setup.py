@@ -22,7 +22,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='medusa',
-    version='0.0.3',
+    version='0.0.4',
     author='Spotify',
     author_email='data-bye@spotify.com',
     url='https://ghe.spotify.net/data-bye/medusa',
