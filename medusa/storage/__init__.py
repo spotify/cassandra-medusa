@@ -18,6 +18,7 @@ import google.cloud.storage
 import itertools
 import operator
 import pathlib
+import logging
 
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
@@ -53,17 +54,23 @@ class Storage(object):
         )
 
     @staticmethod
-    def _get_parent_from_blob(blob):
-        return pathlib.Path(blob.name).parent
+    def _get_node_backup_from_blob(blob):
+        blob_path = pathlib.Path(blob.name)
+        fqdn, name, *_ = blob_path.parts
+        return (fqdn, name)
 
     def list_node_backups(self, *, fqdn=None):
-        prefix = self._prefix / (fqdn or '')
-        blobs = sorted(self._bucket.list_blobs(prefix='{}/'.format(prefix)),
+        prefix = self._prefix / fqdn if fqdn else ''
+        blobs = sorted(self._bucket.list_blobs(prefix='{}'.format(prefix)),
                        key=operator.attrgetter('name'))
-        for parent, blobs in itertools.groupby(blobs,
-                                               key=self._get_parent_from_blob):
-            fqdn, name, *_ = parent.parts
+        for node_backup, blobs in itertools.groupby(blobs,
+                                                    key=self._get_node_backup_from_blob):
             blobs = list(blobs)
+            fqdn, name = node_backup
+            logging.debug("""Node backup identified with:
+                             prefix: {}
+                             fqdn: {}
+                             name: {}""".format(prefix, fqdn, name))
             if any(map(lambda blob: blob.name.endswith('/schema.cql'), blobs)):
                 yield NodeBackup(storage=self, fqdn=fqdn, name=name,
                                  preloaded_blobs=blobs)

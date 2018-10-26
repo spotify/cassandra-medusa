@@ -27,7 +27,7 @@ def validate_manifest(node_backup):
 
     data_objects = {
         blob.name: blob
-        for blob in node_backup.bucket.list_blobs(prefix='{}/'.format(node_backup.data_prefix))
+        for blob in node_backup.bucket.list_blobs(prefix='{}/'.format(node_backup.data_path))
     }
 
     objects_in_manifest = [

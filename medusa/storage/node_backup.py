@@ -17,7 +17,7 @@ import pathlib
 
 
 class NodeBackup(object):
-    def __init__(self, *, storage, name, fqdn, preloaded_blobs=None):
+    def __init__(self, *, storage, fqdn, name, preloaded_blobs=None):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
@@ -37,7 +37,7 @@ class NodeBackup(object):
         self._cached_manifest = None
 
     def __repr__(self):
-        return 'NodeBackup(name={0.name}, fqdn={0.fqdn})'.format(self)
+        return 'NodeBackup(name={0.name}, fqdn={0.fqdn}, schema_path={0.schema_path})'.format(self)
 
     def _blob(self, path):
         blob = self._cached_blobs.get(path)
