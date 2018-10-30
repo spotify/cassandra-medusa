@@ -69,30 +69,35 @@ class GSUtil(object):
 
         for retry in range(max_retries):
             if retry > 0:
-                time.sleep(3)  # TODO: Move this magic number
+                time.sleep(5)  # TODO: Move this magic number
                 logging.debug('Retrying ({}/{})....'.format(
                     retry + 1,
                     max_retries
                 ))
-
-            with open(gsutil_output, 'w') as output:
-                process = subprocess.Popen(cmd, env=self._env,
-                                           bufsize=0,
-                                           stdin=subprocess.PIPE,
-                                           stdout=output,
-                                           stderr=subprocess.STDOUT,
-                                           universal_newlines=True)
-            for src in srcs:
-                process.stdin.write(str(src) + '\n')
-            process.stdin.close()
-            if process.wait() == 0:
-                with open(manifest_log) as f:
-                    manifestobjects = [
-                        ManifestObject(row['Destination'],
-                                       int(row['Source Size']),
-                                       row['Md5'])
-                        for row in csv.DictReader(f, delimiter=',')
-                    ]
-                return manifestobjects
-
+            try:
+                with open(gsutil_output, 'w') as output:
+                    process = subprocess.Popen(cmd, env=self._env,
+                                               bufsize=0,
+                                               stdin=subprocess.PIPE,
+                                               stdout=output,
+                                               stderr=subprocess.STDOUT,
+                                               universal_newlines=True)
+                for src in srcs:
+                    process.stdin.write(str(src) + '\n')
+                process.stdin.close()
+                if process.wait() == 0:
+                    with open(manifest_log) as f:
+                        manifestobjects = [
+                            ManifestObject(row['Destination'],
+                                           int(row['Source Size']),
+                                           row['Md5'])
+                            for row in csv.DictReader(f, delimiter=',')
+                        ]
+                    return manifestobjects
+            except Exception as e:
+                if type(e) not IOError:
+                    logging.debug("Exception type, message and trace {}, {}, {}".fotmat(type(e), type(e)(e.message), sys.exc_info()[2]))
+                else:
+                    logging.debug("This exception was triggered {}, {}, {}".fotmat(type(e), type(e)(e.message), sys.exc_info()[2]))
+                    continue
         raise IOError('gsutil failed. Max attempts ({}) exceeded'.format(max_retries))
