@@ -23,7 +23,7 @@ import medusa.storage
 import medusa.cassandra_utils
 
 StorageConfig = collections.namedtuple('StorageConfig',
-                                       ['bucket_name', 'key_file', 'prefix', 'fqdn'])
+                                       ['bucket_name', 'key_file', 'prefix', 'fqdn', 'upload_throttle_in_KBps'])
 CassandraConfig = collections.namedtuple('CassandraConfig',
                                          ['start_cmd', 'stop_cmd',
                                           'config_file',
@@ -39,13 +39,16 @@ def load_config(args, config_file):
     config = configparser.ConfigParser(interpolation=None)
 
     # Set defaults
-    config['storage'] = {}
+    config['storage'] = {
+        'upload_throttle_in_KBps': 51200
+    }
+
     config['cassandra'] = {
         'config_file': medusa.cassandra_utils.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
         'start_cmd': 'sudo spcassandra-enable-hecuba',
         'stop_cmd': 'sudo spcassandra-stop'
     }
-    #
+
     config['ssh'] = {
         'username': os.environ.get('USER') or '',
         'key_file': ''
@@ -65,7 +68,9 @@ def load_config(args, config_file):
     config.read_dict({'storage': {
         key: value
         for key, value in zip(StorageConfig._fields,
-                              (args['bucket_name'], args['key_file'], args['prefix'], args['fqdn']))
+                              (args['bucket_name'], args['key_file'],
+                               args['prefix'], args['fqdn'],
+                               args['upload_throttle_in_KBps']))
         if value is not None
     }})
 

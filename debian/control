@@ -11,7 +11,8 @@ Build-Depends:
  python3-dev,
  libxml2-dev,
  libxslt-dev,
- build-essential
+ build-essential,
+ trickle
 Standards-Version: 3.9.5
 
 Package: spotify-medusa

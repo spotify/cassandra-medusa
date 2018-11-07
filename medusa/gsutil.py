@@ -17,6 +17,7 @@
 import collections
 import csv
 import logging
+import sys
 import os
 import pathlib
 import subprocess
@@ -62,7 +63,21 @@ class GSUtil(object):
         manifest_log = '/tmp/gsutil_{0}.manifest'.format(job_id)
         gsutil_output = '/tmp/gsutil_{0}.output'.format(job_id)
 
-        cmd = ['gsutil', '-m', 'cp', '-c',
+        # TODO: Enable multi-processing and expose the following settings?
+        # The problem is that trickle is not compatible with multiple porcesses
+        # We need another way to throttle (ideally the disk IO directly)
+        # ie. Do not run 'trickle ... gsutil -m ...'
+        # https://github.com/GoogleCloudPlatform/gsutil/issues/413
+
+        # If not using trickle here, we could use following gsutil options:
+        # parallel_process_count = 4
+        # parallel_thread_count = 4
+        # '-o', 'GSUtil:parallel_process_count={}'.format(parallel_process_count),
+        # '-o', 'GSUtil:parallel_thread_count={}'.format(parallel_thread_count),
+        # '-m',
+        cmd = ['trickle', '-u', str(self._config.upload_throttle_in_KBps),
+               'gsutil',
+               'cp', '-c',
                '-L', manifest_log, '-I', str(dst)]
 
         logging.debug(' '.join(cmd))
@@ -95,9 +110,8 @@ class GSUtil(object):
                         ]
                     return manifestobjects
             except Exception as e:
-                if type(e) not IOError:
-                    logging.debug("Exception type, message and trace {}, {}, {}".fotmat(type(e), type(e)(e.message), sys.exc_info()[2]))
-                else:
-                    logging.debug("This exception was triggered {}, {}, {}".fotmat(type(e), type(e)(e.message), sys.exc_info()[2]))
+                logging.debug("Exception type, message, and trace {}, {}, {}"
+                              .format(type(e), type(e)(e.message), sys.exc_info()[2]))
+                if isinstance(e, IOError):
                     continue
         raise IOError('gsutil failed. Max attempts ({}) exceeded'.format(max_retries))
