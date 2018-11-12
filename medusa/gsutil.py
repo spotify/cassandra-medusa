@@ -17,7 +17,6 @@
 import collections
 import csv
 import logging
-import sys
 import os
 import pathlib
 import subprocess
@@ -110,8 +109,6 @@ class GSUtil(object):
                         ]
                     return manifestobjects
             except Exception as e:
-                logging.debug("Exception type, message, and trace {}, {}, {}"
-                              .format(type(e), type(e)(e.message), sys.exc_info()[2]))
-                if isinstance(e, IOError):
-                    continue
+                logging.debug("Exception encountered: {} / {}"
+                              .format(type(e), str(e)))
         raise IOError('gsutil failed. Max attempts ({}) exceeded'.format(max_retries))

@@ -11,12 +11,11 @@ Build-Depends:
  python3-dev,
  libxml2-dev,
  libxslt-dev,
- build-essential,
- trickle
+ build-essential
 Standards-Version: 3.9.5
 
 Package: spotify-medusa
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, trickle (>= 1.07)
 Description: Backup tool for cassandra databases
  Make immutable backups for cassandra bases and store them on GCS.
