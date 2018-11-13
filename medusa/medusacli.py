@@ -40,7 +40,9 @@ def debug_command(args, config):
 
 
 def configure_logging(verbosity, without_log_timestamp):
-    loglevel = max(3 - verbosity, 0) * 10
+    loglevel = max(2 - verbosity, 0) * 10
+    if (verbosity == 0):
+        loglevel = logging.INFO
     if without_log_timestamp:
         log_format = '%(levelname)s: %(message)s'
     else:
@@ -50,7 +52,7 @@ def configure_logging(verbosity, without_log_timestamp):
                         datefmt='%Y-%m-%d %H:%M:%S')
     if loglevel >= logging.DEBUG:
         # Disable debugging logging for external libraries
-        for loggername in 'urllib3', 'google.auth.transport.requests':
+        for loggername in 'urllib3', 'google.auth.transport.requests', 'paramiko':
             logging.getLogger(loggername).setLevel(logging.CRITICAL)
 
 

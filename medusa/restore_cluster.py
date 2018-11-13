@@ -14,8 +14,8 @@
 # limitations under the License.
 import collections
 import logging
+import os
 import paramiko
-import binascii
 import sys
 import time
 import uuid
@@ -107,57 +107,39 @@ class RestoreJob(object):
         # construct command for each target host
         # invoke `nohup medusa-wrapper #{command}` on each target host
         # wait for exit on each
+        logging.info("Starting cluster restore...")
         work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
-        logging.info('Medusa is working in: {}'.format(work))
+        logging.debug('Medusa is working in: {}'.format(work))
         remotes = []
         for source, target in self.ringmap.values():
+            logging.info("Starting data restore on {}".format(target))
+            logging.debug("Connecting to {}".format(target))
             client = paramiko.SSHClient()
-            client.load_system_host_keys()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            pkey = None
+            if self.ssh_config.key_file is not None and self.ssh_config.key_file != "":
+                pkey = paramiko.RSAKey.from_private_key_file(self.ssh_config.key_file, None)
+            if self.ssh_config.username is None:
+                user = os.getlogin()
+            else:
+                user = self.ssh_config.username
+            client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
             connect_args = {
                 'hostname': target,
-                'username': self.ssh_config.username,
-                'key_filename': self.ssh_config.key_file,
-                'allow_agent': True
+                'username': user,
+                'pkey': pkey,
+                'compress': True,
+                'password': None
             }
+            client.connect(**connect_args)
 
-            try:
-                client.connect(**connect_args)
-            except (paramiko.ssh_exception.AuthenticationException, FileNotFoundError) as e:
-                if isinstance(e, paramiko.ssh_exception.AuthenticationException):
-                    logging.info('SSH connection failed with the provided key {}, \
-                                 trying from ssh agent keys'.format(connect_args['key_filename']))
-                else:
-                    logging.info('No ssh key was given. Trying from \
-                                 ssh agent keys'.format(connect_args['key_filename']))
-
-                # Trying to connect through ssh agent keys available
-                transport = client.get_transport()
-                agent = paramiko.Agent()
-                agent_keys = agent.get_keys()
-
-                if not agent_keys:
-                    logging.info("No key found on the ssh agent")
-
-                for key in agent_keys:
-                    fp = binascii.hexlify(key.get_fingerprint())
-                    logging.debug("Trying ssh-agent key {}".format(fp))
-                    try:
-                        transport.auth_publickey(connect_args['username'], key)
-                        logging.info("Successfully connected to \
-                                     {}@{}!".format(connect_args['username'], connect_args['hostname']))
-                        break
-                    except paramiko.SSHException:
-                        logging.debug('SSH connection using key {} in the agent did not work'.format(fp))
-
-                    exit(1)
-
+            logging.debug("Successfully connected to {}".format(target))
             sftp = client.open_sftp()
             sftp.mkdir(str(work))
             sftp.close()
 
             # Forwarding argent for the following exec_command
-            transport = transport or client.get_transport()
+            transport = client.get_transport()
             session = transport.open_session()
             paramiko.agent.AgentRequestHandler(session)
 
@@ -173,13 +155,9 @@ class RestoreJob(object):
             remotes.append(Remote(target, connect_args, client, stdout.channel))
 
         finished, broken = [], []
+
         while True:
             time.sleep(5)  # TODO: configure sleep
-            for remote in finished:
-                logging.info("Finished: {}".format(remote.target))
-            for remote in broken:
-                logging.info("Broken: {}".format(remote.target))
-            logging.info("Total: {}".format(len(remotes)))
 
             if len(remotes) == len(finished) + len(broken):
                 # TODO: make a nicer exit condition
@@ -197,8 +175,11 @@ class RestoreJob(object):
                 if remote.channel.exit_status_ready and remote.channel.exit_status >= 0:
                     if remote.channel.exit_status == 0:
                         finished.append(remote)
+                        logging.info("Restore succeeded on {}".format(remote.target))
                     else:
                         broken.append(remote)
+                        logging.error("Restore failed on {} : ".format(remote.target))
+                        logging.error(self.read_file(remote, work / "stderr"))
                     # We got an exit code that does not indicate an error, but not necessarily
                     # success. Cleanup channel and move to next remote. remote.client could still
                     # be used.
@@ -223,5 +204,14 @@ class RestoreJob(object):
                     remotes[i] = Remote(remote.target, remote.connect_args, client,
                                         stdout.channel)
 
-        logging.info('finished: {}'.format(finished))
-        logging.info('broken: {}'.format(broken))
+        if (len(broken) > 0):
+            logging.info("Restore failed on the following nodes :")
+            for remote in broken:
+                logging.info(remote.target)
+        else:
+            logging.info('Restore succeeded on all nodes')
+
+    def read_file(self, remote, remotepath):
+        with remote.client.open_sftp() as ftp_client:
+            with ftp_client.file(remotepath.as_posix(), 'r') as f:
+                return str(f.read(), 'utf-8')

@@ -44,6 +44,7 @@ class CqlSessionProvider(object):
                           auth_provider=self._auth_provider,
                           execution_profiles=self._execution_profiles)
         session = cluster.connect()
+
         return CqlSession(session)
 
 
@@ -80,16 +81,20 @@ class CqlSession(object):
         raise RuntimeError('Unable to current token')
 
     def datacenter(self):
+        logging.debug('Checking datacenter...')
         listen_address = self.cluster.contact_points[0]
         token_map = self.cluster.metadata.token_map
         for host in token_map.token_to_host_owner.values():
-            if host.address == listen_address:
+            logging.debug('Checking host {} against {}/{}'
+                          .format(host.address, listen_address, socket.gethostbyname(listen_address)))
+            if host.address == listen_address or host.address == socket.gethostbyname(listen_address):
                 return host.datacenter
         raise RuntimeError('Unable to current datacenter')
 
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map
         datacenter = self.datacenter()
+        logging.debug('Token map : {}'.format(token_map))
         return {
             socket.gethostbyaddr(host.address)[0]: {
                 'token': token.value,
