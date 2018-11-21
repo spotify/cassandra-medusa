@@ -31,14 +31,15 @@ def download_data(storageconfig, backup, destination):
             srcs = ['gs://{}/{}'.format(storageconfig.bucket_name, object['path'])
                     for object in section['objects']]
             dst.mkdir(parents=True)
-            gsutil.cp(srcs=srcs, dst=dst)
+            gsutil.cp(srcs=srcs, dst=dst, trickle=False)
 
         gsutil.cp(
             srcs=['gs://{}/{}'.format(storageconfig.bucket_name, path)
                   for path in [backup.manifest_path,
                                backup.schema_path,
                                backup.tokenmap_path]],
-            dst=destination
+            dst=destination,
+            trickle=False
         )
 
 

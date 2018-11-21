@@ -71,12 +71,15 @@ def restore_node(config, restore_from, temp_dir, backup_name):
     for section in manifest:
         src = download_dir / section['keyspace'] / section['columnfamily']
         dst = schema_path_mapping[(section['keyspace'], section['columnfamily'])]
+
+        # restoring all tables from all backed up keyspaces except system.peers
         if dst.exists():
             logging.debug('Cleaning directory {}'.format(dst))
             subprocess.check_output(['sudo', '-u', cassandra.root.owner(),
                                      'rm', '-rf', str(dst)])
-        subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
-        subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
+        if not (section['keyspace'] == 'system' and section['columnfamily'].startswith('peers')):
+            subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
+            subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
 
     # Start up Cassandra
     logging.info('Starting Cassandra')

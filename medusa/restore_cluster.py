@@ -14,7 +14,6 @@
 # limitations under the License.
 import collections
 import logging
-import os
 import paramiko
 import sys
 import time
@@ -26,7 +25,15 @@ from medusa.storage import Storage
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
 
 
-def orchestrate(config, backup_name, seed_target, temp_dir):
+def orchestrate(config, backup_name, seed_target, temp_dir, host_list, bypass_checks):
+    if seed_target is None and host_list is None:
+        logging.error("You must either provide a seed target or a list of host.")
+        sys.exit(1)
+
+    if seed_target is not None and host_list is not None:
+        logging.error("You must either provide a seed target or a list of host, not both.")
+        sys.exit(1)
+
     storage = Storage(config=config.storage)
     try:
         cluster_backup = storage.get_cluster_backup(backup_name)
@@ -34,47 +41,54 @@ def orchestrate(config, backup_name, seed_target, temp_dir):
         logging.error('No such backup')
         sys.exit(1)
 
-    session_provider = CqlSessionProvider(seed_target,
-                                          username=config.cassandra.cql_username,
-                                          password=config.cassandra.cql_password)
-
-    restore = RestoreJob(cluster_backup, session_provider,
-                         config.ssh, temp_dir)
+    restore = RestoreJob(cluster_backup,
+                         config, temp_dir, host_list, seed_target, bypass_checks)
     restore.execute()
 
 
 class RestoreJob(object):
-    def __init__(self, cluster_backup, session_provider, ssh_config, temp_dir):
+    def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, bypass_checks=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
-        self.session_provider = session_provider
-        self.ssh_config = ssh_config
+        self.session_provider = None
+        self.config = config
+        self.host_list = host_list
+        self.seed_target = seed_target
         if not temp_dir.is_dir():
             logging.error('{} is not a directory'.format(temp_dir))
             sys.exit(1)
         self.temp_dir = temp_dir
+        self.host_map = {}  # Map of backup host/target host for the restore process
+        self.bypass_checks = bypass_checks
 
     def execute(self):
         if not self.cluster_backup.is_complete():
             raise Exception("Backup is not complete")
-        with self.session_provider.new_session() as session:
-            self._populate_ringmap(session)
+
+        # CASE 1 : We're restoring in place and a seed target has been provided
+        if self.seed_target is not None:
+            self.session_provider = CqlSessionProvider(self.seed_target,
+                                                       username=self.config.cassandra.cql_username,
+                                                       password=self.config.cassandra.cql_password)
+
+            with self.session_provider.new_session() as session:
+                self._populate_ringmap(self.cluster_backup.tokenmap, session.tokenmap())
+
+        if self.host_list is not None:
+            self._populate_hostmap()
         self._restore_data()
 
-    def _populate_ringmap(self, session):
-        target_tokenmap = session.tokenmap()
-        backup_tokenmap = self.cluster_backup.tokenmap
-
+    def _populate_ringmap(self, tokenmap, target_tokenmap):
         for host, ringitem in target_tokenmap.items():
             if not ringitem.get('is_up'):
                 raise Exception('Target {host} is not up!'.format(host=host))
-            if len(target_tokenmap) != len(backup_tokenmap):
+            if len(target_tokenmap) != len(tokenmap):
                 raise Exception('Cannot restore to a tokenmap of differing size: ({target_tokenmap}:{tokenmap}).'
-                                .format(target_tokenmap=len(target_tokenmap), tokenmap=len(backup_tokenmap)))
+                                .format(target_tokenmap=len(target_tokenmap), tokenmap=len(tokenmap)))
 
         target_tokens = {ringitem['token']: host for host, ringitem in target_tokenmap.items()}
-        backup_tokens = {ringitem['token']: host for host, ringitem in backup_tokenmap.items()}
+        backup_tokens = {ringitem['token']: host for host, ringitem in tokenmap.items()}
         if target_tokens.keys() != backup_tokens.keys():
             raise Exception('Tokenmap is differently distributed: {distribution}'.format(
                 distribution=target_tokens.keys() ^ backup_tokens.keys()))
@@ -83,23 +97,16 @@ class RestoreJob(object):
         for ring in backup_tokens, target_tokens:
             for token, host in ring.items():
                 ringmap[token].append(host)
+
         self.ringmap = ringmap
+        for token, hosts in ringmap.items():
+            self.host_map[hosts[0]] = hosts[1]
 
-    def _restore_schema(self, session):
-        current_schema = session.dump_schema()
-
-        if current_schema == self.cluster_backup.schema:
-            logging.info('Not restoring schema, equivalent.')
-        elif current_schema == '':
-            parts = filter(bool, self.cluster_backup.schema.split(';'))
-            for i, part in enumerate(parts):
-                logging.info(
-                    'Restoring schema part {i}: "{start}"..'.format(i=i, start=part[0:35]))
-                session.session.execute(part)  # TODO: `session.session` one of them is not a session...
-            logging.info('Finished restoring schema')
-            return
-        else:
-            raise Exception('Schema not compatible')
+    def _populate_hostmap(self):
+        with open(self.host_list, 'r') as f:
+            for line in f.readlines():
+                hosts = line.replace('\n', '').split(self.config.storage.host_file_separator)
+                self.host_map[hosts[1].strip()] = hosts[2].strip()
 
     def _restore_data(self):
         # create workdir on each target host
@@ -111,22 +118,31 @@ class RestoreJob(object):
         work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         logging.debug('Medusa is working in: {}'.format(work))
         remotes = []
-        for source, target in self.ringmap.values():
-            logging.info("Starting data restore on {}".format(target))
+        for source, target in self.host_map.items():
+            logging.info("Starting data restore on {} using {} as backup source".format(target, source))
+
+        logging.info("This will delete all data on the target nodes and replace it with backup {}."
+                     .format(self.cluster_backup.name))
+        proceed = None
+        while (proceed != 'Y' and proceed != 'n') and not self.bypass_checks:
+            proceed = input("Are you sure you want to proceed? (Y/n)")
+
+        if proceed == 'n':
+            sys.exit(1)
+
+        for source, target in self.host_map.items():
+            logging.info("Restoring data on {}...".format(target))
             logging.debug("Connecting to {}".format(target))
             client = paramiko.SSHClient()
 
             pkey = None
-            if self.ssh_config.key_file is not None and self.ssh_config.key_file != "":
-                pkey = paramiko.RSAKey.from_private_key_file(self.ssh_config.key_file, None)
-            if self.ssh_config.username is None:
-                user = os.getlogin()
-            else:
-                user = self.ssh_config.username
+            if self.config.ssh.key_file is not None and self.config.ssh.key_file != "":
+                pkey = paramiko.RSAKey.from_private_key_file(self.config.ssh.key_file, None)
+
             client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
             connect_args = {
                 'hostname': target,
-                'username': user,
+                'username': self.config.ssh.username,
                 'pkey': pkey,
                 'compress': True,
                 'password': None

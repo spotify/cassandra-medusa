@@ -119,14 +119,17 @@ def download(medusaconfig, backup_name, download_destination):
 
 @cli.command()
 @click.option('--backup-name', help='Backup name', required=True)
-@click.option('--seed-target', help='seed of the target hosts', required=True)
+@click.option('--seed-target', help='seed of the target hosts', required=False)
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
+@click.option('--host-list', help='List of nodes to restore with the associated target host', required=False)
+@click.option('-y', '--bypass-checks', help='Bypasses the security check for restoring a cluster',
+              default=False, is_flag=True)
 @pass_MedusaConfig
-def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir):
+def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, bypass_checks):
     """
     Restore Cassandra cluster
     """
-    medusa.restore_cluster.orchestrate(medusaconfig, backup_name, seed_target, Path(temp_dir))
+    medusa.restore_cluster.orchestrate(medusaconfig, backup_name, seed_target, Path(temp_dir), host_list, bypass_checks)
 
 
 @cli.command()

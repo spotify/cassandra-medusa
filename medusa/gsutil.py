@@ -53,7 +53,7 @@ class GSUtil(object):
         self._env = dict(os.environ)
         return False
 
-    def cp(self, *, srcs, dst, max_retries=5):
+    def cp(self, *, srcs, dst, trickle=True, max_retries=5):
         if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
             srcs = [srcs]
 
@@ -74,10 +74,13 @@ class GSUtil(object):
         # '-o', 'GSUtil:parallel_process_count={}'.format(parallel_process_count),
         # '-o', 'GSUtil:parallel_thread_count={}'.format(parallel_thread_count),
         # '-m',
-        cmd = ['trickle', '-u', str(self._config.upload_throttle_in_KBps),
-               'gsutil',
-               'cp', '-c',
-               '-L', manifest_log, '-I', str(dst)]
+        cmd = []
+        if trickle:
+            cmd += ['trickle', '-s', '-d 200000', '-u', str(self._config.upload_throttle_in_KBps)]
+
+        cmd += ['gsutil',
+                'cp', '-c',
+                '-L', manifest_log, '-I', str(dst)]
 
         logging.debug(' '.join(cmd))
 

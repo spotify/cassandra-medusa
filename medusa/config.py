@@ -23,7 +23,8 @@ import medusa.storage
 import medusa.cassandra_utils
 
 StorageConfig = collections.namedtuple('StorageConfig',
-                                       ['bucket_name', 'key_file', 'prefix', 'fqdn', 'upload_throttle_in_KBps'])
+                                       ['bucket_name', 'key_file', 'prefix', 'fqdn',
+                                        'upload_throttle_in_KBps', 'host_file_separator'])
 CassandraConfig = collections.namedtuple('CassandraConfig',
                                          ['start_cmd', 'stop_cmd',
                                           'config_file',
@@ -40,7 +41,8 @@ def load_config(args, config_file):
 
     # Set defaults
     config['storage'] = {
-        'upload_throttle_in_KBps': 51200
+        'upload_throttle_in_KBps': 51200,
+        'host_file_separator': ','
     }
 
     config['cassandra'] = {
