@@ -2,7 +2,7 @@
 
 This document is relevant for Spotify environment. Once Medusa goes FOSS, this should be rewritten.
 
-There are two roles involved in the operations of Medusa.
+There are three roles involved in the operations of Medusa.
 
 The first role, [MedusaSetupAgent](https://console.cloud.google.com/iam-admin/roles/details/projects%3Cmedusa-backups%3Croles%3CMedusaSetupAgent?organizationId=642708779950&project=medusa-backups), gathers all the permissions needed to setup backups with Medusa.
 - This role is assigned to the default service account of `database-infra` project: `984981252538-compute@developer.gserviceaccount.com`.
@@ -22,6 +22,15 @@ The second role, [MedusaStorageAgent](https://console.cloud.google.com/iam-admin
   - `storage.buckets.getIamPolicy`
   - `storage.objects.create`
   - `storage.objects.delete`
+  - `storage.objects.get`
+  - `storage.objects.getIamPolicy`
+  - `storage.objects.list`
+
+The third role, [MedusaRestoreAgent](), gathers permissions needed to restore data using Medusa.
+- This role is assigned to the service accounts used for restore testing backups.
+- These are the permissions granted:
+  - `storage.buckets.get`
+  - `storage.buckets.getIamPolicy`
   - `storage.objects.get`
   - `storage.objects.getIamPolicy`
   - `storage.objects.list`
