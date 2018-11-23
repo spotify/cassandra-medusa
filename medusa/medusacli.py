@@ -133,16 +133,16 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
 
 
 @cli.command()
-@click.option('--restore-from', help='Restore data from local directory')
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--backup-name', help='Backup name', required=True)
+@click.option('--in-place', help='Indicates if the restore happens on the node the backup was done on.',
+              default=False, is_flag=True)
 @pass_MedusaConfig
-def restore_node(medusaconfig, restore_from, temp_dir, backup_name):
+def restore_node(medusaconfig, temp_dir, backup_name, in_place):
     """
     Restore single Cassandra node
     """
-    restore_from = Path(restore_from) if restore_from else None
-    medusa.restore_node.restore_node(medusaconfig, restore_from, Path(temp_dir), backup_name)
+    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place)
 
 
 @cli.command()

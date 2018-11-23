@@ -46,7 +46,7 @@ def load_config(args, config_file):
 
     config['cassandra'] = {
         'config_file': medusa.cassandra_utils.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
-        'start_cmd': 'sudo spcassandra-enable-hecuba',
+        'start_cmd': '/etc/init.d/cassandra start',
         'stop_cmd': 'sudo spcassandra-stop'
     }
 

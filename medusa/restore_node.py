@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import json
 import logging
 import subprocess
@@ -24,7 +25,7 @@ from medusa.download import download_data
 from medusa.storage import Storage
 
 
-def restore_node(config, restore_from, temp_dir, backup_name):
+def restore_node(config, temp_dir, backup_name, in_place):
     storage = Storage(config=config.storage)
 
     node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
@@ -35,52 +36,90 @@ def restore_node(config, restore_from, temp_dir, backup_name):
     cassandra = Cassandra(config.cassandra)
 
     manifest = json.loads(node_backup.manifest)
-    schema_path_mapping = cassandra.schema_path_mapping()
 
-    if restore_from:
-        if not restore_from.is_dir():
-            logging.error('{} is not a directory'.format(restore_from))
-            sys.exit(1)
-        download_dir = restore_from
-        logging.info('Restoring data from {}'.format(download_dir))
-    else:
-        download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
-        logging.info('Downloading data from backup to {}'.format(download_dir))
-        download_data(config.storage, node_backup, destination=download_dir)
+    # Download the backup
+    download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
+    logging.info('Downloading data from backup to {}'.format(download_dir))
+    download_data(config.storage, node_backup, destination=download_dir)
 
     logging.info('Stopping Cassandra')
     cassandra.shutdown()
 
     # Clean the commitlogs, the saved cache to prevent any kind of conflict
     # especially around system tables.
-    commit_logs_path = cassandra.commit_logs_path
-    saved_caches_path = cassandra.saved_caches_path
-    if commit_logs_path.exists():
-        logging.debug('Cleaning commitlogs ({})'.format(commit_logs_path))
-        subprocess.check_output(['sudo', '-u', commit_logs_path.owner(),
-                                 'rm', '-rf', str(commit_logs_path)])
-    if saved_caches_path.exists():
-        logging.debug('Cleaning saved caches ({})'.format(saved_caches_path))
-        subprocess.check_output(['sudo', '-u', saved_caches_path.owner(),
-                                 'rm', '-rf', str(saved_caches_path)])
+    clean_path(cassandra.commit_logs_path)
+    clean_path(cassandra.saved_caches_path)
 
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
-    file_ownership = '{}:{}'.format(cassandra.root.owner(),
-                                    cassandra.root.group())
     for section in manifest:
-        src = download_dir / section['keyspace'] / section['columnfamily']
-        dst = schema_path_mapping[(section['keyspace'], section['columnfamily'])]
+        maybe_restore_section(section, download_dir, cassandra.root, in_place)
 
-        # restoring all tables from all backed up keyspaces except system.peers
-        if dst.exists():
-            logging.debug('Cleaning directory {}'.format(dst))
-            subprocess.check_output(['sudo', '-u', cassandra.root.owner(),
-                                     'rm', '-rf', str(dst)])
-        if not (section['keyspace'] == 'system' and section['columnfamily'].startswith('peers')):
-            subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
-            subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
+    node_fqdn = storage.config.fqdn
+    token_map_file = download_dir / 'tokenmap.json'
+    with open(str(token_map_file), 'r') as f:
+        tokens = get_node_tokens(node_fqdn, f)
+        logging.debug("Parsed tokens: {}".format(tokens))
 
     # Start up Cassandra
     logging.info('Starting Cassandra')
-    cassandra.start()
+    # restoring in place retains system.local, which has tokens in it. no need to specify extra
+    if in_place:
+        cassandra.start_with_implicit_token()
+    else:
+        cassandra.start(tokens)
+
+
+def clean_path(p):
+    if p.exists():
+        logging.debug('Cleaning ({})'.format(p))
+        subprocess.check_output(['sudo', '-u', p.owner(),
+                                 'rm', '-rf', str(p)])
+
+
+def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place):
+
+    # decide whether to restore files for this table or not
+    # we restore everything from all keyspaces when restoring in_place
+    # when restoring not in_place (i.e. doing a restore test), we skip system.local and system.peers tables
+    restore_section = True
+
+    if not in_place:
+        if section['keyspace'] == 'system':
+            if section['columnfamily'].startswith('local-') or section['columnfamily'].startswith('peers-'):
+                restore_section = False
+
+    src = download_dir / section['keyspace'] / section['columnfamily']
+    # not appending the column family name because mv later on copies the whole folder
+    dst = cassandra_data_dir / section['keyspace'] / section['columnfamily']
+
+    # prepare the destination folder
+    if dst.exists():
+        logging.debug('Cleaning directory {}'.format(dst))
+        subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
+                                 'rm', '-rf', str(dst)])
+    else:
+        logging.debug('Creating directory {}'.format(dst))
+        subprocess.check_output(['sudo', '-u', cassandra_data_dir.owner(),
+                                 'mkdir', '-p', str(cassandra_data_dir / section['keyspace'])])
+
+    if not restore_section:
+        logging.debug("Skipping the actual restore of {}".format(section['columnfamily']))
+        return
+
+    # restore the table
+    logging.debug('Restoring {} -> {}'.format(src, dst))
+    subprocess.check_output(['sudo', 'mv', str(src), str(dst)])
+    file_ownership = '{}:{}'.format(cassandra_data_dir.owner(), cassandra_data_dir.group())
+    subprocess.check_output(['sudo', 'chown', '-R', file_ownership, str(dst)])
+
+
+def get_node_tokens(node_fqdn, token_map_file):
+    token_map = json.load(token_map_file)
+    token = token_map[node_fqdn]['tokens']
+    # if vnodes, then the tokens come as an iterable
+    if isinstance(token, collections.Iterable):
+        return list(map(str, token))
+    # if there is only a single token, the token might show up as one integer
+    else:
+        return [str(token)]

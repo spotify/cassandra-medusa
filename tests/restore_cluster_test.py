@@ -50,9 +50,9 @@ class RestoreClusterTest(unittest.TestCase):
                                     self.config, Path('/tmp'), host_list, None)
             restoreJob._populate_hostmap()
 
-        self.assertEqual(restoreJob.host_map["node1.mydomain.net"], "node1.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node2.mydomain.net"], "node2.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node3.mydomain.net"], "node4.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['target'], "node1.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node2.mydomain.net"]['target'], "node2.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node4.mydomain.net"]['target'], "node3.mydomain.net")
 
     # Test that we can properly associate source and target nodes for restore using a token map
     def test_populate_tokenmap(self):
@@ -68,9 +68,9 @@ class RestoreClusterTest(unittest.TestCase):
                 target_tokenmap = json.loads(f_target.read())
                 restoreJob._populate_ringmap(tokenmap, target_tokenmap)
 
-        self.assertEqual(restoreJob.host_map["node1.mydomain.net"], "node4.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node2.mydomain.net"], "node5.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node3.mydomain.net"], "node6.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['target'], "node4.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node2.mydomain.net"]['target'], "node5.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node3.mydomain.net"]['target'], "node6.mydomain.net")
 
     # Test that we can't restore the cluster if the source and target topology have different sizes
     def test_populate_tokenmap_fail(self):

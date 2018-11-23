@@ -1,18 +1,18 @@
 {
     "node4.mydomain.net": {
-    "token": -3074457345618258400,
+    "tokens": [-3074457345618258400],
     "is_up": true
     },
     "node5.mydomain.net": {
-    "token": -9223372036854776000,
+    "tokens": [-9223372036854776000],
     "is_up": true
     },
     "node6.mydomain.net": {
-    "token": 3074457345618258400,
+    "tokens": [3074457345618258400],
     "is_up": true
     },
     "node7.mydomain.net": {
-    "token": 7074457345618258400,
+    "tokens": [7074457345618258400],
     "is_up": true
     }
 }
