@@ -126,7 +126,7 @@ def main(config, backup_name, stagger_time):
 
     if stagger_time:
         stagger_end = start + stagger_time
-        logging.info('Staggering backup run, trying until {}', stagger_end)
+        logging.info('Staggering backup run, trying until {}'.format(stagger_end))
         with cassandra.new_session() as cql_session:
             tokenmap = cql_session.tokenmap()
         while not stagger(config.storage.fqdn, storage, tokenmap):
