@@ -10,9 +10,8 @@ spotify-medusa (0.0.4) trusty; urgency=medium
   * Fixed table name using the column_family ID on some places and not in others
   * Add ffwd library and track basic backup metrics
   * Change the order in the path of the files (data/meta after fqdn and backup name)
-  * Make backups a low priority task using only idle IO.
+  * Make backups a low priority task using only idle IO and with low priority on CPU (nice).
   * Split logs from syslogs
-  * Add a network limiter and make 'gsutil cp' mono-process/mono-thread (remove '-m', incompatible with 'trickle')
 
  -- Alain Rodriguez <alainr@spotify.com>  Thu, 25 Oct 2018 17:01:38 +0000
 

@@ -53,7 +53,7 @@ class GSUtil(object):
         self._env = dict(os.environ)
         return False
 
-    def cp(self, *, srcs, dst, trickle=True, max_retries=5):
+    def cp(self, *, srcs, dst, max_retries=5):
         if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
             srcs = [srcs]
 
@@ -62,25 +62,17 @@ class GSUtil(object):
         manifest_log = '/tmp/gsutil_{0}.manifest'.format(job_id)
         gsutil_output = '/tmp/gsutil_{0}.output'.format(job_id)
 
-        # TODO: Enable multi-processing and expose the following settings?
-        # The problem is that trickle is not compatible with multiple porcesses
-        # We need another way to throttle (ideally the disk IO directly)
-        # ie. Do not run 'trickle ... gsutil -m ...'
-        # https://github.com/GoogleCloudPlatform/gsutil/issues/413
-
-        # If not using trickle here, we could use following gsutil options:
+        # We could use following gsutil options
+        # to specify multithreading options (enabled with '-m'):
         # parallel_process_count = 4
         # parallel_thread_count = 4
         # '-o', 'GSUtil:parallel_process_count={}'.format(parallel_process_count),
         # '-o', 'GSUtil:parallel_thread_count={}'.format(parallel_thread_count),
-        # '-m',
-        cmd = []
-        if trickle:
-            cmd += ['trickle', '-s', '-d 200000', '-u', str(self._config.upload_throttle_in_KBps)]
 
-        cmd += ['gsutil',
-                'cp', '-c',
-                '-L', manifest_log, '-I', str(dst)]
+        cmd = ['gsutil',
+               '-m',
+               'cp', '-c',
+               '-L', manifest_log, '-I', str(dst)]
 
         logging.debug(' '.join(cmd))
 
