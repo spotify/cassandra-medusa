@@ -33,6 +33,7 @@ def download_data(storageconfig, backup, destination):
             dst.mkdir(parents=True)
             gsutil.cp(srcs=srcs, dst=dst)
 
+        logging.info('Downloading the data...')
         gsutil.cp(
             srcs=['gs://{}/{}'.format(storageconfig.bucket_name, path)
                   for path in [backup.manifest_path,

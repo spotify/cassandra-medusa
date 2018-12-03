@@ -60,8 +60,10 @@ class Storage(object):
         return (fqdn, name)
 
     def list_node_backups(self, *, fqdn=None):
+        # TODO This does not work with when 'self._prefix' is set but
+        # it does not work with --> else 'self._prefix' if there is no fqdn
         prefix = self._prefix / fqdn if fqdn else ''
-        blobs = sorted(self._bucket.list_blobs(prefix='{}'.format(prefix)),
+        blobs = sorted(self._bucket.list_blobs(prefix='{}'.format(prefix), delimiter='/data/'),
                        key=operator.attrgetter('name'))
         for node_backup, blobs in itertools.groupby(blobs,
                                                     key=self._get_node_backup_from_blob):
