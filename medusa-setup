@@ -20,7 +20,7 @@ export BUCKET_URL="gs://${BUCKET_NAME}"
 
 #Create bucket
 echo "Creating GCP bucket ${BUCKET_NAME}"
-gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
+gsutil mb --retention 30d -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
 echo
 
 #Service account
