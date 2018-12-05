@@ -92,6 +92,11 @@ class Storage(object):
                    key=operator.attrgetter('started'),
                    default=None)
 
+    def latest_cluster_backup(self):
+        finished_backups = filter(operator.attrgetter('finished'), self.list_cluster_backups())
+        last_finished = max(finished_backups, key=operator.attrgetter('finished'), default=None)
+        return last_finished
+
     def get_cluster_backup(self, backup_name):
         for cluster_backup in self.list_cluster_backups():
             if cluster_backup.name == backup_name:
