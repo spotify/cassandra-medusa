@@ -116,103 +116,115 @@ def stagger(fqdn, storage, tokenmap):
 
 
 def main(config, backup_name, stagger_time):
+
     start = datetime.datetime.now()
-
-    storage = Storage(config=config.storage)
-    # TODO: Test permission
-
-    cassandra = Cassandra(config.cassandra)
-
     ffwd_client = ffwd.FFWD(transport=MedusaTransport)
 
-    if stagger_time:
-        stagger_end = start + stagger_time
-        logging.info('Staggering backup run, trying until {}'.format(stagger_end))
-        with cassandra.new_session() as cql_session:
-            tokenmap = cql_session.tokenmap()
-        while not stagger(config.storage.fqdn, storage, tokenmap):
-            if datetime.datetime.now() < stagger_end:
-                logging.info('Staggering this backup run...')
-                time.sleep(60)
-            else:
-                logging.warning('Previous backup did not complete within our stagger time.')
-                # TODO: instrument exceeding the stagger duration
-                sys.exit(1)
+    try:
+        storage = Storage(config=config.storage)
+        cassandra = Cassandra(config.cassandra)
 
-    logging.info('Starting backup')
-    backup_name = backup_name or start.strftime('%Y%m%d%H')
+        if stagger_time:
+            stagger_end = start + stagger_time
+            logging.info('Staggering backup run, trying until {}'.format(stagger_end))
+            with cassandra.new_session() as cql_session:
+                tokenmap = cql_session.tokenmap()
+            while not stagger(config.storage.fqdn, storage, tokenmap):
+                if datetime.datetime.now() < stagger_end:
+                    logging.info('Staggering this backup run...')
+                    time.sleep(60)
+                else:
+                    raise IOError('Previous backup did not complete within our stagger time.'.format(backup_name))
 
-    node_backup_cache = NodeBackupCache(
-        node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn)
-    )
+        logging.info('Starting backup')
+        backup_name = backup_name or start.strftime('%Y%m%d%H')
 
-    node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
-    if node_backup.exists():
-        logging.error('Error: Backup {} already exists'.format(backup_name))
-        sys.exit(1)
+        node_backup_cache = NodeBackupCache(
+            node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn)
+        )
 
-    # Make sure that priority remains to Cassandra/limiting backups resource usage
-    throttle_backup()
+        node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
+        if node_backup.exists():
+            raise IOError('Error: Backup {} already exists'.format(backup_name))
 
-    logging.info('Creating snapshot')
-    with cassandra.create_snapshot() as snapshot:
-        logging.info('Saving tokenmap and schema')
-        with cassandra.new_session() as cql_session:
-            node_backup.schema = cql_session.dump_schema()
-            node_backup.tokenmap = json.dumps(cql_session.tokenmap())
+        # Make sure that priority remains to Cassandra/limiting backups resource usage
+        throttle_backup()
 
-        manifest = []
-        num_files = 0
-        with GSUtil(config.storage) as gsutil:
-            logging.info('Starting backup')
-            for snapshotpath in snapshot.find_dirs():
-                srcs = [
-                    node_backup_cache.replace_if_cached(
-                        keyspace=snapshotpath.keyspace,
-                        columnfamily=snapshotpath.columnfamily,
-                        src=src
+        logging.info('Creating snapshot')
+        with cassandra.create_snapshot() as snapshot:
+            logging.info('Saving tokenmap and schema')
+            with cassandra.new_session() as cql_session:
+                node_backup.schema = cql_session.dump_schema()
+                node_backup.tokenmap = json.dumps(cql_session.tokenmap())
+
+            manifest = []
+            num_files = 0
+            with GSUtil(config.storage) as gsutil:
+                logging.info('Starting backup')
+                for snapshotpath in snapshot.find_dirs():
+                    srcs = [
+                        node_backup_cache.replace_if_cached(
+                            keyspace=snapshotpath.keyspace,
+                            columnfamily=snapshotpath.columnfamily,
+                            src=src
+                        )
+                        for src in snapshotpath.path.glob('*')
+                    ]
+                    num_files += len(srcs)
+
+                    dst = 'gs://{}/{}'.format(
+                        config.storage.bucket_name,
+                        node_backup.datapath(keyspace=snapshotpath.keyspace, columnfamily=snapshotpath.columnfamily)
                     )
-                    for src in snapshotpath.path.glob('*')
-                ]
-                num_files += len(srcs)
+                    manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
+                    manifest.append({'keyspace': snapshotpath.keyspace,
+                                     'columnfamily': snapshotpath.columnfamily,
+                                     'objects': [{
+                                         'path': url_to_path(manifestobject.path),
+                                         'MD5': manifestobject.MD5,
+                                         'size': manifestobject.size
+                                     } for manifestobject in manifestobjects]})
 
-                dst = 'gs://{}/{}'.format(
-                    config.storage.bucket_name,
-                    node_backup.datapath(keyspace=snapshotpath.keyspace, columnfamily=snapshotpath.columnfamily)
-                )
-                manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
-                manifest.append({'keyspace': snapshotpath.keyspace,
-                                 'columnfamily': snapshotpath.columnfamily,
-                                 'objects': [{
-                                     'path': url_to_path(manifestobject.path),
-                                     'MD5': manifestobject.MD5,
-                                     'size': manifestobject.size
-                                 } for manifestobject in manifestobjects]})
+            node_backup.manifest = json.dumps(manifest)
+            end = datetime.datetime.now()
+            backup_duration = end - start
 
-        node_backup.manifest = json.dumps(manifest)
-        end = datetime.datetime.now()
-        backup_duration = end - start
-
-        logging.info('Backup done')
-        logging.info('- Started: {:%Y-%m-%d %H:%M:%S}, Finished: {:%Y-%m-%d %H:%M:%S}'.format(start, end))
-        logging.info('- Duration: {}'.format(backup_duration))
-        logging.info('- {} files, {}'.format(
-            node_backup.num_objects(),
-            format_bytes_str(node_backup.size())
-        ))
-        logging.info('- {} files copied from host'.format(
-            num_files - node_backup_cache.replaced
-        ))
-        if node_backup_cache.backup_name is not None:
-            logging.info('- {} copied from previous backup ({})'.format(
-                node_backup_cache.replaced,
-                node_backup_cache.backup_name
+            logging.info('Backup done')
+            logging.info('- Started: {:%Y-%m-%d %H:%M:%S}, Finished: {:%Y-%m-%d %H:%M:%S}'.format(start, end))
+            logging.info('- Duration: {}'.format(backup_duration))
+            logging.info('- {} files, {}'.format(
+                node_backup.num_objects(),
+                format_bytes_str(node_backup.size())
             ))
+            logging.info('- {} files copied from host'.format(
+                num_files - node_backup_cache.replaced
+            ))
+            if node_backup_cache.backup_name is not None:
+                logging.info('- {} copied from previous backup ({})'.format(
+                    node_backup_cache.replaced,
+                    node_backup_cache.backup_name
+                ))
 
-        logging.debug('Emitting metrics')
+            logging.debug('Emitting metrics')
 
-        backup_duration_metric = ffwd_client.metric(key='medusa-backup', what='backup-duration')
-        backup_duration_metric.send(backup_duration.seconds)
+            # Monitoring update
+            backup_duration_metric = ffwd_client.metric(key='medusa-node-backup',
+                                                        what='backup-duration',
+                                                        backupname=backup_name)
+            backup_duration_metric.send(backup_duration.seconds)
+            backup_size_metric = ffwd_client.metric(key='medusa-node-backup',
+                                                    what='backup-size',
+                                                    backupname=backup_name)
+            backup_size_metric.send(node_backup.size())
+            backup_error_metric = ffwd_client.metric(key='medusa-node-backup',
+                                                     what='backup-error',
+                                                     backupname=backup_name)
+            backup_error_metric.send(0)
 
-        backup_size_metric = ffwd_client.metric(key='medusa-backup', what='backup-size')
-        backup_size_metric.send(node_backup.size())
+    except Exception as e:
+        backup_error_metric = ffwd_client.metric(key='medusa-node-backup',
+                                                 what='backup-error',
+                                                 backupname=backup_name)
+        backup_error_metric.send(1)
+        print(str(e))
+        sys.exit(1)

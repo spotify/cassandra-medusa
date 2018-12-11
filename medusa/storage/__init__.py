@@ -93,6 +93,16 @@ class Storage(object):
                    default=None)
 
     def latest_cluster_backup(self):
+        """
+        Get the latest backup attempted (successful or not)
+        """
+        last_started = max(self.list_cluster_backups(), key=operator.attrgetter('started'), default=None)
+        return last_started
+
+    def latest_complete_cluster_backup(self):
+        """
+        Get the latest *complete* backup (ie successful on all nodes)
+        """
         finished_backups = filter(operator.attrgetter('finished'), self.list_cluster_backups())
         last_finished = max(finished_backups, key=operator.attrgetter('finished'), default=None)
         return last_finished
