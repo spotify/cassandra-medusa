@@ -79,7 +79,7 @@ SystemD.
 - Run the [the previous section](#Restoring-a-single-Cassandra-node) on each individual node.
 
 ### Initial setup and access controls
-Provided is a `setup_once.sh` which helps you set up the required infrastructure to use medusa.
+Provided is a `medusa-setup` which helps you set up the required infrastructure to use medusa.
 Specifically, the script should do the following:
 - [x] Create bucket
 - [x] Create service account
@@ -87,7 +87,7 @@ Specifically, the script should do the following:
 - [x] Spotify-specific: Distribute credentials
 - [x] Spotify-specific: Grant service account permissions on the bucket
 - [x] Spotify-specific: configure medusa for your hosts
-- [ ] Configure [object lifecycle policies][olc]
+- [x] Configure [object lifecycle policies][olc]
 - [ ] Configure (automated) restore tests
 
 [olc]:https://cloud.google.com/storage/docs/lifecycle
