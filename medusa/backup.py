@@ -115,7 +115,7 @@ def stagger(fqdn, storage, tokenmap):
     return has_backup
 
 
-def main(config, backup_name, stagger_time):
+def main(config, backup_name_arg, stagger_time):
 
     start = datetime.datetime.now()
     ffwd_client = ffwd.FFWD(transport=MedusaTransport)
@@ -124,25 +124,7 @@ def main(config, backup_name, stagger_time):
         storage = Storage(config=config.storage)
         cassandra = Cassandra(config.cassandra)
 
-        if stagger_time:
-            stagger_end = start + stagger_time
-            logging.info('Staggering backup run, trying until {}'.format(stagger_end))
-            with cassandra.new_session() as cql_session:
-                tokenmap = cql_session.tokenmap()
-            while not stagger(config.storage.fqdn, storage, tokenmap):
-                if datetime.datetime.now() < stagger_end:
-                    logging.info('Staggering this backup run...')
-                    time.sleep(60)
-                else:
-                    raise IOError('Previous backup did not complete within our stagger time.'.format(backup_name))
-
-        logging.info('Starting backup')
-        backup_name = backup_name or start.strftime('%Y%m%d%H')
-
-        node_backup_cache = NodeBackupCache(
-            node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn)
-        )
-
+        backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
         node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
         if node_backup.exists():
             raise IOError('Error: Backup {} already exists'.format(backup_name))
@@ -157,10 +139,30 @@ def main(config, backup_name, stagger_time):
                 node_backup.schema = cql_session.dump_schema()
                 node_backup.tokenmap = json.dumps(cql_session.tokenmap())
 
+            if stagger_time:
+                stagger_end = start + stagger_time
+                logging.info('Staggering backup run, trying until {}'.format(stagger_end))
+                with cassandra.new_session() as cql_session:
+                    tokenmap = cql_session.tokenmap()
+                while not stagger(config.storage.fqdn, storage, tokenmap):
+                    if datetime.datetime.now() < stagger_end:
+                        logging.info('Staggering this backup run...')
+                        time.sleep(60)
+                    else:
+                        raise IOError('Backups on previous nodes did not complete'
+                                      ' within our stagger time.'.format(backup_name))
+
+            logging.info('Starting backup')
+            actual_start = datetime.datetime.now()
+
+            # Load last backup as a cache
+            node_backup_cache = NodeBackupCache(
+                node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn)
+            )
+
             manifest = []
             num_files = 0
             with GSUtil(config.storage) as gsutil:
-                logging.info('Starting backup')
                 for snapshotpath in snapshot.find_dirs():
                     srcs = [
                         node_backup_cache.replace_if_cached(
@@ -187,11 +189,14 @@ def main(config, backup_name, stagger_time):
 
             node_backup.manifest = json.dumps(manifest)
             end = datetime.datetime.now()
-            backup_duration = end - start
+            actual_backup_duration = end - actual_start
 
             logging.info('Backup done')
-            logging.info('- Started: {:%Y-%m-%d %H:%M:%S}, Finished: {:%Y-%m-%d %H:%M:%S}'.format(start, end))
-            logging.info('- Duration: {}'.format(backup_duration))
+            logging.info("""- Started: {:%Y-%m-%d %H:%M:%S}
+                            - Started extracting data: {:%Y-%m-%d %H:%M:%S}
+                            - Finished: {:%Y-%m-%d %H:%M:%S}""".format(start, actual_start, end))
+            logging.info('- Real duration: {} (excludes time waiting '
+                         'for other nodes)'.format(actual_backup_duration))
             logging.info('- {} files, {}'.format(
                 node_backup.num_objects(),
                 format_bytes_str(node_backup.size())
@@ -211,7 +216,8 @@ def main(config, backup_name, stagger_time):
             backup_duration_metric = ffwd_client.metric(key='medusa-node-backup',
                                                         what='backup-duration',
                                                         backupname=backup_name)
-            backup_duration_metric.send(backup_duration.seconds)
+            logging.info('actual duration: {}'.format(actual_backup_duration.seconds))
+            backup_duration_metric.send(actual_backup_duration.seconds)
             backup_size_metric = ffwd_client.metric(key='medusa-node-backup',
                                                     what='backup-size',
                                                     backupname=backup_name)
@@ -220,6 +226,8 @@ def main(config, backup_name, stagger_time):
                                                      what='backup-error',
                                                      backupname=backup_name)
             backup_error_metric.send(0)
+
+            logging.debug('Done emitting metrics')
 
     except Exception as e:
         backup_error_metric = ffwd_client.metric(key='medusa-node-backup',
