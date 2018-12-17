@@ -216,6 +216,7 @@ def main(config, backup_name_arg, stagger_time):
             backup_duration_metric = ffwd_client.metric(key='medusa-node-backup',
                                                         what='backup-duration',
                                                         backupname=backup_name)
+            logging.info('actual duration: {}'.format(actual_backup_duration.seconds))
             backup_duration_metric.send(actual_backup_duration.seconds)
             backup_size_metric = ffwd_client.metric(key='medusa-node-backup',
                                                     what='backup-size',
@@ -225,6 +226,8 @@ def main(config, backup_name_arg, stagger_time):
                                                      what='backup-error',
                                                      backupname=backup_name)
             backup_error_metric.send(0)
+
+            logging.debug('Done emitting metrics')
 
     except Exception as e:
         backup_error_metric = ffwd_client.metric(key='medusa-node-backup',
