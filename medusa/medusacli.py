@@ -122,14 +122,21 @@ def download(medusaconfig, backup_name, download_destination):
 @click.option('--seed-target', help='seed of the target hosts', required=False)
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--host-list', help='List of nodes to restore with the associated target host', required=False)
+@click.option('--keep-auth', help='Keep system_auth as found on the nodes', default=False, is_flag=True)
 @click.option('-y', '--bypass-checks', help='Bypasses the security check for restoring a cluster',
               default=False, is_flag=True)
 @pass_MedusaConfig
-def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, bypass_checks):
+def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks):
     """
     Restore Cassandra cluster
     """
-    medusa.restore_cluster.orchestrate(medusaconfig, backup_name, seed_target, Path(temp_dir), host_list, bypass_checks)
+    medusa.restore_cluster.orchestrate(medusaconfig,
+                                       backup_name,
+                                       seed_target,
+                                       Path(temp_dir),
+                                       host_list,
+                                       keep_auth,
+                                       bypass_checks)
 
 
 @cli.command()
@@ -137,12 +144,14 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
 @click.option('--backup-name', help='Backup name', required=True)
 @click.option('--in-place', help='Indicates if the restore happens on the node the backup was done on.',
               default=False, is_flag=True)
+@click.option('--keep-auth', help='Keep system_auth keyspace as found on the node',
+              default=False, is_flag=True)
 @pass_MedusaConfig
-def restore_node(medusaconfig, temp_dir, backup_name, in_place):
+def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth):
     """
     Restore single Cassandra node
     """
-    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place)
+    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth)
 
 
 @cli.command()

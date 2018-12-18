@@ -25,13 +25,17 @@ from medusa.storage import Storage
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
 
 
-def orchestrate(config, backup_name, seed_target, temp_dir, host_list, bypass_checks):
+def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks):
     if seed_target is None and host_list is None:
         logging.error("You must either provide a seed target or a list of host.")
         sys.exit(1)
 
     if seed_target is not None and host_list is not None:
         logging.error("You must either provide a seed target or a list of host, not both.")
+        sys.exit(1)
+
+    if seed_target is not None and host_list is None and keep_auth:
+        logging.error('Keeping system_auth keyspace is only allowed with --host-list')
         sys.exit(1)
 
     storage = Storage(config=config.storage)
@@ -41,12 +45,12 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, bypass_ch
         logging.error('No such backup')
         sys.exit(1)
 
-    restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, bypass_checks)
+    restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, bypass_checks)
     restore.execute()
 
 
 class RestoreJob(object):
-    def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, bypass_checks=False):
+    def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, bypass_checks=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -54,6 +58,7 @@ class RestoreJob(object):
         self.config = config
         self.host_list = host_list
         self.seed_target = seed_target
+        self.keep_auth = keep_auth
         self.in_place = None
         if not temp_dir.is_dir():
             logging.error('{} is not a directory'.format(temp_dir))
@@ -189,11 +194,13 @@ class RestoreJob(object):
 
         # TODO: If this command fails, the node is currently still marked as finished and not as broken.
         in_place_option = "--in-place" if self.in_place else ""
-        command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} ' \
-                  '-vvv restore-node {in_place} --backup-name {backup}"'.format(work=work,
-                                                                                fqdn=source,
-                                                                                in_place=in_place_option,
-                                                                                backup=self.cluster_backup.name)
+        keep_auth_option = "--keep-auth" if self.keep_auth else ""
+        command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
+                  '{in_place} {keep_auth} --backup-name {backup}"'.format(work=work,
+                                                                          fqdn=source,
+                                                                          in_place=in_place_option,
+                                                                          keep_auth=keep_auth_option,
+                                                                          backup=self.cluster_backup.name)
         return self._run(target, client, connect_args, command)
 
     def _wait_for(self, work, remotes):
