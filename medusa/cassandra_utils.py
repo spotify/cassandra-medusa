@@ -346,7 +346,8 @@ class Cassandra(object):
         subprocess.check_output(cmd)
 
     def start(self, token_list):
-        tokens_env = 'sudo env JVM_OPTS="-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false"'.format(','.join(token_list))
+        tokens_env = 'sudo env JVM_OPTS="-Dcassandra.initial_token={} '
+        '-Dcassandra.auto_bootstrap=false"'.format(','.join(token_list))
         cmd = shlex.split(tokens_env)
         cmd.extend(self._start_cmd)
         logging.debug('Starting Cassandra with {}'.format(cmd))

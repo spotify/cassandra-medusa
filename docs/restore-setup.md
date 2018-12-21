@@ -1,6 +1,12 @@
 
 This document covers how to setup medusa from git and restore a cluster.
 
+Install medusa for restore on the new restore machines for example from basesusers.
+
+```
+medusa-restore-setup medusa-backups readaheadcass-medusa-backup readaheadcassrestore gew1
+```
+
 Install debian packages
 ```
 sudo apt-get install -y debhelper python3 dh-virtualenv libffi-dev libssl-dev python3-dev libxml2-dev libxslt-dev build-essential python3-pip
@@ -10,6 +16,9 @@ There is a problem with setuptools. The required package has lower apt priority.
 ```
 # manually, aptitude, say no until it proposes installing the right version
 sudo aptitude install python3-setuptools=20.7.0-1
+
+# Alternatve: we had good result with just running this instead of the previous command.
+sudo pip3 install setuptools --upgrade
 ```
 
 Install python packages. Will take time to build java-driver.
@@ -22,7 +31,9 @@ Install medusa from github. Will take time to build java-driver again.
 sudo pip3 install git+https://radovanz@ghe.spotify.net/data-bye/medusa.git@radovanz/CASS-68 --upgrade
 ```
 
-Get the restore maping, for example from basesusers:
+Install medusa for restore on the new restore machines for example from basesusers.
+
+Get the restore mapping, for example from basesusers:
 ```
 hecuba2-cli show-restore-mapping --source-role readaheadcass --target-role readaheadcassrestore
 ```
