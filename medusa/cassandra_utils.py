@@ -15,6 +15,7 @@
 
 
 import collections
+import itertools
 import logging
 import pathlib
 import shlex
@@ -94,13 +95,29 @@ class CqlSession(object):
     def tokenmap(self):
         token_map = self.cluster.metadata.token_map
         datacenter = self.datacenter()
-        logging.debug('Token map : {}'.format(token_map))
+
+        def get_host(host_token_pair):
+            return host_token_pair[0]
+
+        def get_host_address(host_token_pair):
+            return host_token_pair[0].address
+
+        def get_token(host_token_pair):
+            return host_token_pair[1]
+
+        host_token_pairs = sorted(
+            [(host, token.value) for token, host in token_map.token_to_host_owner.items()],
+            key=get_host_address
+        )
+        host_tokens_groups = itertools.groupby(host_token_pairs, key=get_host)
+        host_tokens_pairs = [(host, list(map(get_token, tokens))) for host, tokens in host_tokens_groups]
+
         return {
             socket.gethostbyaddr(host.address)[0]: {
-                'token': token.value,
+                'tokens': tokens,
                 'is_up': host.is_up
             }
-            for token, host in token_map.token_to_host_owner.items()
+            for host, tokens in host_tokens_pairs
             if host.datacenter == datacenter
         }
 
@@ -317,7 +334,21 @@ class Cassandra(object):
             }
 
     def shutdown(self):
-        subprocess.check_output(self._stop_cmd)
+        try:
+            subprocess.check_output(self._stop_cmd)
+        except subprocess.CalledProcessError:
+            logging.debug('Cassandra is already down on {}'.format(self._hostname))
+            return
 
-    def start(self):
-        subprocess.check_output(self._start_cmd)
+    def start_with_implicit_token(self):
+        cmd = self._start_cmd
+        logging.debug('Starting Cassandra with {}'.format(cmd))
+        subprocess.check_output(cmd)
+
+    def start(self, token_list):
+        tokens_env = 'sudo env JVM_OPTS="-Dcassandra.initial_token={} '
+        '-Dcassandra.auto_bootstrap=false"'.format(','.join(token_list))
+        cmd = shlex.split(tokens_env)
+        cmd.extend(self._start_cmd)
+        logging.debug('Starting Cassandra with {}'.format(cmd))
+        subprocess.check_output(cmd)

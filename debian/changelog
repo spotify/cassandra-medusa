@@ -1,3 +1,9 @@
+spotify-medusa (0.0.5) trusty; urgency=medium
+
+  * Backward compatibility break as metadata changed in this version (in manifest, 'token' became 'tokens')
+  * New command to restore on new hardware.
+
+
 spotify-medusa (0.0.4) trusty; urgency=medium
 
   * Keep all needed system keyspaces (includes system)
@@ -12,6 +18,7 @@ spotify-medusa (0.0.4) trusty; urgency=medium
   * Change the order in the path of the files (data/meta after fqdn and backup name)
   * Make backups a low priority task using only idle IO and with low priority on CPU (nice).
   * Split logs from syslogs
+  * Improved metrics for Medusa (duration, time since last backup, exceptions...)
 
  -- Alain Rodriguez <alainr@spotify.com>  Thu, 25 Oct 2018 17:01:38 +0000
 
