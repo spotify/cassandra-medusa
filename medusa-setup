@@ -1,9 +1,11 @@
 #!/bin/bash
 set -e
 
-if [ "$#" -ne 4 ]; then
-  echo "Usage: $0 GCP_PROJECT ROLE POD LOCATION" >&2
+if [ "$#" -lt 4 ]; then
+  echo "Usage: $0 GCP_PROJECT ROLE POD LOCATION [SERVICE_ACCOUNT_NAME]" >&2
   echo "Example: $0 medusa-backups identity2 gew1 europe-west1" >&2
+  echo "Example to enforce service account name: " >&2
+  echo "$0 medusa-backups identity2 gew1 europe-west1 identity2cassandra-medusa" >&2
   exit 1
 fi
 
@@ -13,8 +15,14 @@ export GCP_PROJECT=$1
 export ROLE=$2
 export POD=$3
 export LOCATION=$4
+export SERVICE_ACCOUNT_NAME=$5
+if [ -z "${SERVICE_ACCOUNT_NAME}" ]
+then
+      SERVICE_ACCOUNT_NAME="${ROLE}-medusa"
+fi
 
-export SERVICE_ACCOUNT_NAME="${ROLE}-medusa"
+# truncate the service account name to 30 characters as Google disallows more...
+SERVICE_ACCOUNT_NAME=${SERVICE_ACCOUNT_NAME:0:30}
 export BUCKET_NAME="${ROLE}-medusa-backup"
 export BUCKET_URL="gs://${BUCKET_NAME}"
 
