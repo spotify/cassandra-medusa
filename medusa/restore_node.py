@@ -25,7 +25,12 @@ from medusa.download import download_data
 from medusa.storage import Storage
 
 
-def restore_node(config, temp_dir, backup_name, in_place):
+def restore_node(config, temp_dir, backup_name, in_place, keep_auth):
+
+    if in_place and keep_auth:
+        logging.warning('Cannot keep system_auth when restoring in-place. It would be overwritten')
+        sys.exit(1)
+
     storage = Storage(config=config.storage)
 
     node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
@@ -53,7 +58,7 @@ def restore_node(config, temp_dir, backup_name, in_place):
     # move backup data to Cassandra data directory according to system table
     logging.info('Moving backup data to Cassandra data directory')
     for section in manifest:
-        maybe_restore_section(section, download_dir, cassandra.root, in_place)
+        maybe_restore_section(section, download_dir, cassandra.root, in_place, keep_auth)
 
     node_fqdn = storage.config.fqdn
     token_map_file = download_dir / 'tokenmap.json'
@@ -77,17 +82,25 @@ def clean_path(p):
                                  'rm', '-rf', str(p)])
 
 
-def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place):
+def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth):
 
     # decide whether to restore files for this table or not
+
     # we restore everything from all keyspaces when restoring in_place
-    # when restoring not in_place (i.e. doing a restore test), we skip system.local and system.peers tables
+
+    # when restoring not in_place (i.e. doing a restore test), we skip restoring system.local and system.peers tables
+    # but we delete the ones that are present.
+    # if --keep-auth is set, we won't touch the existing system_auth (won't delete nor overwrite from the backup)
+
     restore_section = True
 
     if not in_place:
         if section['keyspace'] == 'system':
             if section['columnfamily'].startswith('local-') or section['columnfamily'].startswith('peers-'):
                 restore_section = False
+        if section['keyspace'] == 'system_auth' and keep_auth:
+            logging.info('Keeping section {}.{} untouched'.format(section['keyspace'], section['columnfamily']))
+            return
 
     src = download_dir / section['keyspace'] / section['columnfamily']
     # not appending the column family name because mv later on copies the whole folder
