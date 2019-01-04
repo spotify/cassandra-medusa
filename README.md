@@ -87,7 +87,7 @@ Specifically, the script should do the following:
 - [x] Spotify-specific: Distribute credentials
 - [x] Spotify-specific: Grant service account permissions on the bucket
 - [x] Spotify-specific: configure medusa for your hosts
-- [x] Configure [object lifecycle policies][olc]
+- [ ] Configure [object lifecycle policies][olc]
 - [ ] Configure (automated) restore tests
 
 [olc]:https://cloud.google.com/storage/docs/lifecycle
