@@ -38,6 +38,10 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         logging.error('Keeping system_auth keyspace is only allowed with --host-list')
         sys.exit(1)
 
+    if keep_auth:
+        logging.info('system_auth keyspace will be left untouched on the target nodes')
+    else:
+        logging.info('system_auth keyspace will overwritten with the backup on target nodes')
     storage = Storage(config=config.storage)
     try:
         cluster_backup = storage.get_cluster_backup(backup_name)
