@@ -26,16 +26,15 @@ Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', '
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks):
+    if seed_target is not None:
+        keep_auth = False
+    
     if seed_target is None and host_list is None:
         logging.error("You must either provide a seed target or a list of host.")
         sys.exit(1)
 
     if seed_target is not None and host_list is not None:
         logging.error("You must either provide a seed target or a list of host, not both.")
-        sys.exit(1)
-
-    if seed_target is not None and host_list is None and keep_auth:
-        logging.error('Keeping system_auth keyspace is only allowed with --host-list')
         sys.exit(1)
 
     if keep_auth:
