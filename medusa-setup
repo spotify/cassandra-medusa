@@ -18,9 +18,28 @@ export SERVICE_ACCOUNT_NAME="${ROLE}-medusa"
 export BUCKET_NAME="${ROLE}-medusa-backup"
 export BUCKET_URL="gs://${BUCKET_NAME}"
 
+# TTL for backups of this bucket
+MAX_AGE=30
+
 #Create bucket
 echo "Creating GCP bucket ${BUCKET_NAME}"
-gsutil mb --retention 30d -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
+# --retention 30d prevents unwanted deletes for 30 days
+gsutil mb -p ${GCP_PROJECT} -c regional -l ${LOCATION} ${BUCKET_URL}
+
+# Add TTL to the bucket
+cat <<EOF >life.json
+{
+  "rule":
+  [
+    {
+      "action": {"type": "Delete"},
+      "condition": {"age": ${MAX_AGE}}
+    }
+  ]
+}
+EOF
+
+gsutil lifecycle set life.json ${BUCKET_URL}
 echo
 
 #Service account
