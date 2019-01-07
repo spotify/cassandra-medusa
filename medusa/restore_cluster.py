@@ -28,7 +28,7 @@ Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', '
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks):
     if seed_target is not None:
         keep_auth = False
-    
+
     if seed_target is None and host_list is None:
         logging.error("You must either provide a seed target or a list of host.")
         sys.exit(1)
@@ -40,7 +40,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
     if keep_auth:
         logging.info('system_auth keyspace will be left untouched on the target nodes')
     else:
-        logging.info('system_auth keyspace will overwritten with the backup on target nodes')
+        logging.info('system_auth keyspace will be overwritten with the backup on target nodes')
     storage = Storage(config=config.storage)
     try:
         cluster_backup = storage.get_cluster_backup(backup_name)
@@ -149,12 +149,16 @@ class RestoreJob(object):
         stop_remotes = []
         logging.info("Stopping Cassandra on all nodes")
         for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
-            client, connect_args = self._connect(target, work)
-            command = 'nohup sh -c "{}"'.format(self.config.cassandra.stop_cmd)
-            stop_remotes.append(self._run(target, client, connect_args, command))
+            if self.checkCassandraRunning(target, work):
+                logging.info("Cassandra is running on {}. Stopping it...".format(target))
+                client, connect_args = self._connect(target, work)
+                command = 'nohup sh -c "{}"'.format(self.config.cassandra.stop_cmd)
+                stop_remotes.append(self._run(target, client, connect_args, command))
+            else:
+                logging.info("Cassandra is not running on {}.".format(target))
 
         # wait for all nodes to stop
-        logging.info("Starting to wait for all nodes to stop")
+        logging.info("Waiting for all nodes to stop...")
         finished, broken = self._wait_for(work, stop_remotes)
         if len(broken) > 0:
             logging.error("Some Cassandras failed to stop. Exiting")
@@ -320,3 +324,9 @@ class RestoreJob(object):
         with remote.client.open_sftp() as ftp_client:
             with ftp_client.file(remotepath.as_posix(), 'r') as f:
                 return str(f.read(), 'utf-8')
+
+    def checkCassandraRunning(self, host, work):
+        client, connect_args = self._connect(host, work)
+        command = 'nohup sh -c "{}"'.format(self.config.cassandra.check_running)
+        remote = self._run(host, client, connect_args, command)
+        return remote.channel.recv_exit_status() == 0
