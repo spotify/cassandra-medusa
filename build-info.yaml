@@ -21,7 +21,7 @@ pipelines:
   - pipeline: 'master'
     ref: 'master'
     stages:
-      - stage: 'build debian package'
+      - stage: 'old build debian package'
         tasks:
           - task: 'debbuild'
             steps:
@@ -30,6 +30,8 @@ pipelines:
                 envs:
                   RELEASE: stable
                   DISTRIBUTION: trusty
+      - stage: 'new build debian package'
+        tasks:
           - task: "Build and publish for Bionic"
             steps:
               - action: "gcr.io/action-containers/debian-packages:15"
