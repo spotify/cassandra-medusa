@@ -10,6 +10,14 @@ pipelines:
             steps:
               - action: 'gcr.io/action-containers/tox:3.0.0-2'
                 args: ['-c', 'tox.ini']
+      - stage: "Build package"
+        tasks:
+        - task: "Build for Bionic"
+          steps:
+          - action: "gcr.io/action-containers/debian-packages:15"
+            args: ["build"]
+            envs:
+              DISTRIBUTION: bionic
   - pipeline: 'master'
     ref: 'master'
     stages:
@@ -19,3 +27,10 @@ pipelines:
             steps:
               - action: 'gcr.io/action-containers/debian-packages:13'
                 args: ['build', 'publish']
+          - task: "Build and publish for Bionic"
+            steps:
+            - action: "gcr.io/action-containers/debian-packages:15"
+              args: ["build", "publish"]
+              envs:
+                RELEASE: stable
+                DISTRIBUTION: bionic
