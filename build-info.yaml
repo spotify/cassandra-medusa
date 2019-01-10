@@ -25,12 +25,15 @@ pipelines:
         tasks:
           - task: 'debbuild'
             steps:
-              - action: 'gcr.io/action-containers/debian-packages:13'
+              - action: 'gcr.io/action-containers/debian-packages:15'
                 args: ['build', 'publish']
+                envs:
+                  RELEASE: stable
+                  DISTRIBUTION: trusty
           - task: "Build and publish for Bionic"
             steps:
-            - action: "gcr.io/action-containers/debian-packages:15"
-              args: ["build", "publish"]
-              envs:
-                RELEASE: stable
-                DISTRIBUTION: bionic
+              - action: "gcr.io/action-containers/debian-packages:15"
+                args: ["build", "publish"]
+                envs:
+                  RELEASE: stable
+                  DISTRIBUTION: bionic
