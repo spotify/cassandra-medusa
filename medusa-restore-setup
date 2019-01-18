@@ -48,13 +48,13 @@ echo
 
 # Add credentials to celo
 echo "Pushing restore service account's secret to CELO. Will ask for password"
-curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${ROLE}/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm ${SERVICE_ACCOUNT_NAME}.json
+(curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${ROLE}/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm ${SERVICE_ACCOUNT_NAME}.json) || exit $?
 echo
 
 # Grant permissions
 #TODO: create MedusaRestoreAgent role in gcp
 echo "Granting bucket permissions to the restore service account"
-gsutil iam set <(gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/medusa-backups/roles/MedusaRestoreAgent\"}]") ${BUCKET_URL}
+gsutil iam set <(gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/${GCP_PROJECT}/roles/MedusaRestoreAgent\"}]") ${BUCKET_URL}
 echo
 
 # Configure the source cluster
@@ -64,4 +64,3 @@ echo
 
 echo "Restore setup done. Please review & merge the PR above"
 echo
-

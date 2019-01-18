@@ -1,21 +1,25 @@
 #!/bin/bash
 set -e
 
-if [ "$#" -ne 4 ]; then
-  echo "Usage: $0 GCP_PROJECT ROLE POD LOCATION" >&2
-  echo "Example: $0 medusa-backups identity2 gew1 europe-west1" >&2
+if [ "$#" -ne 3 ]; then
+  echo "Usage: $0 ROLE POD LOCATION" >&2
+  echo "Example: $0 identity2 gew1 europe-west1" >&2
   exit 1
 fi
 
 set -x
 
-export GCP_PROJECT=$1
-export ROLE=$2
-export POD=$3
-export LOCATION=$4
+# it's requested to have the project created, this script does *not* do it
+export OLD_GCP_PROJECT="medusa-backups"
+export ROLE=$1
+export POD=$2
+export LOCATION=$3
 
+export GCP_PROJECT="${ROLE}-medusa"
 export SERVICE_ACCOUNT_NAME="${ROLE}-medusa"
-export BUCKET_NAME="${ROLE}-medusa-backup"
+export OLD_BUCKET_NAME="${ROLE}-medusa-backup"
+export OLD_BUCKET_URL="gs://${OLD_BUCKET_NAME}"
+export BUCKET_NAME="${ROLE}-backup"
 export BUCKET_URL="gs://${BUCKET_NAME}"
 
 # TTL for backups of this bucket
@@ -80,17 +84,8 @@ echo "Granting bucket permissions to the service account"
 gsutil iam set <(gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/${GCP_PROJECT}/roles/MedusaStorageAgent\"}]") ${BUCKET_URL}
 echo
 
-#Configure the source cluster
-echo "Calling hecuba-cli to configure the C* cluster"
-hecuba2-cli enable-medusa --role ${ROLE} --pod ${POD} --bucket ${BUCKET_NAME} --frequency daily
+gsutil -m cp -r  ${OLD_BUCKET_URL}/* ${BUCKET_URL}
 echo
 
-echo "Setup done. Please review & merge the PR above"
+echo "Transition setup done. Please make sure to change the bucket in use for ${ROLE}"
 echo
-
-#example:
-#https://ghe.spotify.net/puppet/spotify-puppet/pull/38673
-
-
-#Get access to add credentials
-#echo edit https://ghe.spotify.net/favorite/identity2/edit/master/service-info/identity2-enc-cassandra.yaml
