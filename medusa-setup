@@ -21,6 +21,28 @@ export BUCKET_URL="gs://${BUCKET_NAME}"
 # TTL for backups of this bucket
 MAX_AGE=30
 
+# Check if active project of gcloud matches the user-specified parameter
+ACTIVE_PROJECT=$(gcloud config list 2>&1 | grep project | cut -d= -f2 | tr -d ' ')
+if [ ${ACTIVE_PROJECT} != ${GCP_PROJECT} ]; then
+    echo "ERROR: Chosen project ${GCP_PROJECT} is not the same as currently active gcloud project ${ACTIVE_PROJECT}"
+    echo "Please run 'gcloud config set project <PROJECT>' to make them match"
+    exit 1
+fi
+
+# Check if the role exists and possibly create it
+ROLE_EXISTS=$(gcloud iam roles list --project ${GCP_PROJECT} | grep title | grep -c MedusaStorageAgent || true)
+if [ ${ROLE_EXISTS} -eq 1 ]; then
+    echo "Role MedusaStorageAgent already exists in project ${GCP_PROJECT}, not creating again"
+else
+    echo "Role MedusaStorageAgent does not exist in project ${GCP_PROJECT}, creating ..."
+    gcloud iam roles create MedusaStorageAgent \
+        --project ${GCP_PROJECT} \
+        --stage GA \
+        --title MedusaStorageAgent \
+        --description "Custom role for Medusa for accessing GCS safely" \
+        --permissions storage.buckets.get,storage.buckets.getIamPolicy,storage.objects.create,storage.objects.delete,storage.objects.get,storage.objects.getIamPolicy,storage.objects.list
+fi
+
 #Create bucket
 echo "Creating GCP bucket ${BUCKET_NAME}"
 # --retention 30d prevents unwanted deletes for 30 days

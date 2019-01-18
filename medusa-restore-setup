@@ -18,6 +18,28 @@ export POD=$4
 export SERVICE_ACCOUNT_NAME="${ROLE}-medusa"
 export BUCKET_URL="gs://${BUCKET_NAME}"
 
+# Check if active project of gcloud matches the user-specified parameter
+ACTIVE_PROJECT=$(gcloud config list 2>&1 | grep project | cut -d= -f2 | tr -d ' ')
+if [ ${ACTIVE_PROJECT} != ${GCP_PROJECT} ]; then
+    echo "ERROR: Chosen project ${GCP_PROJECT} is not the same as currently active gcloud project ${ACTIVE_PROJECT}"
+    echo "Please run 'gcloud config set project <PROJECT>' to make them match"
+    exit 1
+fi
+
+# Check if the role exists and possibly create it
+ROLE_EXISTS=$(gcloud iam roles list --project ${GCP_PROJECT} | grep title | grep -c MedusaRestoreAgent || true)
+if [ ${ROLE_EXISTS} -eq 1 ]; then
+    echo "Role MedusaRestoreAgent already exists in project ${GCP_PROJECT}, not creating again"
+else
+    echo "Role MedusaRestoreAgent does not exist in project ${GCP_PROJECT}, creating ..."
+    gcloud iam roles create MedusaRestoreAgent \
+        --project ${GCP_PROJECT} \
+        --stage GA \
+        --title MedusaRestoreAgent \
+        --description "Granted to service accounts performing only restores with medusa." \
+        --permissions storage.buckets.get,storage.buckets.getIamPolicy,storage.objects.get,storage.objects.getIamPolicy,storage.objects.list
+fi
+
 # Service account
 echo "Setting up service account for restores"
 gcloud --project ${GCP_PROJECT} iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
