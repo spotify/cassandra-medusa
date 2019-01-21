@@ -35,10 +35,6 @@ import medusa.fetch_tokenmap
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
 
-def debug_command(args, config):
-    logging.error("This command is not implemented yet")
-
-
 def configure_logging(verbosity, without_log_timestamp):
     loglevel = max(2 - verbosity, 0) * 10
     if (verbosity == 0):
