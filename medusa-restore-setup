@@ -1,10 +1,12 @@
 #!/bin/bash
 set -e
 
-if [ "$#" -ne 4 ]; then
+if [ "$#" -lt 4 ]; then
   echo "Sets up restores with Medusa. Only needed when restoring to a different HW." >&2
   echo "Usage: $0 GCP_PROJECT GCP_BUCKET ROLE POD" >&2
   echo "Example: $0 medusa-backups identity-medusa-backup identity2restoretest gew1" >&2
+  echo "Example to enforce service account name: " >&2
+  echo "$0 medusa-backups identity2 gew1 europe-west1 identity2cassandra-medusa" >&2
   exit 1
 fi
 
@@ -14,8 +16,14 @@ export GCP_PROJECT=$1
 export BUCKET_NAME=$2
 export ROLE=$3
 export POD=$4
+export SERVICE_ACCOUNT_NAME=$5
+if [ -z "${SERVICE_ACCOUNT_NAME}" ]
+then
+      SERVICE_ACCOUNT_NAME="${ROLE}-medusa"
+fi
 
-export SERVICE_ACCOUNT_NAME="${ROLE}-medusa"
+# truncate the service account name to 30 characters as Google disallows more...
+SERVICE_ACCOUNT_NAME=${SERVICE_ACCOUNT_NAME:0:30}
 export BUCKET_URL="gs://${BUCKET_NAME}"
 
 # Check if active project of gcloud matches the user-specified parameter
