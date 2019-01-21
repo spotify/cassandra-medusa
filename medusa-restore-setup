@@ -4,9 +4,9 @@ set -e
 if [ "$#" -lt 4 ]; then
   echo "Sets up restores with Medusa. Only needed when restoring to a different HW." >&2
   echo "Usage: $0 GCP_PROJECT GCP_BUCKET ROLE POD" >&2
-  echo "Example: $0 medusa-backups identity-medusa-backup identity2restoretest gew1" >&2
+  echo "Example: $0 identity2-medusa identity2-backup identity2restoretest gew1" >&2
   echo "Example to enforce service account name: " >&2
-  echo "$0 medusa-backups identity2 gew1 europe-west1 identity2cassandra-medusa" >&2
+  echo "$0 identity2-medusa identity2-backup gew1 europe-west1 identity2cassandra-medusa" >&2
   exit 1
 fi
 
