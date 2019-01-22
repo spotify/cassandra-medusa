@@ -84,7 +84,15 @@ echo "Granting bucket permissions to the service account"
 gsutil iam set <(gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/${GCP_PROJECT}/roles/MedusaStorageAgent\"}]") ${BUCKET_URL}
 echo
 
-nohup gsutil -m cp -r  ${OLD_BUCKET_URL}/* ${BUCKET_URL} &
+cluster_node_list=$(gsutil ls ${OLD_BUCKET_URL}/*/ | awk -F/ '{print $4}' | awk 'NF' - | sort | uniq)
+latest_backup=$(gsutil ls ${OLD_BUCKET_URL}/*/ | awk -F/ '{print $5}' | egrep '^2019[0-9]{6}$' | sort | uniq | tail -n 1)
+echo "The latest backup is '${latest_backup}'. It will be moved to the new bucket '${BUCKET_URL}' from ${OLD_BUCKET_URL}" 
+echo 
+
+for node in $cluster_node_list
+do
+	nohup gsutil -m cp -r  ${OLD_BUCKET_URL}/${node}/${latest_backup}/* ${BUCKET_URL}/${node}/${latest_backup} &
+done
 echo
 
 echo "Transition setup done. Please make sure to change the bucket in use for ${ROLE}"
