@@ -90,9 +90,9 @@ echo
 
 #Configure the source cluster
 echo "Calling hecuba-cli to configure the C* cluster"
-hecuba2-cli enable-medusa --role ${ROLE} --pod ${POD} --bucket ${BUCKET_NAME} --frequency daily
+ssh -At ${USER}@basesusers.services.gew1.spotify.net "hecuba2-cli enable-medusa --role ${ROLE} --pod ${POD} --bucket ${BUCKET_NAME} --frequency daily"
 echo
 
-echo "Setup done. Please review & merge the PR above if any.
+echo "Setup done. Please review & merge the PR above (see https://ghe.spotify.net/puppet/spotify-puppet/pulls, look for the PR from yourself - 'Hecuba2 PR')."
 echo "Please make sure the right bucket (ie ${BUCKET_NAME}) is in use for ${ROLE} in hiera-data/role/${ROLE}/${POD}.yaml"
 echo
