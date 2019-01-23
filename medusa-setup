@@ -3,9 +3,9 @@ set -e
 
 if [ "$#" -lt 4 ]; then
   echo "Usage: $0 GCP_PROJECT ROLE POD LOCATION [SERVICE_ACCOUNT_NAME]" >&2
-  echo "Example: $0 medusa-backups identity2 gew1 europe-west1" >&2
+  echo "Example: $0 identity2-medusa identity2 gew1 europe-west1" >&2
   echo "Example to enforce service account name: " >&2
-  echo "$0 medusa-backups identity2 gew1 europe-west1 identity2cassandra-medusa" >&2
+  echo "$0 identity2-medusa identity2 gew1 europe-west1 identity2cassandra-medusa" >&2
   exit 1
 fi
 
@@ -23,7 +23,7 @@ fi
 
 # truncate the service account name to 30 characters as Google disallows more...
 SERVICE_ACCOUNT_NAME=${SERVICE_ACCOUNT_NAME:0:30}
-export BUCKET_NAME="${ROLE}-medusa-backup"
+export BUCKET_NAME="${ROLE}-backup"
 export BUCKET_URL="gs://${BUCKET_NAME}"
 
 # TTL for backups of this bucket
@@ -33,7 +33,7 @@ MAX_AGE=30
 ACTIVE_PROJECT=$(gcloud config list 2>&1 | grep project | cut -d= -f2 | tr -d ' ')
 if [ ${ACTIVE_PROJECT} != ${GCP_PROJECT} ]; then
     echo "ERROR: Chosen project ${GCP_PROJECT} is not the same as currently active gcloud project ${ACTIVE_PROJECT}"
-    echo "Please run 'gcloud config set project <PROJECT>' to make them match"
+    echo "Please run 'gcloud config set project ${GCP_PROJECT}' to make them match"
     exit 1
 fi
 
@@ -69,7 +69,7 @@ cat <<EOF >life.json
 }
 EOF
 
-gsutil lifecycle set life.json ${BUCKET_URL}
+gsutil lifecycle set life.json ${BUCKET_URL} && rm life.json
 echo
 
 #Service account
@@ -93,12 +93,6 @@ echo "Calling hecuba-cli to configure the C* cluster"
 hecuba2-cli enable-medusa --role ${ROLE} --pod ${POD} --bucket ${BUCKET_NAME} --frequency daily
 echo
 
-echo "Setup done. Please review & merge the PR above"
+echo "Setup done. Please review & merge the PR above if any.
+echo "Please make sure the right bucket (ie ${BUCKET_NAME}) is in use for ${ROLE} in hiera-data/role/${ROLE}/${POD}.yaml"
 echo
-
-#example:
-#https://ghe.spotify.net/puppet/spotify-puppet/pull/38673
-
-
-#Get access to add credentials
-#echo edit https://ghe.spotify.net/favorite/identity2/edit/master/service-info/identity2-enc-cassandra.yaml
