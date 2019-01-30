@@ -14,7 +14,7 @@ pipelines:
         tasks:
         - task: "Build for Bionic"
           steps:
-          - action: "gcr.io/action-containers/debian-packages-bionic:5"
+          - action: "gcr.io/action-containers/debian-packages-bionic:6"
             args: ["build"]
             envs:
               DISTRIBUTION: bionic
@@ -34,7 +34,7 @@ pipelines:
         tasks:
           - task: "Build and publish for Bionic"
             steps:
-              - action: "gcr.io/action-containers/debian-packages-bionic:5"
+              - action: "gcr.io/action-containers/debian-packages-bionic:6"
                 args: ["build", "publish"]
                 envs:
                   RELEASE: stable
