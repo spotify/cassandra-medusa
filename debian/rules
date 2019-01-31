@@ -8,6 +8,3 @@ override_dh_virtualenv:
 	dh_virtualenv --python=python3 \
 		--preinstall=setuptools==40.0.0 # needed for cryptography
 
-# dbgsym packages currently not working with Tingle
-override_dh_strip:
-	dh_strip --no-automatic-dbgsym
