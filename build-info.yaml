@@ -30,7 +30,10 @@ pipelines:
                 envs:
                   RELEASE: stable
                   DISTRIBUTION: trusty
-      - stage: 'new build debian package'
+  - pipeline: 'master-bionic'
+    ref: 'master-bionic'
+    stages:
+      - stage: 'build debian bionic package'
         tasks:
           - task: "Build and publish for Bionic"
             steps:
