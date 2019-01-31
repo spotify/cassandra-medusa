@@ -3,7 +3,7 @@ Section: python
 Priority: extra
 Maintainer: Twan Wolthof <xeago@spotify.com>
 Build-Depends:
- debhelper (>= 9),
+ debhelper (>= 10),
  python3,
  dh-virtualenv (>= 1.0),
  libffi-dev,
