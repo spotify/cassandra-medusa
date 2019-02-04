@@ -233,5 +233,5 @@ def main(config, backup_name_arg, stagger_time):
                                                  what='backup-error',
                                                  backupname=backup_name)
         backup_error_metric.send(1)
-        print(str(e))
+        logging.error('This error happened during the backup: {}'.format(str(e)))
         sys.exit(1)

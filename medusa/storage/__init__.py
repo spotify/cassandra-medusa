@@ -18,7 +18,6 @@ import google.cloud.storage
 import itertools
 import operator
 import pathlib
-import logging
 
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
@@ -69,10 +68,6 @@ class Storage(object):
                                                     key=self._get_node_backup_from_blob):
             blobs = list(blobs)
             fqdn, name = node_backup
-            logging.debug("""Node backup identified with:
-                             prefix: {}
-                             fqdn: {}
-                             name: {}""".format(prefix, fqdn, name))
             if any(map(lambda blob: blob.name.endswith('/schema.cql'), blobs)):
                 yield NodeBackup(storage=self, fqdn=fqdn, name=name,
                                  preloaded_blobs=blobs)
