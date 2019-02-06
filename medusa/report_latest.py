@@ -22,13 +22,26 @@ from medusa.storage import Storage
 
 
 def report_latest(config, report_to_ffwd):
-    storage = Storage(config=config.storage)
-    fqdn = config.storage.fqdn
     ffwd_client = ffwd.FFWD(transport=MedusaTransport)
+    try:
+        storage = Storage(config=config.storage)
+        fqdn = config.storage.fqdn
 
-    check_node_backup(storage, fqdn, report_to_ffwd, ffwd_client)
-    check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client)
-    check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client)
+        check_node_backup(storage, fqdn, report_to_ffwd, ffwd_client)
+        check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client)
+        check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client)
+    except Exception as e:
+        logging.error('This error happened during the check: {}'.format(str(e)))
+        if report_to_ffwd:
+            # Set latest known complete backup to ~ 10 years ago to attract the attention
+            # of the operator on the broken monitoring.
+            long_time_flag_value = 315365400
+            logging.info("Sending a big value to 'seconds-since-backup' metric"
+                         " to trigger alerts.")
+            finished_ago_metric = ffwd_client.metric(key='medusa-cluster-backup',
+                                                     what='seconds-since-backup',
+                                                     backupname='TRACKING-ERROR')
+            finished_ago_metric.send(long_time_flag_value)
 
 
 def check_node_backup(storage, fqdn, report_to_ffwd, ffwd_client):
