@@ -118,13 +118,13 @@ def stagger(fqdn, storage, tokenmap):
 def main(config, backup_name_arg, stagger_time):
 
     start = datetime.datetime.now()
+    backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
     ffwd_client = ffwd.FFWD(transport=MedusaTransport)
 
     try:
         storage = Storage(config=config.storage)
         cassandra = Cassandra(config.cassandra)
 
-        backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
         node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
         if node_backup.exists():
             raise IOError('Error: Backup {} already exists'.format(backup_name))
