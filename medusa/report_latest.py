@@ -23,15 +23,16 @@ from medusa.storage import Storage
 
 
 def report_latest(config, report_to_ffwd):
+    MAX_RETRIES = 10
+    SLEEP_TIME = 3
     retry = 0
-    max_retries = 3
-    sleep_time = 10
     ffwd_client = ffwd.FFWD(transport=MedusaTransport)
-    for retry in range(max_retries):
+
+    for retry in range(MAX_RETRIES):
         try:
             logging.debug('Trying to report about existing backups ({}/{})...'.format(
                 retry + 1,
-                max_retries
+                MAX_RETRIES
             ))
             storage = Storage(config=config.storage)
             fqdn = config.storage.fqdn
@@ -40,12 +41,12 @@ def report_latest(config, report_to_ffwd):
             check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client)
             break
         except Exception as e:
-            if (retry + 1) < max_retries:
+            if (retry + 1) < MAX_RETRIES:
                 logging.debug('Report attempt {} failed, waiting {} seconds to retry'.format(
                     retry + 1,
-                    sleep_time
+                    SLEEP_TIME
                 ))
-                time.sleep(sleep_time)
+                time.sleep(SLEEP_TIME)
                 continue
             else:
                 logging.error('This error happened during the check: {}'.format(e), exc_info=True)
