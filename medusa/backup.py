@@ -35,6 +35,7 @@ from medusa.metrics.transport import MedusaTransport
 def url_to_path(url):
     return url.split('/', 3)[-1]
 
+
 def generate_google_crc32_hash(src):
     with open(src) as f:
         # Read data and checksum
@@ -83,13 +84,11 @@ class NodeBackupCache(object):
             return src
 
         if src.stat().st_size != cached_item['size'] or generate_google_crc32_hash(src) != cached_item['MD5']:
-            logging.debug("""
-            Dropping cached file {} with following conditions:
-                Original file size: {}
-                Cached   file size: {}
-                Original file hash: {}
-                Cached   file hash: {}
-            """.format(src, src.stat().st_size, cached_item['size'], generate_google_crc32_hash(src),cached_item['MD5']))
+            logging.debug("Dropping cached file {} with following conditions:".format(src))
+            logging.debug("    Original file size: {}".format(src.stat().st_size))
+            logging.debug("    Cached   file size: {}".format(cached_item['size']))
+            logging.debug("    Original file hash: {}".format(generate_google_crc32_hash(src)))
+            logging.debug("    Cached   file hash: {}".format(cached_item['MD5']))
             return src
 
         logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
