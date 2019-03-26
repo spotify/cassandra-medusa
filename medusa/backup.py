@@ -24,7 +24,7 @@ import time
 import psutil
 import os
 import base64
-from crc32c import crc32
+import hashlib
 
 from medusa.cassandra_utils import Cassandra
 from medusa.gsutil import GSUtil
@@ -36,14 +36,14 @@ def url_to_path(url):
     return url.split('/', 3)[-1]
 
 
-def generate_google_crc32_hash(src):
-    with open(src) as f:
+def generate_md5_hash(src):
+    with open(src, 'rb') as f:
         # Read data and checksum
-        checksum = crc32(f.read().encode())
+        checksum = hashlib.md5(f.read()).digest()
         # Convert into a bytes type that can be base64 encoded
-        base64_crc32c = base64.b64encode(checksum.to_bytes(length=4, byteorder='big')).decode('utf-8')
+        base64_md5 = base64.encodestring((checksum)).decode('UTF-8').strip()
         # Print the Base64 encoded CRC32C
-        return base64_crc32c
+        return base64_md5
 
 
 class NodeBackupCache(object):
@@ -83,11 +83,11 @@ class NodeBackupCache(object):
         if cached_item is None:
             return src
 
-        if src.stat().st_size != cached_item['size'] or generate_google_crc32_hash(src) != cached_item['MD5']:
+        if src.stat().st_size != cached_item['size'] or generate_md5_hash(src) != cached_item['MD5']:
             logging.debug("Dropping cached file {} with following conditions:".format(src))
             logging.debug("    Original file size: {}".format(src.stat().st_size))
             logging.debug("    Cached   file size: {}".format(cached_item['size']))
-            logging.debug("    Original file hash: {}".format(generate_google_crc32_hash(src)))
+            logging.debug("    Original file hash: {}".format(generate_md5_hash(src)))
             logging.debug("    Cached   file hash: {}".format(cached_item['MD5']))
             return src
 
