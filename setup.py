@@ -48,7 +48,8 @@ setuptools.setup(
         'cassandra-driver>=3.14.0',
         'paramiko>=2.4.1',
         'psutil>=5.4.7',
-        'ffwd>=0.0.2'
+        'ffwd>=0.0.2',
+        'crc32c>=1.7'
     ],
     entry_points={
         'console_scripts': [

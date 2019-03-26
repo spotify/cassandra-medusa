@@ -23,6 +23,8 @@ import sys
 import time
 import psutil
 import os
+import base64
+from crc32c import crc32
 
 from medusa.cassandra_utils import Cassandra
 from medusa.gsutil import GSUtil
@@ -32,6 +34,15 @@ from medusa.metrics.transport import MedusaTransport
 
 def url_to_path(url):
     return url.split('/', 3)[-1]
+
+def generate_google_crc32_hash(src):
+    with open(src) as f:
+        # Read data and checksum
+        checksum = crc32(f.read().encode())
+        # Convert into a bytes type that can be base64 encoded
+        base64_crc32c = base64.b64encode(checksum.to_bytes(length=4, byteorder='big')).decode('utf-8')
+        # Print the Base64 encoded CRC32C
+        return base64_crc32c
 
 
 class NodeBackupCache(object):
@@ -71,7 +82,14 @@ class NodeBackupCache(object):
         if cached_item is None:
             return src
 
-        if src.stat().st_size != cached_item['size']:
+        if src.stat().st_size != cached_item['size'] or generate_google_crc32_hash(src) != cached_item['MD5']:
+            logging.debug("""
+            Dropping cached file {} with following conditions:
+                Original file size: {}
+                Cached   file size: {}
+                Original file hash: {}
+                Cached   file hash: {}
+            """.format(src, src.stat().st_size, cached_item['size'], generate_google_crc32_hash(src),cached_item['MD5']))
             return src
 
         logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
