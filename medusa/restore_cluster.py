@@ -165,6 +165,7 @@ class RestoreJob(object):
             sys.exit(1)
 
         # restore seeds first
+        # Only in case we run with --host-list
         seed_remotes = []
         for source, target in [(s, t['target']) for s, t in self.host_map.items() if t['seed']]:
             logging.info('Restoring data on seed host {}...'.format(target))
@@ -182,7 +183,7 @@ class RestoreJob(object):
         # restore everything else
         normal_remotes = []
         for source, target in [(s, t['target']) for s, t in self.host_map.items() if not t['seed']]:
-            logging.info('Restoring data on non-seed host {}...'.format(target))
+            logging.info('Restoring data on host {}...'.format(target))
             remote = self._trigger_restore(target, source, work)
             normal_remotes.append(remote)
 

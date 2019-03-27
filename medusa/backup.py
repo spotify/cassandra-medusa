@@ -23,6 +23,8 @@ import sys
 import time
 import psutil
 import os
+import base64
+import hashlib
 
 from medusa.cassandra_utils import Cassandra
 from medusa.gsutil import GSUtil
@@ -32,6 +34,16 @@ from medusa.metrics.transport import MedusaTransport
 
 def url_to_path(url):
     return url.split('/', 3)[-1]
+
+
+def generate_md5_hash(src):
+    with open(src, 'rb') as f:
+        # Read data and checksum
+        checksum = hashlib.md5(f.read()).digest()
+        # Convert into a bytes type that can be base64 encoded
+        base64_md5 = base64.encodestring((checksum)).decode('UTF-8').strip()
+        # Print the Base64 encoded CRC32C
+        return base64_md5
 
 
 class NodeBackupCache(object):
@@ -71,7 +83,12 @@ class NodeBackupCache(object):
         if cached_item is None:
             return src
 
-        if src.stat().st_size != cached_item['size']:
+        if src.stat().st_size != cached_item['size'] or generate_md5_hash(src) != cached_item['MD5']:
+            logging.debug("Dropping cached file {} with following conditions:".format(src))
+            logging.debug("    Original file size: {}".format(src.stat().st_size))
+            logging.debug("    Cached   file size: {}".format(cached_item['size']))
+            logging.debug("    Original file hash: {}".format(generate_md5_hash(src)))
+            logging.debug("    Cached   file hash: {}".format(cached_item['MD5']))
             return src
 
         logging.debug('[cache] Replacing {} with {}'.format(src, cached_item['path']))
