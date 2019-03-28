@@ -23,8 +23,8 @@ from medusa.storage import Storage
 
 
 def report_latest(config, report_to_ffwd):
-    MAX_RETRIES = 10
-    SLEEP_TIME = 3
+    MAX_RETRIES = 3
+    SLEEP_TIME = 15
     retry = 0
     ffwd_client = ffwd.FFWD(transport=MedusaTransport)
 
