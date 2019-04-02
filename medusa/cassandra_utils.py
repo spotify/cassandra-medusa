@@ -346,9 +346,17 @@ class Cassandra(object):
         subprocess.check_output(cmd)
 
     def start(self, token_list):
-        jvm_opts = "-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false".format(','.join(token_list))
+        jvm_opts = '-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false'.format(','.join(token_list))
         tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
-        cmd = shlex.split(tokens_env)
-        cmd.extend(self._start_cmd)
+        # Have to use command line as Subprocess does not handle quotes well
+        # undoing 'shlex' split, back to a string in this case for '_start_cmd'
+        # joining the 2 pieces of the command
+        # Also, if the command to run cassandra uses sudo, we need to remove it
+        # to add it as the first element
+        if 'sudo' in self._start_cmd:
+            self._start_cmd.remove('sudo')
+        cmd = "{} {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
         logging.debug('Starting Cassandra with {}'.format(cmd))
-        subprocess.check_output(cmd)
+        # run the command using 'shell=True' option
+        # to interpret the string command well
+        subprocess.check_output(cmd, shell=True)
