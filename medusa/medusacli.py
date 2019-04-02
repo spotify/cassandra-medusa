@@ -24,6 +24,7 @@ from pathlib import Path
 import medusa.backup
 import medusa.config
 import medusa.download
+import medusa.index
 import medusa.listing
 import medusa.report_latest
 import medusa.restore_cluster
@@ -48,7 +49,7 @@ def configure_logging(verbosity, without_log_timestamp):
                         datefmt='%Y-%m-%d %H:%M:%S')
     if loglevel >= logging.DEBUG:
         # Disable debugging logging for external libraries
-        for loggername in 'urllib3', 'google.auth.transport.requests', 'paramiko':
+        for loggername in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko':
             logging.getLogger(loggername).setLevel(logging.CRITICAL)
 
 
@@ -179,3 +180,13 @@ def report_last_backup(medusa_config, ffwd):
     :return:
     """
     medusa.report_latest.report_latest(medusa_config, ffwd)
+
+
+@cli.command()
+@click.option('--noop', default=False, is_flag=True, help='Compute and print the index only. Do not upload')
+@pass_MedusaConfig
+def build_index(medusa_config, noop):
+    """
+    Builds indices for all present backups and prints them in logs. Might upload to buckets if asked to.
+    """
+    medusa.index.build_indices(medusa_config, noop)

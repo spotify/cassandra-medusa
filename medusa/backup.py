@@ -21,15 +21,16 @@ import logging
 import pathlib
 import sys
 import time
+import traceback
 import psutil
 import os
 import base64
 import hashlib
 
 from medusa.cassandra_utils import Cassandra
-from medusa.gsutil import GSUtil
-from medusa.storage import Storage, format_bytes_str
+from medusa.index import update_backup_index
 from medusa.metrics.transport import MedusaTransport
+from medusa.storage import Storage, format_bytes_str
 
 
 def url_to_path(url):
@@ -147,7 +148,10 @@ def main(config, backup_name_arg, stagger_time):
             raise IOError('Error: Backup {} already exists'.format(backup_name))
 
         # Make sure that priority remains to Cassandra/limiting backups resource usage
-        throttle_backup()
+        try:
+            throttle_backup()
+        except Exception:
+            logging.warning("Throttling backup impossible. It's probable that ionice is not available.")
 
         logging.info('Creating snapshot')
         logging.info('Saving tokenmap and schema')
@@ -177,31 +181,10 @@ def main(config, backup_name_arg, stagger_time):
 
         with cassandra.create_snapshot() as snapshot:
             manifest = []
-            num_files = 0
-            with GSUtil(config.storage) as gsutil:
-                for snapshotpath in snapshot.find_dirs():
-                    srcs = [
-                        node_backup_cache.replace_if_cached(
-                            keyspace=snapshotpath.keyspace,
-                            columnfamily=snapshotpath.columnfamily,
-                            src=src
-                        )
-                        for src in snapshotpath.path.glob('*')
-                    ]
-                    num_files += len(srcs)
+            num_files = backup_snapshots(storage, config, manifest, node_backup, node_backup_cache, snapshot)
 
-                    dst = 'gs://{}/{}'.format(
-                        config.storage.bucket_name,
-                        node_backup.datapath(keyspace=snapshotpath.keyspace, columnfamily=snapshotpath.columnfamily)
-                    )
-                    manifestobjects = gsutil.cp(srcs=srcs, dst=dst)
-                    manifest.append({'keyspace': snapshotpath.keyspace,
-                                     'columnfamily': snapshotpath.columnfamily,
-                                     'objects': [{
-                                         'path': url_to_path(manifestobject.path),
-                                         'MD5': manifestobject.MD5,
-                                         'size': manifestobject.size
-                                     } for manifestobject in manifestobjects]})
+        logging.info('Updating backup index')
+        update_backup_index(storage, node_backup)
 
         node_backup.manifest = json.dumps(manifest)
         end = datetime.datetime.now()
@@ -246,9 +229,37 @@ def main(config, backup_name_arg, stagger_time):
         logging.debug('Done emitting metrics')
 
     except Exception as e:
+        traceback.print_exc()
         backup_error_metric = ffwd_client.metric(key='medusa-node-backup',
                                                  what='backup-error',
                                                  backupname=backup_name)
         backup_error_metric.send(1)
         logging.error('This error happened during the backup: {}'.format(str(e)))
         sys.exit(1)
+
+
+def backup_snapshots(storage, config, manifest, node_backup, node_backup_cache, snapshot):
+    num_files = 0
+    for snapshotpath in snapshot.find_dirs():
+        srcs = [
+            node_backup_cache.replace_if_cached(
+                keyspace=snapshotpath.keyspace,
+                columnfamily=snapshotpath.columnfamily,
+                src=src
+            )
+            for src in snapshotpath.path.glob('*')
+        ]
+        num_files += len(srcs)
+
+        dst = '{}'.format(
+            node_backup.datapath(keyspace=snapshotpath.keyspace, columnfamily=snapshotpath.columnfamily)
+        )
+        manifestobjects = storage.storage_driver.upload_blobs(srcs, dst)
+        manifest.append({'keyspace': snapshotpath.keyspace,
+                         'columnfamily': snapshotpath.columnfamily,
+                         'objects': [{
+                             'path': url_to_path(manifestobject.path),
+                             'MD5': manifestobject.MD5,
+                             'size': manifestobject.size
+                         } for manifestobject in manifestobjects]})
+    return num_files

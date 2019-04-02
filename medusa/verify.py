@@ -12,13 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
 import json
 import logging
 import sys
 from medusa.storage import Storage
 
 
-def validate_manifest(node_backup):
+def validate_manifest(storage, node_backup):
     try:
         manifest = json.loads(node_backup.manifest)
     except Exception:
@@ -27,7 +28,7 @@ def validate_manifest(node_backup):
 
     data_objects = {
         blob.name: blob
-        for blob in node_backup.bucket.list_blobs(prefix='{}/'.format(node_backup.data_path))
+        for blob in storage.storage_driver.list_objects(node_backup.data_path)
     }
 
     objects_in_manifest = [
@@ -36,18 +37,23 @@ def validate_manifest(node_backup):
         for obj in columnfamily_manifest['objects']
     ]
     for obj in objects_in_manifest:
-        blob = data_objects.get(obj['path'])
+        blob = data_objects.get('{}{}'.format(storage.storage_driver.get_path_prefix(node_backup.data_path),
+                                              obj['path']))
         if blob is None:
             yield("  - [{}] Doesn't exists".format(obj['path']))
             continue
-        if obj['MD5'] != blob.md5_hash:
+        if base64.b64decode(obj['MD5']).hex() != str(blob.hash) and obj['MD5'] != str(blob.hash):
+            logging.error("Expected {} got {}".format(base64.b64decode(obj['MD5']).hex(), blob.hash))
             yield("  - [{}] Wrong checksum".format(obj['path']))
             continue
         if obj['size'] != blob.size:
             yield("  - [{}] Wrong file size".format(obj['path']))
             continue
 
-    paths_in_manifest = {obj['path'] for obj in objects_in_manifest}
+    paths_in_manifest = {
+        "{}{}".format(storage.storage_driver.get_path_prefix(node_backup.data_path), obj['path'])
+        for obj in objects_in_manifest
+    }
     paths_in_storage = set(data_objects.keys())
     for path in paths_in_storage - paths_in_manifest:
         yield("  - [{}] exists in storage, but not in manifest".format(path))
@@ -77,11 +83,12 @@ def verify(config, backup_name):
     consistency_errors = [
         consistency_error
         for node_backup in cluster_backup.node_backups.values()
-        for consistency_error in validate_manifest(node_backup)
+        for consistency_error in validate_manifest(storage, node_backup)
     ]
     if consistency_errors:
         print("- Manifest validation: Failed!")
         for error in consistency_errors:
             print(error)
+        sys.exit(1)
     else:
         print("- Manifest validated: OK!!")

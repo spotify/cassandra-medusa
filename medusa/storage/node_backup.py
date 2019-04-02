@@ -21,7 +21,10 @@ class NodeBackup(object):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
-        self._node_backup_path = self._storage._prefix / fqdn / name
+        if self._storage._prefix != '.':
+            self._node_backup_path = self._storage._prefix / fqdn / name
+        else:
+            self._node_backup_path = fqdn / name
         self._meta_path = self._node_backup_path / 'meta'
         self._data_path = self._node_backup_path / 'data'
         self._tokenmap_path = self._meta_path / 'tokenmap.json'
@@ -29,8 +32,8 @@ class NodeBackup(object):
         self._manifest_path = self._meta_path / 'manifest.json'
 
         if preloaded_blobs is None:
-            preloaded_blobs = storage.bucket.list_blobs(
-                prefix='{}/'.format(self._meta_path)
+            preloaded_blobs = storage.storage_driver.list_objects(
+                '{}/'.format(self._meta_path)
             )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
@@ -42,7 +45,7 @@ class NodeBackup(object):
     def _blob(self, path):
         blob = self._cached_blobs.get(path)
         if blob is None:
-            blob = self.bucket.blob(str(path))
+            blob = self._storage.storage_driver.get_blob(str(path))
             self._cached_blobs[path] = blob
         return blob
 
@@ -72,13 +75,12 @@ class NodeBackup(object):
 
     @property
     def tokenmap(self):
-        tokenmap_blob = self._blob(self.tokenmap_path)
-        return tokenmap_blob.download_as_string().decode('utf-8')
+        return self._storage.storage_driver.get_blob_content_as_string(self.tokenmap_path)
 
     @tokenmap.setter
     def tokenmap(self, tokenmap):
-        tokenmap_blob = self._blob(self.tokenmap_path)
-        tokenmap_blob.upload_from_string(tokenmap)
+
+        self._storage.storage_driver.upload_blob_from_string(self.tokenmap_path, tokenmap)
 
     @property
     def schema_path(self):
@@ -86,23 +88,21 @@ class NodeBackup(object):
 
     @property
     def schema(self):
-        schema_blob = self._blob(self.schema_path)
-        return schema_blob.download_as_string().decode('utf-8')
+        return self._storage.storage_driver.get_blob_content_as_string(self.schema_path)
 
     @schema.setter
     def schema(self, schema):
-        schema_blob = self._blob(self.schema_path)
-        schema_blob.upload_from_string(schema)
+        self._storage.storage_driver.upload_blob_from_string(self.schema_path, schema)
 
     @property
     def started(self):
-        schema_blob = self._blob(self.schema_path)
-        return schema_blob.time_created if schema_blob else None
+        schema_blob = self._storage.storage_driver.get_blob(self.schema_path)
+        return self.storage.storage_driver.get_object_datetime(schema_blob) if schema_blob else None
 
     @property
     def finished(self):
-        manifest_blob = self._blob(self.manifest_path)
-        return manifest_blob.time_created if manifest_blob else None
+        manifest_blob = self._storage.storage_driver.get_blob(self.manifest_path)
+        return self.storage.storage_driver.get_object_datetime(manifest_blob) if manifest_blob else None
 
     @property
     def manifest_path(self):
@@ -111,21 +111,19 @@ class NodeBackup(object):
     @property
     def manifest(self):
         if self._cached_manifest is None:
-            manifest_blob = self._blob(self.manifest_path)
-            self._cached_manifest = manifest_blob.download_as_string().decode('utf-8')
+            self._cached_manifest = self._storage.storage_driver.get_blob_content_as_string(self.manifest_path)
         return self._cached_manifest
 
     @manifest.setter
     def manifest(self, manifest):
         self._cached_manifest = None
-        manifest_blob = self._blob(self.manifest_path)
-        manifest_blob.upload_from_string(manifest)
+        self._storage.storage_driver.upload_blob_from_string(self.manifest_path, manifest)
 
     def datapath(self, *, keyspace, columnfamily):
         return self.data_path / keyspace / columnfamily
 
     def exists(self):
-        return self._blob(self.schema_path).exists()
+        return self._storage.storage_driver.get_blob(self.schema_path) is not None
 
     def size(self):
         return sum(

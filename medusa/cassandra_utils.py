@@ -17,6 +17,7 @@
 import collections
 import itertools
 import logging
+import os
 import pathlib
 import shlex
 import socket
@@ -145,7 +146,7 @@ class CassandraConfigReader(object):
         config_file = pathlib.Path(cassandra_config or self.DEFAULT_CASSANDRA_CONFIG)
         if not config_file.is_file():
             raise RuntimeError('{} is not a file'.format(config_file))
-        self._config = yaml.load(config_file.open())
+        self._config = yaml.load(config_file.open(), Loader=yaml.BaseLoader)
 
     @property
     def root(self):
@@ -187,6 +188,8 @@ class Cassandra(object):
     def __init__(self, cassandra_config):
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
+        self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
+        logging.warning("is ccm : {}".format(self._is_ccm))
 
         config_reader = CassandraConfigReader(cassandra_config.config_file)
         self._root = config_reader.root
@@ -260,16 +263,22 @@ class Cassandra(object):
     def create_snapshot(self):
         tag = 'medusa-{}'.format(uuid.uuid4())
         cmd = ['nodetool', 'snapshot', '-t', tag]
-        logging.debug(' '.join(cmd))
-        subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                              universal_newlines=True)
+        if self._is_ccm == 1:
+            os.popen("ccm node1 nodetool \"snapshot -t {}\"".format(tag)).read()
+        else:
+            logging.debug(' '.join(cmd))
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
+                                  universal_newlines=True)
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
         cmd = ['nodetool', 'clearsnapshot', '-t', tag]
-        logging.debug(' '.join(cmd))
-        subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                              universal_newlines=True)
+        if self._is_ccm == 1:
+            os.popen("ccm node1 nodetool \"clearsnapshot -t {}\"".format(tag)).read()
+        else:
+            logging.debug(' '.join(cmd))
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
+                                  universal_newlines=True)
 
     def list_snapshotnames(self):
         return {
@@ -346,17 +355,20 @@ class Cassandra(object):
         subprocess.check_output(cmd)
 
     def start(self, token_list):
-        jvm_opts = '-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false'.format(','.join(token_list))
-        tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
-        # Have to use command line as Subprocess does not handle quotes well
-        # undoing 'shlex' split, back to a string in this case for '_start_cmd'
-        # joining the 2 pieces of the command
-        # Also, if the command to run cassandra uses sudo, we need to remove it
-        # to add it as the first element
-        if 'sudo' in self._start_cmd:
-            self._start_cmd.remove('sudo')
-        cmd = "{} {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
-        logging.debug('Starting Cassandra with {}'.format(cmd))
-        # run the command using 'shell=True' option
-        # to interpret the string command well
-        subprocess.check_output(cmd, shell=True)
+        if self._is_ccm == 0:
+            jvm_opts = '-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false'.format(','.join(token_list))
+            tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
+            # Have to use command line as Subprocess does not handle quotes well
+            # undoing 'shlex' split, back to a string in this case for '_start_cmd'
+            # joining the 2 pieces of the command
+            # Also, if the command to run cassandra uses sudo, we need to remove it
+            # to add it as the first element
+            if 'sudo' in self._start_cmd:
+                self._start_cmd.remove('sudo')
+            cmd = "{} {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
+            logging.debug('Starting Cassandra with {}'.format(cmd))
+            # run the command using 'shell=True' option
+            # to interpret the string command well
+            subprocess.check_output(cmd, shell=True)
+        else:
+            subprocess.check_output(self._start_cmd, shell=True)

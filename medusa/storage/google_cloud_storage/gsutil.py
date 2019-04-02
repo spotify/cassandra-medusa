@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-import collections
 import csv
 import logging
 import os
@@ -24,7 +23,7 @@ import tempfile
 import time
 import uuid
 
-ManifestObject = collections.namedtuple('ManifestObject', ['path', 'size', 'MD5'])
+import medusa.storage
 
 
 class GSUtil(object):
@@ -39,7 +38,7 @@ class GSUtil(object):
         self._gcloud_config = tempfile.TemporaryDirectory()
         self._env = dict(os.environ, CLOUDSDK_CONFIG=self._gcloud_config.name)
         cmd = ['gcloud', 'auth', 'activate-service-account',
-               '--key-file={}'.format(self._config.key_file)]
+               '--key-file={}'.format(os.path.expanduser(self._config.key_file))]
         logging.debug('Authenticating gcloud with {}'.format(self._config.key_file))
         logging.debug(self._env)
         subprocess.check_call(cmd,
@@ -97,9 +96,7 @@ class GSUtil(object):
                 if process.wait() == 0:
                     with open(manifest_log) as f:
                         manifestobjects = [
-                            ManifestObject(row['Destination'],
-                                           int(row['Source Size']),
-                                           row['Md5'])
+                            medusa.storage.ManifestObject(row['Destination'], int(row['Source Size']), row['Md5'])
                             for row in csv.DictReader(f, delimiter=',')
                         ]
                     return manifestobjects

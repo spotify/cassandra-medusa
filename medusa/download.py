@@ -19,28 +19,27 @@ import json
 import sys
 
 from medusa.storage import Storage
-from medusa.gsutil import GSUtil
 
 
 def download_data(storageconfig, backup, destination):
+    storage = Storage(config=storageconfig)
     manifest = json.loads(backup.manifest)
 
-    with GSUtil(storageconfig) as gsutil:
-        for section in manifest:
-            dst = destination / section['keyspace'] / section['columnfamily']
-            srcs = ['gs://{}/{}'.format(storageconfig.bucket_name, object['path'])
-                    for object in section['objects']]
-            dst.mkdir(parents=True)
-            gsutil.cp(srcs=srcs, dst=dst)
+    for section in manifest:
+        dst = destination / section['keyspace'] / section['columnfamily']
+        srcs = ['{}{}'.format(storage.storage_driver.get_path_prefix(backup.data_path), obj['path'])
+                for obj in section['objects']]
+        dst.mkdir(parents=True)
+        storage.storage_driver.download_blobs(srcs, dst)
 
-        logging.info('Downloading the data...')
-        gsutil.cp(
-            srcs=['gs://{}/{}'.format(storageconfig.bucket_name, path)
-                  for path in [backup.manifest_path,
-                               backup.schema_path,
-                               backup.tokenmap_path]],
-            dst=destination
-        )
+    logging.info('Downloading the data...')
+    storage.storage_driver.download_blobs(
+        src=['{}'.format(path)
+             for path in [backup.manifest_path,
+                          backup.schema_path,
+                          backup.tokenmap_path]],
+        dest=destination
+    )
 
 
 def download_cmd(config, backup_name, download_destination):

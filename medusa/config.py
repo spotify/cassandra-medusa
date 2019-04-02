@@ -24,11 +24,12 @@ import medusa.cassandra_utils
 
 StorageConfig = collections.namedtuple('StorageConfig',
                                        ['bucket_name', 'key_file', 'prefix', 'fqdn',
-                                        'host_file_separator'])
+                                        'host_file_separator', 'storage_provider',
+                                        'api_key_or_username', 'api_secret_or_password', 'base_path'])
 CassandraConfig = collections.namedtuple('CassandraConfig',
                                          ['start_cmd', 'stop_cmd',
-                                          'config_file',
-                                          'cql_username', 'cql_password', 'check_running'])
+                                          'config_file', 'cql_username', 'cql_password',
+                                          'check_running', 'is_ccm'])
 SSHConfig = collections.namedtuple('SSHConfig', ['username', 'key_file'])
 MedusaConfig = collections.namedtuple('MedusaConfig',
                                       ['storage', 'cassandra', 'ssh'])
@@ -48,7 +49,8 @@ def load_config(args, config_file):
         'config_file': medusa.cassandra_utils.CassandraConfigReader.DEFAULT_CASSANDRA_CONFIG,
         'start_cmd': 'sudo /etc/init.d/cassandra start',
         'stop_cmd': 'sudo spcassandra-stop',
-        'check_running': 'sudo service cassandra status'
+        'check_running': 'sudo service cassandra status',
+        'is_ccm': 0
     }
 
     config['ssh'] = {
@@ -72,7 +74,8 @@ def load_config(args, config_file):
         for key, value in zip(StorageConfig._fields,
                               (args['bucket_name'], args['key_file'],
                                args['prefix'], args['fqdn'],
-                               args['host_file_separator']))
+                               args['host_file_separator'], args['storage_provider'],
+                               args['api_key_or_username'], args['api_secret_or_password'], args['base_path']))
         if value is not None
     }})
 
@@ -89,7 +92,7 @@ def load_config(args, config_file):
         ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
     )
 
-    for field in ['bucket_name', 'key_file']:
+    for field in ['bucket_name', 'storage_provider']:
         if getattr(medusa_config.storage, field) is None:
             logging.error('Required configuration "{}" is missing in [storage] section.'.format(field))
             sys.exit(2)

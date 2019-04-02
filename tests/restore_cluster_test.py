@@ -47,7 +47,7 @@ class RestoreClusterTest(unittest.TestCase):
             cluster_backup.tokenmap.return_value = tokenmap
             host_list = "tests/resources/restore_cluster_host_list.txt"
             restoreJob = RestoreJob(cluster_backup,
-                                    self.config, Path('/tmp'), host_list, None)
+                                    self.config, Path('/tmp'), host_list, None, False)
             restoreJob._populate_hostmap()
 
         self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['target'], "node1.mydomain.net")
@@ -63,7 +63,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(cluster_backup,
-                                        self.config, Path('/tmp'), None, "node1.mydomain.net")
+                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False)
 
                 target_tokenmap = json.loads(f_target.read())
                 restoreJob._populate_ringmap(tokenmap, target_tokenmap)
@@ -81,7 +81,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(cluster_backup,
-                                        self.config, Path('/tmp'), None, "node1.mydomain.net")
+                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False)
 
                 target_tokenmap = json.loads(f_target.read())
                 with self.assertRaises(Exception) as context:
@@ -98,7 +98,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(cluster_backup,
-                                        self.config, Path('/tmp'), None, "node1.mydomain.net")
+                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False)
 
                 target_tokenmap = json.loads(f_target.read())
                 with self.assertRaises(Exception) as context:

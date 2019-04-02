@@ -48,7 +48,11 @@ setuptools.setup(
         'cassandra-driver>=3.14.0',
         'paramiko>=2.4.1',
         'psutil>=5.4.7',
-        'ffwd>=0.0.2'
+        'ffwd>=0.0.2',
+        'apache-libcloud>=2.4.0',
+        'python-dateutil>=2.8.0',
+        'lockfile>=0.12.2',
+        'pycrypto>=2.6.1'
     ],
     entry_points={
         'console_scripts': [
