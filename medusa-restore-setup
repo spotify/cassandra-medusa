@@ -67,7 +67,7 @@ echo
 
 # Configure the source cluster
 echo "Calling hecuba-cli to configure the C* restore cluster"
-hecuba2-cli enable-medusa --role ${ROLE} --pod ${POD} --bucket ${BUCKET_NAME} --frequency disabled
+ssh -At ${USER}@basesusers.services.gew1.spotify.net "hecuba2-cli enable-medusa --role ${ROLE} --pod ${POD} --bucket ${BUCKET_NAME} --frequency disabled"
 echo
 
 echo "Restore setup done. Please review & merge the PR above"

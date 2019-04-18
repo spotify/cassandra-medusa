@@ -15,7 +15,7 @@ sudo apt-get install -y debhelper python3 dh-virtualenv libffi-dev libssl-dev py
 There is a problem with setuptools. The required package has lower apt priority. Needs manual intervention.
 ```
 # manually, aptitude, say no until it proposes installing the right version
-sudo aptitude install python3-setuptools=20.7.0-1
+sudo aptitude install -y python3-setuptools=20.7.0-1
 
 # Alternatve: we had good result with just running this instead of the previous command.
 sudo pip3 install setuptools --upgrade
