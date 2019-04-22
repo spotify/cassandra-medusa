@@ -22,6 +22,7 @@ import pathlib
 import shlex
 import socket
 import subprocess
+import time
 from subprocess import PIPE
 import uuid
 import yaml
@@ -32,23 +33,44 @@ from cassandra.auth import PlainTextAuthProvider
 
 
 class CqlSessionProvider(object):
-    def __init__(self, ip_address, *, username=None, password=None):
-        self._ip_address = ip_address
+    def __init__(self, ip_addresses, *, username=None, password=None):
+        self._ip_addresses = ip_addresses
         self._auth_provider = (PlainTextAuthProvider(username=username,
                                                      password=password)
                                if username and password else None)
-        load_balancing_policy = WhiteListRoundRobinPolicy([ip_address])
+        load_balancing_policy = WhiteListRoundRobinPolicy(ip_addresses)
         self._execution_profiles = {'local': ExecutionProfile(
             load_balancing_policy=load_balancing_policy
         )}
 
-    def new_session(self):
-        cluster = Cluster(contact_points=[self._ip_address],
+    def new_session(self, retry=False):
+        """
+        Creates a new CQL session. If retry is True then attempt to create a CQL session with retry logic. The max
+        number of retries is currently hard coded at 5 and the delay between attempts is also hard coded at 5 sec. If
+        no session can be created after the max retries is reached, an exception is raised.
+         """
+
+        cluster = Cluster(contact_points=self._ip_addresses,
                           auth_provider=self._auth_provider,
                           execution_profiles=self._execution_profiles)
-        session = cluster.connect()
 
-        return CqlSession(session)
+        if retry:
+            max_retries = 5
+            attempts = 0
+            delay = 5
+
+            while attempts < max_retries:
+                try:
+                    session = cluster.connect()
+                    return CqlSession(session)
+                except Exception as e:
+                    logging.debug('Failed to create session', exc_info=e)
+                time.sleep(delay)
+                attempts = attempts + 1
+            raise Exception('Could not establish CQL session after {attempts}'.format(attempts=attempts))
+        else:
+            session = cluster.connect()
+            return CqlSession(session)
 
 
 class CqlSession(object):
@@ -199,7 +221,7 @@ class Cassandra(object):
         self._saved_caches_path = config_reader.saved_caches_directory
         self._hostname = contact_point if contact_point is not None else config_reader.listen_address
         self._cql_session_provider = CqlSessionProvider(
-            self._hostname,
+            [self._hostname],
             username=cassandra_config.cql_username,
             password=cassandra_config.cql_password
         )
@@ -389,3 +411,89 @@ class Cassandra(object):
             subprocess.check_output(cmd, shell=True)
         else:
             subprocess.check_output(self._start_cmd, shell=True)
+
+
+def wait_for_node_to_come_up(health_check, host, retries=10, delay=6):
+    """
+        Polls the node until the health check passes.
+
+        :param health_check: The type of health check to perform, one of cql, thrift, all.
+        :param host: The target host on which to run the check
+        :param retries: The number of times to retry the health check. Defaults to 10
+        :param delay: A delay in seconds to wait before polling again. Defaults to 6 seconds.
+        :return: None when the node is determined to be up. If the retries are exhausted, an exception is raised.
+        """
+
+    logging.info('Waiting for Cassandra to come up on %s', host)
+
+    attempts = 0
+    while attempts < retries:
+        if is_node_up(health_check, host):
+            logging.info('Cassandra is up on %s', host)
+            return None
+        else:
+            time.sleep(delay)
+            attempts = attempts + 1
+    raise CassandraNodeNotUpError(host, attempts)
+
+
+def is_node_up(health_check, host):
+    """
+    Calls nodetool statusbinary, nodetool statusthrift or both. This function checks the output returned from nodetool
+    and not the return code. There could be a normal return code of zero when the node is an unhealthy state and not
+    accepting requests.
+
+    :param health_check: Supported values are cql, thrift, and all. The latter will perform both checks. Defaults to
+    cql.
+    :param host: The target host on which to perform the check
+    :return: True if the node is accepting requests, False otherwise. If both cql and thrift are checked, then the node
+    must be ready to accept requests for both in order for the health check to be successful.
+    """
+
+    args = ['nodetool', '-h', host]
+
+    if health_check == 'cql':
+        return is_cql_up(args)
+    elif health_check == 'thrift':
+        return is_thrift_up(args)
+    elif health_check == 'all':
+        return is_cql_up(list(args)) and is_thrift_up(list(args))
+    else:
+        return is_cql_up(args)
+
+
+def is_cql_up(args):
+    try:
+        args.append('statusbinary')
+        output = subprocess.check_output(args, stderr=subprocess.STDOUT, universal_newlines=True)
+        return output.find('running') >= 0
+    except subprocess.CalledProcessError as e:
+        # logging.debug('The native transport is not up yet %s', logging_suffix)
+        logging.debug('The native transport is not up yet', exc_info=e)
+        return False
+
+
+def is_thrift_up(args):
+    try:
+        args.append('statusthrift')
+        output = subprocess.check_output(args, stderr=subprocess.STDOUT, universal_newlines=True)
+        return output.find('running') >= 0
+    except subprocess.CalledProcessError:
+        logging.debug('The thrift server is not up yet')
+        return False
+
+
+class CassandraNodeNotUpError(Exception):
+    """
+    Raised when it cannot be veriffied that a node is up by checking either nodetool statusbinary and/or
+    nodetool statusthrift
+
+    Attributes:
+        host -- the hostname or ip address of the node
+        attempts -- the number of times the check was performed
+    """
+
+    def __init(self, host, attempts):
+        message = 'Could not verify that Cassandra is up on {host} after {attempts}'.format(
+            host=host, attempts=attempts)
+        super(CassandraNodeNotUpError, self).__init__(message)

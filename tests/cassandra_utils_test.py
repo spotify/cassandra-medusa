@@ -31,7 +31,8 @@ class CassandraUtilsTest(unittest.TestCase):
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             cassandra=None,
-            ssh=None
+            ssh=None,
+            restore=None
         )
 
     def test_tokenmap_one_token(self):

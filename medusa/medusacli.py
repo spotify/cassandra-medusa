@@ -74,13 +74,14 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 @cli.command()
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Check for staggering initial backups for duration seconds')
+@click.option('--restore-verify-query', default=None)
 @pass_MedusaConfig
-def backup(medusaconfig, backup_name, stagger):
+def backup(medusaconfig, backup_name, stagger, restore_verify_query):
     """
     Backup Cassandra
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
-    medusa.backup.main(medusaconfig, backup_name, stagger_time)
+    medusa.backup.main(medusaconfig, backup_name, stagger_time, restore_verify_query)
 
 
 @cli.command()
@@ -122,8 +123,11 @@ def download(medusaconfig, backup_name, download_destination):
 @click.option('--keep-auth/--overwrite-auth', help='Keep/overwrite system_auth as found on the nodes', default=True)
 @click.option('-y', '--bypass-checks', help='Bypasses the security check for restoring a cluster',
               default=False, is_flag=True)
+@click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
+              default=False)
 @pass_MedusaConfig
-def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks):
+def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
+                    verify):
     """
     Restore Cassandra cluster
     """
@@ -133,7 +137,8 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
                                        Path(temp_dir),
                                        host_list,
                                        keep_auth,
-                                       bypass_checks)
+                                       bypass_checks,
+                                       verify)
 
 
 @cli.command()
@@ -145,12 +150,14 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
               default=False, is_flag=True)
 @click.option('--seeds', help='Nodes to wait for after downloading backup but before starting C*',
               default=None)
+@click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
+              default=False)
 @pass_MedusaConfig
-def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds):
+def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds, verify):
     """
     Restore single Cassandra node
     """
-    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds)
+    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds, verify)
 
 
 @cli.command()

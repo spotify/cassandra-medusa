@@ -34,7 +34,8 @@ class RestoreClusterTest(unittest.TestCase):
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             cassandra=None,
-            ssh=None
+            ssh=None,
+            restore=None
         )
 
     # Test that we can properly associate source and target nodes for restore using a host list
@@ -47,7 +48,7 @@ class RestoreClusterTest(unittest.TestCase):
             cluster_backup.tokenmap.return_value = tokenmap
             host_list = "tests/resources/restore_cluster_host_list.txt"
             restoreJob = RestoreJob(cluster_backup,
-                                    self.config, Path('/tmp'), host_list, None, False)
+                                    self.config, Path('/tmp'), host_list, None, False, False, None)
             restoreJob._populate_hostmap()
 
         self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['target'], "node1.mydomain.net")
@@ -63,7 +64,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(cluster_backup,
-                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False)
+                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None)
 
                 target_tokenmap = json.loads(f_target.read())
                 restoreJob._populate_ringmap(tokenmap, target_tokenmap)
@@ -81,7 +82,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(cluster_backup,
-                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False)
+                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None)
 
                 target_tokenmap = json.loads(f_target.read())
                 with self.assertRaises(Exception) as context:
@@ -98,7 +99,7 @@ class RestoreClusterTest(unittest.TestCase):
                 tokenmap = json.loads(f.read())
                 cluster_backup = MagicMock()
                 restoreJob = RestoreJob(cluster_backup,
-                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False)
+                                        self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None)
 
                 target_tokenmap = json.loads(f_target.read())
                 with self.assertRaises(Exception) as context:

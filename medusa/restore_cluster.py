@@ -14,46 +14,83 @@
 # limitations under the License.
 import collections
 import logging
-import paramiko
 import sys
 import time
 import uuid
+import datetime
+import traceback
+import paramiko
+import ffwd
 
+from medusa.metrics.transport import MedusaTransport
 from medusa.cassandra_utils import CqlSessionProvider
 from medusa.storage import Storage
+from medusa.verify_restore import verify_restore
 
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
 
 
-def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks):
-    if seed_target is not None:
-        keep_auth = False
-
-    if seed_target is None and host_list is None:
-        logging.error("You must either provide a seed target or a list of host.")
-        sys.exit(1)
-
-    if seed_target is not None and host_list is not None:
-        logging.error("You must either provide a seed target or a list of host, not both.")
-        sys.exit(1)
-
-    if keep_auth:
-        logging.info('system_auth keyspace will be left untouched on the target nodes')
-    else:
-        logging.info('system_auth keyspace will be overwritten with the backup on target nodes')
-    storage = Storage(config=config.storage)
+def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify):
+    ffwd_client = ffwd.FFWD(transport=MedusaTransport)
     try:
-        cluster_backup = storage.get_cluster_backup(backup_name)
-    except KeyError:
-        logging.error('No such backup')
-        sys.exit(1)
+        restore_start_time = datetime.datetime.now()
+        if seed_target is not None:
+            keep_auth = False
 
-    restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, bypass_checks)
-    restore.execute()
+        if seed_target is None and host_list is None:
+            err_msg = 'You must either provide a seed target or a list of host'
+            logging.error(err_msg)
+            raise Exception(err_msg)
+
+        if seed_target is not None and host_list is not None:
+            err_msg = 'You must either provide a seed target or a list of host, not both'
+            logging.error(err_msg)
+            raise Exception(err_msg)
+
+        if keep_auth:
+            logging.info('system_auth keyspace will be left untouched on the target nodes')
+        else:
+            logging.info('system_auth keyspace will be overwritten with the backup on target nodes')
+        storage = Storage(config=config.storage)
+        try:
+            cluster_backup = storage.get_cluster_backup(backup_name)
+        except KeyError:
+            err_msg = 'No such backup --> {}'.format(backup_name)
+            logging.error(err_msg)
+            raise Exception(err_msg)
+
+        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify, bypass_checks)
+        restore.execute()
+
+        restore_end_time = datetime.datetime.now()
+        restore_duration = restore_end_time - restore_start_time
+
+        logging.debug('Emitting metrics')
+        restore_duration_metric = ffwd_client.metric(key='medusa-cluster-restore',
+                                                     what='restore-duration',
+                                                     backupname=backup_name)
+        logging.info('Restore duration: {}'.format(restore_duration.seconds))
+        restore_duration_metric.send(restore_duration.seconds)
+        restore_error_metric = ffwd_client.metric(key='medusa-cluster-restore',
+                                                  what='restore-error',
+                                                  backupname=backup_name)
+        restore_error_metric.send(0)
+        logging.debug('Done emitting metrics')
+        logging.info('Successfully restored the cluster')
+
+    except Exception as e:
+        traceback.print_exc()
+        restore_error_metric = ffwd_client.metric(key='medusa-cluster-restore',
+                                                  what='restore-error',
+                                                  backupname=backup_name)
+        restore_error_metric.send(1)
+        logging.error('This error happened during the cluster restore: {}'.format(str(e)))
+        sys.exit(1)
 
 
 class RestoreJob(object):
-    def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, bypass_checks=False):
+    def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
+                 bypass_checks=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -62,22 +99,26 @@ class RestoreJob(object):
         self.host_list = host_list
         self.seed_target = seed_target
         self.keep_auth = keep_auth
+        self.verify = verify
         self.in_place = None
         if not temp_dir.is_dir():
-            logging.error('{} is not a directory'.format(temp_dir))
-            sys.exit(1)
+            err_msg = '{} is not a directory'.format(temp_dir)
+            logging.error(err_msg)
+            raise Exception(err_msg)
         self.temp_dir = temp_dir
         self.host_map = {}  # Map of backup host/target host for the restore process
         self.bypass_checks = bypass_checks
 
     def execute(self):
+        logging.info('Ensuring the backup is found and is complete')
         if not self.cluster_backup.is_complete():
             raise Exception("Backup is not complete")
 
         # CASE 1 : We're restoring in place and a seed target has been provided
         if self.seed_target is not None:
+            logging.info('Restore will happen "In-Place", no new hardawre is involved')
             self.in_place = True
-            self.session_provider = CqlSessionProvider(self.seed_target,
+            self.session_provider = CqlSessionProvider([self.seed_target],
                                                        username=self.config.cassandra.cql_username,
                                                        password=self.config.cassandra.cql_password)
 
@@ -86,9 +127,11 @@ class RestoreJob(object):
 
         # CASE 2 : We're restoring out of place, i.e. doing a restore test
         if self.host_list is not None:
+            logging.info('Restore will happen on new hardawre')
             self.in_place = False
             self._populate_hostmap()
 
+        logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
         self._restore_data()
 
     def _populate_ringmap(self, tokenmap, target_tokenmap):
@@ -143,7 +186,9 @@ class RestoreJob(object):
             proceed = input("Are you sure you want to proceed? (Y/n)")
 
         if proceed == 'n':
-            sys.exit(1)
+            err_msg = 'Restore manually cancelled'
+            logging.error(err_msg)
+            raise Exception(err_msg)
 
         # stop all target nodes
         stop_remotes = []
@@ -161,8 +206,9 @@ class RestoreJob(object):
         logging.info("Waiting for all nodes to stop...")
         finished, broken = self._wait_for(work, stop_remotes)
         if len(broken) > 0:
-            logging.error("Some Cassandras failed to stop. Exiting")
-            sys.exit(1)
+            err_msg = "Some Cassandras failed to stop. Exiting"
+            logging.error(err_msg)
+            raise Exception(err_msg)
 
         # work out which nodes are seeds in the target cluster
         target_seeds = [t['target'] for s, t in self.host_map.items() if t['seed']]
@@ -181,28 +227,35 @@ class RestoreJob(object):
         logging.info("Starting to wait for the nodes to restore")
         finished, broken = self._wait_for(work, remotes)
         if len(broken) > 0:
-            logging.error("Some normal nodes failed to restore. Exiting")
-            sys.exit(1)
+            err_msg = "Some nodes failed to restore. Exiting"
+            logging.error(err_msg)
+            raise Exception(err_msg)
 
         logging.info('Restore process is complete. The cluster should be up shortly.')
 
-    def _trigger_restore(self, target, source, work, seeds=None):
+        if self.verify:
+            hosts = list(map(lambda r: r.target, remotes))
+            verify_restore(hosts, self.cluster_backup.complete_nodes(), self.config)
 
+    def _trigger_restore(self, target, source, work, seeds=None):
         client, connect_args = self._connect(target, work)
 
         # TODO: If this command fails, the node is currently still marked as finished and not as broken.
         in_place_option = "--in-place" if self.in_place else ""
         keep_auth_option = "--keep-auth" if self.keep_auth else ""
         seeds_option = "--seeds {}".format(','.join(seeds)) if seeds else ""
+        # We explicitly set --no-verify since we are doing verification here in this module
+        # from the control node
+        verify_option = "--no-verify"
         command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
-                  '{in_place} {keep_auth} {seeds} ' \
-                  '--backup-name {backup}"'.format(work=work,
-                                                   fqdn=source,
-                                                   in_place=in_place_option,
-                                                   keep_auth=keep_auth_option,
-                                                   seeds=seeds_option,
-                                                   backup=self.cluster_backup.name)
-
+                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup}"'\
+            .format(work=work,
+                    fqdn=source,
+                    in_place=in_place_option,
+                    keep_auth=keep_auth_option,
+                    seeds=seeds_option,
+                    verify=verify_option,
+                    backup=self.cluster_backup.name)
         return self._run(target, client, connect_args, command)
 
     def _wait_for(self, work, remotes):
@@ -293,10 +346,12 @@ class RestoreJob(object):
         try:
             sftp.mkdir(str(work))
         except OSError:
-            logging.debug('Creating working directory {} on {} failed. It probably exists.'.format(str(work), target))
+            err_msg = 'Creating working directory {} on {} failed. It probably exists.'.format(str(work), target)
+            logging.error(err_msg)
         except Exception as ex:
-            logging.debug('Creating working directory on {} failed: {}'.format(target, str(ex)))
-            sys.exit(1)
+            err_msg = 'Creating working directory on {} failed: {}'.format(target, str(ex))
+            logging.error(err_msg)
+            raise Exception(err_msg)
         finally:
             sftp.close()
 

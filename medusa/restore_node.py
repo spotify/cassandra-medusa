@@ -16,6 +16,7 @@
 import collections
 import json
 import logging
+import socket
 import subprocess
 import sys
 import time
@@ -24,13 +25,14 @@ import uuid
 from medusa.cassandra_utils import Cassandra
 from medusa.download import download_data
 from medusa.storage import Storage
+from medusa.verify_restore import verify_restore
 
 
 A_MINUTE = 60
 MAX_ATTEMPTS = 60
 
 
-def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds):
+def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify):
 
     if in_place and keep_auth:
         logging.warning('Cannot keep system_auth when restoring in-place. It would be overwritten')
@@ -84,6 +86,9 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds):
         cassandra.start_with_implicit_token()
     else:
         cassandra.start(tokens)
+
+    if verify:
+        verify_restore([socket.gethostname()], [node_backup], config)
 
 
 def clean_path(p):
