@@ -132,7 +132,7 @@ class RestoreJob(object):
         # wait for exit on each
         logging.info("Starting cluster restore...")
         work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
-        logging.debug('Medusa is working in: {}'.format(work))
+        logging.info('Working directory for this execution: {}'.format(work))
         for source, target in self.host_map.items():
             logging.info("About to restore on {} using {} as backup source".format(target, source))
 
@@ -149,7 +149,7 @@ class RestoreJob(object):
         stop_remotes = []
         logging.info("Stopping Cassandra on all nodes")
         for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
-            if self.checkCassandraRunning(target, work):
+            if self.check_cassandra_running(target, work):
                 logging.info("Cassandra is running on {}. Stopping it...".format(target))
                 client, connect_args = self._connect(target, work)
                 command = 'nohup sh -c "{}"'.format(self.config.cassandra.stop_cmd)
@@ -164,51 +164,45 @@ class RestoreJob(object):
             logging.error("Some Cassandras failed to stop. Exiting")
             sys.exit(1)
 
-        # restore seeds first
-        # Only in case we run with --host-list
-        seed_remotes = []
-        for source, target in [(s, t['target']) for s, t in self.host_map.items() if t['seed']]:
-            logging.info('Restoring data on seed host {}...'.format(target))
-            remote = self._trigger_restore(target, source, work)
-            seed_remotes.append(remote)
+        # work out which nodes are seeds in the target cluster
+        target_seeds = [t['target'] for s, t in self.host_map.items() if t['seed']]
 
-        # wait for seed restores
-        if len(seed_remotes) > 0:
-            logging.info("Starting to wait for the seeds to restore")
-            finished, broken = self._wait_for(work, seed_remotes)
-            if len(broken) > 0:
-                logging.error("Some seeds failed to restore. Exiting")
-                sys.exit(1)
+        # trigger restores everywhere at once
+        # pass in seed info so that non-seeds can wait for seeds before starting
+        # seeds, naturally, don't wait for anything
+        remotes = []
+        for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
+            logging.info('Restoring data on {}...'.format(target))
+            seeds = None if target in target_seeds else target_seeds
+            remote = self._trigger_restore(target, source, work, seeds=seeds)
+            remotes.append(remote)
 
-        # restore everything else
-        normal_remotes = []
-        for source, target in [(s, t['target']) for s, t in self.host_map.items() if not t['seed']]:
-            logging.info('Restoring data on host {}...'.format(target))
-            remote = self._trigger_restore(target, source, work)
-            normal_remotes.append(remote)
-
-        # wait for no-seed restores
-        logging.info("Starting to wait for the normal nodes to restore")
-        finished, broken = self._wait_for(work, normal_remotes)
+        # wait for the restores
+        logging.info("Starting to wait for the nodes to restore")
+        finished, broken = self._wait_for(work, remotes)
         if len(broken) > 0:
             logging.error("Some normal nodes failed to restore. Exiting")
             sys.exit(1)
 
         logging.info('Restore process is complete. The cluster should be up shortly.')
 
-    def _trigger_restore(self, target, source, work):
+    def _trigger_restore(self, target, source, work, seeds=None):
 
         client, connect_args = self._connect(target, work)
 
         # TODO: If this command fails, the node is currently still marked as finished and not as broken.
         in_place_option = "--in-place" if self.in_place else ""
         keep_auth_option = "--keep-auth" if self.keep_auth else ""
+        seeds_option = "--seeds {}".format(','.join(seeds)) if seeds else ""
         command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
-                  '{in_place} {keep_auth} --backup-name {backup}"'.format(work=work,
-                                                                          fqdn=source,
-                                                                          in_place=in_place_option,
-                                                                          keep_auth=keep_auth_option,
-                                                                          backup=self.cluster_backup.name)
+                  '{in_place} {keep_auth} {seeds} ' \
+                  '--backup-name {backup}"'.format(work=work,
+                                                   fqdn=source,
+                                                   in_place=in_place_option,
+                                                   keep_auth=keep_auth_option,
+                                                   seeds=seeds_option,
+                                                   backup=self.cluster_backup.name)
+
         return self._run(target, client, connect_args, command)
 
     def _wait_for(self, work, remotes):
@@ -326,7 +320,7 @@ class RestoreJob(object):
             with ftp_client.file(remotepath.as_posix(), 'r') as f:
                 return str(f.read(), 'utf-8')
 
-    def checkCassandraRunning(self, host, work):
+    def check_cassandra_running(self, host, work):
         client, connect_args = self._connect(host, work)
         command = 'nohup sh -c "{}"'.format(self.config.cassandra.check_running)
         remote = self._run(host, client, connect_args, command)

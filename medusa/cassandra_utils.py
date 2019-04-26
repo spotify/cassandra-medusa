@@ -184,7 +184,7 @@ class CassandraConfigReader(object):
 class Cassandra(object):
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
 
-    def __init__(self, cassandra_config):
+    def __init__(self, cassandra_config, contact_point=None):
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
 
@@ -192,7 +192,7 @@ class Cassandra(object):
         self._root = config_reader.root
         self._commitlog_path = config_reader.commitlog_directory
         self._saved_caches_path = config_reader.saved_caches_directory
-        self._hostname = config_reader.listen_address
+        self._hostname = contact_point if contact_point is not None else config_reader.listen_address
         self._cql_session_provider = CqlSessionProvider(
             self._hostname,
             username=cassandra_config.cql_username,

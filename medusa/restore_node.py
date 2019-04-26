@@ -18,6 +18,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 import uuid
 
 from medusa.cassandra_utils import Cassandra
@@ -25,7 +26,11 @@ from medusa.download import download_data
 from medusa.storage import Storage
 
 
-def restore_node(config, temp_dir, backup_name, in_place, keep_auth):
+A_MINUTE = 60
+MAX_ATTEMPTS = 60
+
+
+def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds):
 
     if in_place and keep_auth:
         logging.warning('Cannot keep system_auth when restoring in-place. It would be overwritten')
@@ -65,6 +70,12 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth):
     with open(str(token_map_file), 'r') as f:
         tokens = get_node_tokens(node_fqdn, f)
         logging.debug("Parsed tokens: {}".format(tokens))
+
+    # possibly wait for seeds
+    if seeds is not None:
+        wait_for_seeds(config, seeds)
+    else:
+        logging.info('No --seeds specified so we will not wait for any')
 
     # Start up Cassandra
     logging.info('Starting Cassandra')
@@ -136,3 +147,27 @@ def get_node_tokens(node_fqdn, token_map_file):
     # if there is only a single token, the token might show up as one integer
     else:
         return [str(token)]
+
+
+def wait_for_seeds(config, seeds):
+    seed_list = seeds.split(',')
+    attempts = 0
+    while not any([try_open_cql_session(config, s) for s in seed_list]):
+        logging.info('No seeds are up yet, will wait a minute')
+        attempts += 1
+        time.sleep(A_MINUTE)
+        if attempts > MAX_ATTEMPTS:
+            logging.error('Gave up waiting for seeds, aborting the restore')
+            sys.exit(1)
+    logging.info('At least one seed is now up')
+
+
+def try_open_cql_session(config, seed):
+    try:
+        cassandra = Cassandra(config.cassandra, contact_point=seed)
+        with cassandra.new_session() as cql_session:
+            cql_session.datacenter()
+        return True
+    # TODO except whatever the Host-Not-Up exception is
+    except Exception:
+        return False
