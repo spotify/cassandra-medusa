@@ -119,3 +119,18 @@ Feature: Integration tests
         | Storage   |
         | local      |
 # other storage providers than local won't work with this test
+
+    Scenario Outline: Verify that backups found only in index are silently ignored
+        Given I have a fresh ccm cluster running named "scenario6"
+        And I am using "local" as storage provider
+        And I create the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup of the node named "first_backup"
+        When I truncate the backup folder
+        Then I can see no backups when I list the backups
+
+        Examples:
+        | Storage   |
+        | local      |
+# other storage providers than local won't work with this test

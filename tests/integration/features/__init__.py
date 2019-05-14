@@ -131,6 +131,14 @@ def _i_can_see_the_backup_named_backupname_when_i_list_the_backups(self, backup_
     assert found is True
 
 
+@step(r'I can see no backups when I list the backups')
+def _i_can_see_no_backups(self):
+    storage = Storage(config=world.config.storage)
+    cluster_backups = storage.list_cluster_backups()
+
+    assert 0 == len(list(cluster_backups))
+
+
 @step(r'the backup named "([^"]*)" has (\d+) SSTables for the "([^"]*)" table in keyspace "([^"]*)"')
 def _the_backup_named_backupname_has_nb_sstables_for_the_whatever_table(self, backup_name, nb_sstables, table_name,
                                                                         keyspace):
@@ -275,6 +283,13 @@ def _truncate_the_index(self):
     path_root = "/tmp/medusa_it_bucket"
     index_path = '{}/index'.format(path_root)
     shutil.rmtree(index_path)
+
+
+@step(r'I truncate the backup folder')
+def _truncate_the_backup_folder(self):
+    path_root = "/tmp/medusa_it_bucket"
+    backup_path = '{}/localhost'.format(path_root)
+    shutil.rmtree(backup_path)
 
 
 @step(r'I re-create the backup index')

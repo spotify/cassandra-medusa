@@ -132,9 +132,13 @@ class Storage(object):
                                                  blobs_by_backup[backup_name][tokenmap_fqdn]))
                 finished_blob = finished_blob_list[0] if len(finished_blob_list) > 0 else None
 
-            yield NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
-                             manifest_blob=manifest_blob, schema_blob=schema_blob,
-                             started_blob=started_blob, finished_blob=finished_blob)
+            node_backup = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
+                                     manifest_blob=manifest_blob, schema_blob=schema_blob,
+                                     started_blob=started_blob, finished_blob=finished_blob)
+            if node_backup.exists():
+                yield node_backup
+            else:
+                logging.debug('Backup {} for fqdn {} present only in index'.format(backup_name, fqdn))
 
     def group_backup_index_by_backup_and_node(self, backup_index):
         logging.debug("Files in the backup index: {}".format(backup_index))
@@ -178,7 +182,10 @@ class Storage(object):
         index_path = 'index/latest_backup/{}/backup_name.txt'.format(fqdn)
         try:
             latest_backup_name = self.storage_driver.get_blob_content_as_string(index_path)
-            return NodeBackup(storage=self, fqdn=fqdn, name=latest_backup_name)
+            node_backup = NodeBackup(storage=self, fqdn=fqdn, name=latest_backup_name)
+            if not node_backup.exists():
+                raise Exception
+            return node_backup
         except Exception:
             logging.info('Node {} does not have latest backup'.format(fqdn))
             return None
