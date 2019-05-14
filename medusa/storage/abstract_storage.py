@@ -38,6 +38,7 @@ class AbstractStorage(abc.ABC):
 
     def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
+        logging.debug("[Storage] Listing objects in {}".format(path))
         if path is None:
             objects = self.driver.list_container_objects(self.bucket)
         else:
@@ -59,7 +60,6 @@ class AbstractStorage(abc.ABC):
         :return:
         """
         for src_obj in list(src):
-            logging.info("file to dl : {}".format(src_obj))
             blob = self.get_blob(src_obj)
             blob.download(str(dest), overwrite_existing=True)
 
@@ -83,6 +83,7 @@ class AbstractStorage(abc.ABC):
 
     def get_blob(self, path):
         try:
+            logging.debug("[Storage] Getting object {}".format(path))
             return self.driver.get_object(self.bucket.name, str(path))
         except ObjectDoesNotExistError:
             return None
@@ -96,6 +97,7 @@ class AbstractStorage(abc.ABC):
         return self.read_blob_as_bytes(blob)
 
     def read_blob_as_string(self, blob, encoding="utf-8"):
+        logging.debug("[Storage] Reading blob...")
         return self.read_blob_as_bytes(blob).decode(encoding)
 
     @abc.abstractmethod
@@ -104,6 +106,7 @@ class AbstractStorage(abc.ABC):
 
     @staticmethod
     def read_blob_as_bytes(blob):
+        logging.debug("[Storage] Reading blob...")
         buffer = io.BytesIO()
         stream = blob.as_stream()
         for chunk in stream:

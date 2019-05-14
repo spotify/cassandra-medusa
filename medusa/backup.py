@@ -28,7 +28,7 @@ import base64
 import hashlib
 
 from medusa.cassandra_utils import Cassandra
-from medusa.index import update_backup_index
+from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.metrics.transport import MedusaTransport
 from medusa.storage import Storage, format_bytes_str
 
@@ -159,6 +159,7 @@ def main(config, backup_name_arg, stagger_time):
             node_backup.schema = cql_session.dump_schema()
             tokenmap = cql_session.tokenmap()
             node_backup.tokenmap = json.dumps(tokenmap)
+            add_backup_start_to_index(storage, node_backup)
 
         if stagger_time:
             stagger_end = start + stagger_time
@@ -184,9 +185,10 @@ def main(config, backup_name_arg, stagger_time):
             num_files = backup_snapshots(storage, config, manifest, node_backup, node_backup_cache, snapshot)
 
         logging.info('Updating backup index')
-        update_backup_index(storage, node_backup)
-
         node_backup.manifest = json.dumps(manifest)
+        add_backup_finish_to_index(storage, node_backup)
+        set_latest_backup_in_index(storage, node_backup)
+
         end = datetime.datetime.now()
         actual_backup_duration = end - actual_start
 

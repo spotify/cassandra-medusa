@@ -112,6 +112,7 @@ Feature: Integration tests
         Then there is no latest complete backup
         When I re-create the backup index
         Then the latest cluster backup is "third_backup"
+        And I can list and print backups without errors
         And the latest complete cluster backup is "third_backup"
 
         Examples:

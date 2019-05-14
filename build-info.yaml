@@ -4,13 +4,13 @@ pipelines:
   - pipeline: 'shared'
     ref: '.*'
     stages:
-#      - stage: 'tox'
-#        tasks:
-#          - task: 'tox'
-#            steps:
-#              - action: 'gcr.io/action-containers/tox:3.0.0-2'
-#                args: ['-c', 'tox.ini']
-      - stage: 'integration-tests'
+      - stage: 'tox'
+        tasks:
+          - task: 'tox'
+            steps:
+              - action: 'gcr.io/action-containers/tox:3.0.0-2'
+                args: ['-c', 'tox.ini']
+      - stage: 'integration tests'
         tasks:
           - task: 'aloe'
             steps:

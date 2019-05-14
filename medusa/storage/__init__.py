@@ -91,9 +91,14 @@ class Storage(object):
         Use discover_node_backups to discover backups from the data folders.
         """
 
-        # list all backups in the index, keep only object names
+        # list all backups in the index, keep only object names, and only files containing "tokenmap"
+        # as we also store the manifest and the schema there
         path = 'index/backup_index'
-        all_backups = list(map(lambda b: b.name, self.storage_driver.list_objects(path)))
+        backup_index = self.storage_driver.list_objects(path)
+        blobs_by_backup = self.group_backup_index_by_backup_and_node(backup_index)
+
+        all_backups = list(filter(lambda backup_file: "tokenmap" in backup_file,
+                           list(map(lambda b: b.name, backup_index))))
 
         if len(all_backups) == 0:
             logging.info('No backups found in index. Consider running "medusa build-index" if you have some backups')
@@ -109,7 +114,60 @@ class Storage(object):
             _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
             # tokenmap file is in format 'tokenmap_fqdn.json'
             tokenmap_fqdn = tokenmap_file.split('_')[1].replace('.json', '')
-            yield NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name)
+            manifest_blob = None
+            schema_blob = None
+            started_blob = None
+            finished_blob = None
+            if tokenmap_fqdn in blobs_by_backup[backup_name]:
+                manifest_blob_list = list(filter(lambda blob: "manifest" in blob.name,
+                                                 blobs_by_backup[backup_name][tokenmap_fqdn]))
+                manifest_blob = manifest_blob_list[0] if len(manifest_blob_list) > 0 else None
+                schema_blob_list = list(filter(lambda blob: "schema" in blob.name,
+                                               blobs_by_backup[backup_name][tokenmap_fqdn]))
+                schema_blob = schema_blob_list[0] if len(schema_blob_list) > 0 else None
+                started_blob_list = list(filter(lambda blob: "started" in blob.name,
+                                                blobs_by_backup[backup_name][tokenmap_fqdn]))
+                started_blob = started_blob_list[0] if len(started_blob_list) > 0 else None
+                finished_blob_list = list(filter(lambda blob: "finished" in blob.name,
+                                                 blobs_by_backup[backup_name][tokenmap_fqdn]))
+                finished_blob = finished_blob_list[0] if len(finished_blob_list) > 0 else None
+
+            yield NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
+                             manifest_blob=manifest_blob, schema_blob=schema_blob,
+                             started_blob=started_blob, finished_blob=finished_blob)
+
+    def group_backup_index_by_backup_and_node(self, backup_index):
+        logging.debug("Files in the backup index: {}".format(backup_index))
+        blobs_by_backup = {}
+        sorted_backup_index = sorted(backup_index,
+                                     key=lambda blob: (self.get_backup_name_from_backup_index_blob(blob.name),
+                                                       self.get_fqdn_from_backup_index_blob(blob.name)))
+        for backup_name, backups in itertools.groupby(sorted_backup_index, lambda blob: blob.name.split('/')[2]):
+            blobs_by_node = {}
+            for k, g in itertools.groupby(backups, lambda blob: self.get_fqdn_from_backup_index_blob(blob.name)):
+                blobs_by_node[k] = list(g)
+            blobs_by_backup[backup_name] = blobs_by_node
+        logging.debug("Backups : {}".format(blobs_by_backup))
+        return blobs_by_backup
+
+    def get_fqdn_from_backup_index_blob(self, blob_name):
+        fqdn_with_extension = blob_name.split('/')[3].split('_')[1]
+        return self.remove_extension(fqdn_with_extension)
+
+    def get_backup_name_from_backup_index_blob(self, blob_name):
+        return blob_name.split('/')[2]
+
+    def remove_extension(self, fqdn_with_extension):
+        replaces = {
+            '.json': '',
+            '.cql': '',
+            '.txt': '',
+            '.timestamp': ''
+        }
+        r = fqdn_with_extension
+        for old, new in replaces.items():
+            r = r.replace(old, new)
+        return r
 
     def list_cluster_backups(self):
         node_backups = sorted(self.list_node_backups(), key=lambda b: (b.name, b.started))
@@ -130,6 +188,7 @@ class Storage(object):
         Get the latest backup attempted (successful or not)
         """
         last_started = max(self.list_cluster_backups(), key=operator.attrgetter('started'), default=None)
+        logging.debug("Last cluster backup : {}".format(last_started))
         return last_started
 
     def latest_complete_cluster_backup(self):

@@ -100,7 +100,7 @@ def list_backups(medusaconfig, show_all):
     """
     List backups
     """
-    medusa.listing.list(medusaconfig, show_all)
+    medusa.listing.list_backups(medusaconfig, show_all)
 
 
 @cli.command()

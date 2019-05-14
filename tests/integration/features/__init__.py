@@ -16,6 +16,7 @@ from cassandra.cluster import Cluster
 
 import medusa.backup
 import medusa.index
+import medusa.listing
 import medusa.restore_node
 import medusa.verify
 
@@ -63,6 +64,8 @@ def _i_have_a_fresh_ccm_cluster_running(self, cluster_name):
 @step(r'I am using "([^"]*)" as storage provider')
 def i_am_using_storage_provider(self, storage_provider):
     logging.info("Starting the tests")
+    if not hasattr(world, 'cluster_name'):
+        world.cluster_name = 'test'
     config = configparser.ConfigParser(interpolation=None)
 
     if storage_provider == "local":
@@ -166,7 +169,12 @@ def _the_backup_named_backupname_is_present_in_the_index(self, backup_name):
     tokenmap_from_index = storage.storage_driver.get_blob_content_as_string(path)
     path = os.path.join(fqdn, backup_name, 'meta', 'tokenmap.json')
     tokenmap_from_backup = storage.storage_driver.get_blob_content_as_string(path)
-    assert tokenmap_from_backup == tokenmap_from_index
+    # Check that we have the manifest as well there
+    manifest_path = os.path.join('index/backup_index', backup_name, 'manifest_{}.json'.format(fqdn))
+    manifest_from_index = storage.storage_driver.get_blob_content_as_string(manifest_path)
+    path = os.path.join(fqdn, backup_name, 'meta', 'manifest.json')
+    manifest_from_backup = storage.storage_driver.get_blob_content_as_string(path)
+    assert tokenmap_from_backup == tokenmap_from_index and manifest_from_backup == manifest_from_index
 
 
 @step(r'I can see the latest backup for "([^"]*)" being called "([^"]*)"')
@@ -197,9 +205,13 @@ def _node_fakes_a_complete_backup(self, fqdn, backup_name, backup_datetime):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
-    # fake token map in index
+    # fake token map, manifest and schema in index
     path_tokenmap = '{}/index/backup_index/{}/tokenmap_{}.json'.format(path_root, backup_name, fqdn)
     write_dummy_file(path_tokenmap, backup_datetime, fake_tokenmap)
+    path_manifest = '{}/index/backup_index/{}/manifest_{}.json'.format(path_root, backup_name, fqdn)
+    write_dummy_file(path_manifest, backup_datetime, fake_tokenmap)
+    path_schema = '{}/index/backup_index/{}/schema_{}.cql'.format(path_root, backup_name, fqdn)
+    write_dummy_file(path_schema, backup_datetime, fake_tokenmap)
 
     dir_path = os.path.join(path_root, 'index', 'latest_backup', fqdn)
     if not os.path.exists(dir_path):
@@ -243,6 +255,11 @@ def _there_is_no_latest_complete_backup(self):
     storage = Storage(config=world.config.storage)
     actual_backup = storage.latest_complete_cluster_backup()
     assert actual_backup is None
+
+
+@step(r'I can list and print backups without errors')
+def _can_list_print_backups_without_error(self):
+    medusa.listing.list_backups(config=world.config, show_all=True)
 
 
 @step(r'the latest complete cluster backup is "([^"]*)"')

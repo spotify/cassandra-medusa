@@ -25,7 +25,8 @@ def update_backup_index(storage, node_backup):
     Called when a backup happens, this method adds an entry about this backup to the backup index
     and sets this backups as the latest backup.
     """
-    add_backup_to_index(storage, node_backup)
+    add_backup_start_to_index(storage, node_backup)
+    add_backup_finish_to_index(storage, node_backup)
     set_latest_backup_in_index(storage, node_backup)
 
 
@@ -53,7 +54,8 @@ def build_indices(config, noop):
                 # if requested, add the node backup to the index
                 logging.debug('Found backup {} from {}'.format(node_backup.name, node_backup.fqdn))
                 if not noop:
-                    add_backup_to_index(storage, node_backup)
+                    add_backup_start_to_index(storage, node_backup)
+                    add_backup_finish_to_index(storage, node_backup)
 
         # once we have seen all backups, we can set the latest ones as well
         for fqdn, node_backup in latest_node_backups.items():
@@ -66,9 +68,20 @@ def build_indices(config, noop):
         sys.exit(1)
 
 
-def add_backup_to_index(storage, node_backup):
+def add_backup_start_to_index(storage, node_backup):
     dst = 'index/backup_index/{}/tokenmap_{}.json'.format(node_backup.name, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.tokenmap)
+    dst = 'index/backup_index/{}/schema_{}.cql'.format(node_backup.name, node_backup.fqdn)
+    storage.storage_driver.upload_blob_from_string(dst, node_backup.schema)
+    dst = 'index/backup_index/{}/started_{}.timestamp'.format(node_backup.name, node_backup.fqdn)
+    storage.storage_driver.upload_blob_from_string(dst, str(node_backup.started))
+
+
+def add_backup_finish_to_index(storage, node_backup):
+    dst = 'index/backup_index/{}/manifest_{}.json'.format(node_backup.name, node_backup.fqdn)
+    storage.storage_driver.upload_blob_from_string(dst, node_backup.manifest)
+    dst = 'index/backup_index/{}/finished_{}.timestamp'.format(node_backup.name, node_backup.fqdn)
+    storage.storage_driver.upload_blob_from_string(dst, str(node_backup.finished))
 
 
 def set_latest_backup_in_index(storage, node_backup):

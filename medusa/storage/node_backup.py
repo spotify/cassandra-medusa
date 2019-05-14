@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import logging
 import pathlib
 
 
 class NodeBackup(object):
-    def __init__(self, *, storage, fqdn, name, preloaded_blobs=None):
+    def __init__(self, *, storage, fqdn, name, preloaded_blobs=None, manifest_blob=None, schema_blob=None,
+                 tokenmap_blob=None, preload_blobs=False, started_blob=None, finished_blob=None):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
@@ -32,12 +34,19 @@ class NodeBackup(object):
         self._manifest_path = self._meta_path / 'manifest.json'
 
         if preloaded_blobs is None:
-            preloaded_blobs = storage.storage_driver.list_objects(
-                '{}/'.format(self._meta_path)
-            )
+            preloaded_blobs = []
+            if preload_blobs:
+                preloaded_blobs = storage.storage_driver.list_objects(
+                    '{}/'.format(self._meta_path)
+                )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
         self._cached_manifest = None
+        self._cached_manifest_blob = manifest_blob
+        self._cached_schema_blob = schema_blob
+        self._cached_tokenmap_blob = tokenmap_blob
+        self._cached_started_blob = started_blob
+        self._cached_finished_blob = finished_blob
 
     def __repr__(self):
         return 'NodeBackup(name={0.name}, fqdn={0.fqdn}, schema_path={0.schema_path})'.format(self)
@@ -96,13 +105,38 @@ class NodeBackup(object):
 
     @property
     def started(self):
-        schema_blob = self._storage.storage_driver.get_blob(self.schema_path)
-        return self.storage.storage_driver.get_object_datetime(schema_blob) if schema_blob else None
+
+        # if we have the started blob from index, return the timestamp from that
+        if self._cached_started_blob is not None:
+            return int(self._storage.storage_driver.read_blob_as_string(self._cached_started_blob))
+
+        # otherwise use the cached schema blob. we might need to set it from the actual schema blob first
+        if self._cached_schema_blob is None:
+            self._cached_schema_blob = self._storage.storage_driver.get_blob(self._schema_path)
+
+        if self._cached_schema_blob is not None:
+            return int(self._storage.storage_driver.get_object_datetime(self._cached_schema_blob).timestamp())
+
+        # if we still failed to work out the timestamp of schema blob, we are in trouble
+        logging.error("Could not figure out start timestamp for backup {} of fqdn {}".format(self._name, self._fqdn))
+        return None
 
     @property
     def finished(self):
-        manifest_blob = self._storage.storage_driver.get_blob(self.manifest_path)
-        return self.storage.storage_driver.get_object_datetime(manifest_blob) if manifest_blob else None
+        # if we have the finished blob from index, return that timestamp
+        if self._cached_finished_blob is not None:
+            return int(self._storage.storage_driver.read_blob_as_string(self._cached_finished_blob))
+
+        # otherwise use the cached manifest blob. we might need to load it first
+        if self._cached_manifest_blob is None:
+            self._cached_manifest_blob = self._storage.storage_driver.get_blob(self._manifest_path)
+
+        if self._cached_manifest_blob is not None:
+            return int(self._storage.storage_driver.get_object_datetime(self._cached_manifest_blob).timestamp())
+
+        # if we still failed to work out the timestamp of manifest blob, we are in trouble
+        logging.error("Could not figure out finished timestamp for backup {} of fqdn {}".format(self._name, self._fqdn))
+        return None
 
     @property
     def manifest_path(self):
