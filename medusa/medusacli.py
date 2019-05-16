@@ -183,6 +183,16 @@ def report_last_backup(medusa_config, ffwd):
 
 
 @cli.command()
+@pass_MedusaConfig
+def get_last_complete_cluster_backup(medusa_config):
+    """
+    Pints the name of the latest complete cluster backup
+    """
+    backup = medusa.report_latest.get_latest_complete_cluster_backup(medusa_config)
+    print(backup.name)
+
+
+@cli.command()
 @click.option('--noop', default=False, is_flag=True, help='Compute and print the index only. Do not upload')
 @pass_MedusaConfig
 def build_index(medusa_config, noop):

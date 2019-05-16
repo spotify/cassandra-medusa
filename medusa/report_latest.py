@@ -164,3 +164,8 @@ def human_readable_size(num, suffix='B'):
             return "{:.2f} {}{}".format(num, unit, suffix)
         num /= 1024.0
     return "{:.2f} {}{}".format(num, 'Yi', suffix)
+
+
+def get_latest_complete_cluster_backup(config):
+    storage = Storage(config=config.storage)
+    return storage.latest_complete_cluster_backup()
