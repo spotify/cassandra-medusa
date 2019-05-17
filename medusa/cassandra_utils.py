@@ -22,6 +22,7 @@ import pathlib
 import shlex
 import socket
 import subprocess
+from subprocess import PIPE
 import uuid
 import yaml
 
@@ -189,6 +190,7 @@ class Cassandra(object):
         self._start_cmd = shlex.split(cassandra_config.start_cmd)
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
         self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
+        self._os_has_systemd = self._has_systemd()
         logging.warning("is ccm : {}".format(self._is_ccm))
 
         config_reader = CassandraConfigReader(cassandra_config.config_file)
@@ -201,6 +203,16 @@ class Cassandra(object):
             username=cassandra_config.cql_username,
             password=cassandra_config.cql_password
         )
+
+    def _has_systemd(self):
+        try:
+            result = subprocess.run(["systemctl", "--version"], stdout=PIPE, stderr=PIPE)
+            logging.debug("This server has systemd: {}".format(result.returncode == 0))
+            return result.returncode == 0
+        except FileNotFoundError:
+            logging.debug("This server has systemd: False")
+            return False
+
 
     def new_session(self):
         return self._cql_session_provider.new_session()
@@ -357,7 +369,10 @@ class Cassandra(object):
     def start(self, token_list):
         if self._is_ccm == 0:
             jvm_opts = '-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false'.format(','.join(token_list))
-            tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
+            if self._os_has_systemd:
+                tokens_env = 'sudo systemctl set-environment JVM_OPTS="{}"'.format(jvm_opts)
+            else:
+                tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
             # Have to use command line as Subprocess does not handle quotes well
             # undoing 'shlex' split, back to a string in this case for '_start_cmd'
             # joining the 2 pieces of the command
