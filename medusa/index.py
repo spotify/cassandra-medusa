@@ -73,14 +73,18 @@ def add_backup_start_to_index(storage, node_backup):
     storage.storage_driver.upload_blob_from_string(dst, node_backup.tokenmap)
     dst = 'index/backup_index/{}/schema_{}.cql'.format(node_backup.name, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.schema)
-    dst = 'index/backup_index/{}/started_{}.timestamp'.format(node_backup.name, node_backup.fqdn)
+    dst = 'index/backup_index/{}/started_{}_{}.timestamp'.format(
+        node_backup.name, node_backup.fqdn, node_backup.started
+    )
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.started))
 
 
 def add_backup_finish_to_index(storage, node_backup):
     dst = 'index/backup_index/{}/manifest_{}.json'.format(node_backup.name, node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.manifest)
-    dst = 'index/backup_index/{}/finished_{}.timestamp'.format(node_backup.name, node_backup.fqdn)
+    dst = 'index/backup_index/{}/finished_{}_{}.timestamp'.format(
+        node_backup.name, node_backup.fqdn, node_backup.finished
+    )
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.finished))
 
 

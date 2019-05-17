@@ -19,7 +19,7 @@ import pathlib
 
 class NodeBackup(object):
     def __init__(self, *, storage, fqdn, name, preloaded_blobs=None, manifest_blob=None, schema_blob=None,
-                 tokenmap_blob=None, preload_blobs=False, started_blob=None, finished_blob=None):
+                 tokenmap_blob=None, preload_blobs=False, started_timestamp=None, finished_timestamp=None):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
@@ -45,8 +45,8 @@ class NodeBackup(object):
         self._cached_manifest_blob = manifest_blob
         self._cached_schema_blob = schema_blob
         self._cached_tokenmap_blob = tokenmap_blob
-        self._cached_started_blob = started_blob
-        self._cached_finished_blob = finished_blob
+        self._started = started_timestamp
+        self._finished = finished_timestamp
 
     def __repr__(self):
         return 'NodeBackup(name={0.name}, fqdn={0.fqdn}, schema_path={0.schema_path})'.format(self)
@@ -106,16 +106,18 @@ class NodeBackup(object):
     @property
     def started(self):
 
-        # if we have the started blob from index, return the timestamp from that
-        if self._cached_started_blob is not None:
-            return int(self._storage.storage_driver.read_blob_as_string(self._cached_started_blob))
+        # if we got the started timestamp straight from the constructor
+        if self._started is not None:
+            return self._started
 
-        # otherwise use the cached schema blob. we might need to set it from the actual schema blob first
+        # otherwise set it from the schema blob
         if self._cached_schema_blob is None:
             self._cached_schema_blob = self._storage.storage_driver.get_blob(self._schema_path)
 
         if self._cached_schema_blob is not None:
-            return int(self._storage.storage_driver.get_object_datetime(self._cached_schema_blob).timestamp())
+            dt = self._storage.storage_driver.get_object_datetime(self._cached_schema_blob)
+            self._started = int(dt.timestamp())
+            return self._started
 
         # if we still failed to work out the timestamp of schema blob, we are in trouble
         logging.error("Could not figure out start timestamp for backup {} of fqdn {}".format(self._name, self._fqdn))
@@ -123,16 +125,18 @@ class NodeBackup(object):
 
     @property
     def finished(self):
-        # if we have the finished blob from index, return that timestamp
-        if self._cached_finished_blob is not None:
-            return int(self._storage.storage_driver.read_blob_as_string(self._cached_finished_blob))
+        # if we got the finished timestamp straight from the constructor
+        if self._finished is not None:
+            return self._finished
 
-        # otherwise use the cached manifest blob. we might need to load it first
+        # otherwise set it from the manifest blob
         if self._cached_manifest_blob is None:
             self._cached_manifest_blob = self._storage.storage_driver.get_blob(self._manifest_path)
 
         if self._cached_manifest_blob is not None:
-            return int(self._storage.storage_driver.get_object_datetime(self._cached_manifest_blob).timestamp())
+            dt = self._storage.storage_driver.get_object_datetime(self._cached_manifest_blob)
+            self._finished = int(dt.timestamp())
+            return self._finished
 
         # if we still failed to work out the timestamp of manifest blob, we are in trouble
         logging.error("Could not figure out finished timestamp for backup {} of fqdn {}".format(self._name, self._fqdn))

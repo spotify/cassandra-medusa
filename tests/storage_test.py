@@ -203,6 +203,16 @@ class RestoreNodeTest(unittest.TestCase):
             self.storage.remove_extension('localhost.foo')
         )
 
+    def test_get_timestamp_from_blob_name(self):
+        self.assertEquals(
+            1558021519,
+            self.storage.get_timestamp_from_blob_name('finished_localhost_1558021519.timestamp')
+        )
+        self.assertEquals(
+            1558021519,
+            self.storage.get_timestamp_from_blob_name('finished_some.host.net_1558021519.timestamp')
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
