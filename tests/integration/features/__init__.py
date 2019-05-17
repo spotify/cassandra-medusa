@@ -17,6 +17,7 @@ from cassandra.cluster import Cluster
 import medusa.backup
 import medusa.index
 import medusa.listing
+import medusa.report_latest
 import medusa.restore_node
 import medusa.verify
 
@@ -295,6 +296,11 @@ def _truncate_the_backup_folder(self):
 @step(r'I re-create the backup index')
 def _recreate_the_index(self):
     medusa.index.build_indices(world.config, False)
+
+
+@step(r'I can report latest backups without errors')
+def _can_report_backups_without_errors(self):
+    medusa.report_latest.report_latest(config=world.config, report_to_ffwd=False)
 
 
 def connect_cassandra():

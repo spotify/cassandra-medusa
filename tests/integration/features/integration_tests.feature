@@ -38,6 +38,7 @@ Feature: Integration tests
         Then I can see the backup index entry for "second_backup"
         Then I can see the backup index entry for "third_backup"
         And I can see the latest backup for "localhost" being called "third_backup"
+        And I can report latest backups without errors
 
         Examples:
         | Storage   |
@@ -94,6 +95,7 @@ Feature: Integration tests
         Then node "n3" fakes a complete backup named "backup3" on "2019-04-05 14:14:00"
         Then the latest cluster backup is "backup3"
         And the latest complete cluster backup is "backup3"
+        And I can report latest backups without errors
 
         Examples:
         | Storage   |
@@ -114,6 +116,7 @@ Feature: Integration tests
         Then the latest cluster backup is "third_backup"
         And I can list and print backups without errors
         And the latest complete cluster backup is "third_backup"
+        And I can report latest backups without errors
 
         Examples:
         | Storage   |
