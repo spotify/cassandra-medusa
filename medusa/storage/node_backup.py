@@ -118,7 +118,7 @@ class NodeBackup(object):
             return int(self._storage.storage_driver.get_object_datetime(self._cached_schema_blob).timestamp())
 
         # if we still failed to work out the timestamp of schema blob, we are in trouble
-        logging.error("Could not figure out start timestamp for backup {} of fqdn {}".format(self._name, self._fqdn))
+        logging.debug("No schema blob for backup {} of fqdn {}".format(self._name, self._fqdn))
         return None
 
     @property
@@ -135,7 +135,7 @@ class NodeBackup(object):
             return int(self._storage.storage_driver.get_object_datetime(self._cached_manifest_blob).timestamp())
 
         # if we still failed to work out the timestamp of manifest blob, we are in trouble
-        logging.error("Could not figure out finished timestamp for backup {} of fqdn {}".format(self._name, self._fqdn))
+        logging.debug("No manifest blob for backup {} of fqdn {}".format(self._name, self._fqdn))
         return None
 
     @property
