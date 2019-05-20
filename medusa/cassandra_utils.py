@@ -213,7 +213,6 @@ class Cassandra(object):
             logging.debug("This server has systemd: False")
             return False
 
-
     def new_session(self):
         return self._cql_session_provider.new_session()
 

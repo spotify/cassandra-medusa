@@ -131,7 +131,7 @@ class Storage(object):
                     finished_timestamp = self.get_timestamp_from_blob_name(finished_blob.name)
                 else:
                     finished_timestamp = None
-                
+
             node_backup = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
                                      manifest_blob=manifest_blob, schema_blob=schema_blob,
                                      started_timestamp=started_timestamp,
@@ -141,7 +141,6 @@ class Storage(object):
                 yield node_backup
             else:
                 logging.debug('Backup {} for fqdn {} present only in index'.format(backup_name, fqdn))
-            
 
     def group_backup_index_by_backup_and_node(self, backup_index):
         logging.debug("Files in the backup index: {}".format(backup_index))
