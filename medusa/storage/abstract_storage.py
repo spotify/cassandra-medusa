@@ -97,7 +97,7 @@ class AbstractStorage(abc.ABC):
         return self.read_blob_as_bytes(blob)
 
     def read_blob_as_string(self, blob, encoding="utf-8"):
-        logging.debug("[Storage] Reading blob...")
+        logging.debug("[Storage] Reading blob {}...".format(blob.name))
         return self.read_blob_as_bytes(blob).decode(encoding)
 
     @abc.abstractmethod
@@ -106,7 +106,7 @@ class AbstractStorage(abc.ABC):
 
     @staticmethod
     def read_blob_as_bytes(blob):
-        logging.debug("[Storage] Reading blob...")
+        logging.debug("[Storage] Reading blob {}...".format(blob.name))
         buffer = io.BytesIO()
         stream = blob.as_stream()
         for chunk in stream:
