@@ -93,3 +93,7 @@ def set_latest_backup_in_index(storage, node_backup):
     storage.storage_driver.upload_blob_from_string(dst, node_backup.tokenmap)
     dst = 'index/latest_backup/{}/backup_name.txt'.format(node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.name)
+
+
+def index_exists(storage):
+    return len(storage.storage_driver.list_objects(path='index')) > 0

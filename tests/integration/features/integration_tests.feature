@@ -12,6 +12,7 @@ Feature: Integration tests
         And run a "ccm node1 nodetool flush" command
         And I perform a backup of the node named "first_backup"
         Then I can see the backup named "first_backup" when I list the backups
+        And the backup index exists
         And the backup named "first_backup" has 2 SSTables for the "test" table in keyspace "medusa"
         And I can verify the backup named "first_backup" successfully
         When I load "100" rows in the "medusa.test" table
@@ -32,7 +33,8 @@ Feature: Integration tests
         When I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
         And I perform a backup of the node named "second_backup"
-        Then I can see the backup index entry for "second_backup"
+        Then the backup index exists
+        And I can see the backup index entry for "second_backup"
         And I can see the latest backup for "localhost" being called "second_backup"
         Given I perform a backup of the node named "third_backup"
         Then I can see the backup index entry for "second_backup"
@@ -71,17 +73,21 @@ Feature: Integration tests
         Then the latest cluster backup is "backup1"
         And there is no latest complete backup
         When I truncate the backup index
-        And node "n1" fakes a complete backup named "backup1" on "2019-04-01 12:14:00"
+        Then the backup index does not exist
+        When node "n1" fakes a complete backup named "backup1" on "2019-04-01 12:14:00"
         And node "n2" fakes a complete backup named "backup1" on "2019-04-01 12:16:00"
         And node "n1" fakes a complete backup named "backup2" on "2019-04-02 12:14:00"
-        Then the latest cluster backup is "backup2"
+        Then the backup index exists
+        And the latest cluster backup is "backup2"
         And there is no latest complete backup
         When I truncate the backup index
-        And node "n1" fakes a complete backup named "backup1" on "2019-04-01 12:14:00"
+        Then the backup index does not exist
+        When node "n1" fakes a complete backup named "backup1" on "2019-04-01 12:14:00"
         And node "n2" fakes a complete backup named "backup1" on "2019-04-01 12:16:00"
         And node "n1" fakes a complete backup named "backup2" on "2019-04-02 12:14:00"
         And node "n2" fakes a complete backup named "backup3" on "2019-04-03 12:14:00"
-        Then the latest cluster backup is "backup3"
+        Then the backup index exists
+        And the latest cluster backup is "backup3"
         And there is no latest complete backup
         When node "n2" fakes a complete backup named "backup2" on "2019-04-04 12:14:00"
         Then the latest cluster backup is "backup3"
@@ -111,9 +117,11 @@ Feature: Integration tests
         And I perform a backup of the node named "second_backup"
         And I perform a backup of the node named "third_backup"
         And I truncate the backup index
-        Then there is no latest complete backup
+        Then the backup index does not exist
+        And there is no latest complete backup
         When I re-create the backup index
-        Then the latest cluster backup is "third_backup"
+        Then the backup index exists
+        And the latest cluster backup is "third_backup"
         And I can list and print backups without errors
         And the latest complete cluster backup is "third_backup"
         And I can report latest backups without errors
@@ -131,7 +139,27 @@ Feature: Integration tests
         And run a "ccm node1 nodetool flush" command
         And I perform a backup of the node named "first_backup"
         When I truncate the backup folder
-        Then I can see no backups when I list the backups
+        Then the backup index exists
+        And I can see no backups when I list the backups
+
+        Examples:
+        | Storage   |
+        | local      |
+# other storage providers than local won't work with this test
+
+
+    Scenario Outline: Verify reporting metrics rebuilds the index if it is not present
+        Given I have a fresh ccm cluster running named "scenario7"
+        And I am using "local" as storage provider
+        And I create the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup of the node named "first_backup"
+        Then the backup index exists
+        When I truncate the backup index
+        Then the backup index does not exist
+        When I can report latest backups without errors
+        Then the backup index exists
 
         Examples:
         | Storage   |
