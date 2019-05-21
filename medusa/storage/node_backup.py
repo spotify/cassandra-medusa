@@ -41,7 +41,7 @@ class NodeBackup(object):
                 )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
-        self._cached_manifest = None
+        self._cached_manifest = storage.storage_driver.read_blob_as_string(manifest_blob) if manifest_blob else None
         self._cached_manifest_blob = manifest_blob
         self._cached_schema_blob = schema_blob
         self._cached_tokenmap_blob = tokenmap_blob
@@ -84,11 +84,12 @@ class NodeBackup(object):
 
     @property
     def tokenmap(self):
-        return self._storage.storage_driver.get_blob_content_as_string(self.tokenmap_path)
+        if self._cached_tokenmap_blob is None:
+            self._cached_tokenmap_blob = self._storage.storage_driver.get_blob(self.tokenmap_path)
+        return self._storage.storage_driver.read_blob_as_string(self._cached_tokenmap_blob)
 
     @tokenmap.setter
     def tokenmap(self, tokenmap):
-
         self._storage.storage_driver.upload_blob_from_string(self.tokenmap_path, tokenmap)
 
     @property

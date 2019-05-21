@@ -116,11 +116,13 @@ class Storage(object):
             tokenmap_fqdn = tokenmap_file.split('_')[1].replace('.json', '')
             manifest_blob = None
             schema_blob = None
+            tokenmap_blob = None
             started_timestamp = None
             finished_timestamp = None
             if tokenmap_fqdn in blobs_by_backup[backup_name]:
                 manifest_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'manifest')
                 schema_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'schema')
+                tokenmap_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'tokenmap')
                 started_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'started')
                 finished_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'finished')
                 if started_blob is not None:
@@ -133,7 +135,7 @@ class Storage(object):
                     finished_timestamp = None
 
             node_backup = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
-                                     manifest_blob=manifest_blob, schema_blob=schema_blob,
+                                     manifest_blob=manifest_blob, schema_blob=schema_blob, tokenmap_blob=tokenmap_blob,
                                      started_timestamp=started_timestamp,
                                      finished_timestamp=finished_timestamp)
 
