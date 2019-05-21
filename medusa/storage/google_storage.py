@@ -15,6 +15,7 @@
 
 import io
 import json
+import logging
 from dateutil import parser
 import os
 
@@ -42,6 +43,7 @@ class GoogleStorage(AbstractStorage):
             return gsutil.cp(srcs=src, dst=dest)
 
     def get_object_datetime(self, blob):
+        logging.debug("Blob {} last modification time is {}".format(blob.name, blob.extra["last_modified"]))
         return parser.parse(blob.extra["last_modified"])
 
     def get_path_prefix(self, path):

@@ -116,25 +116,27 @@ class Storage(object):
             tokenmap_fqdn = tokenmap_file.split('_')[1].replace('.json', '')
             manifest_blob = None
             schema_blob = None
-            started_blob = None
-            finished_blob = None
+            started_timestamp = None
+            finished_timestamp = None
             if tokenmap_fqdn in blobs_by_backup[backup_name]:
-                manifest_blob_list = list(filter(lambda blob: "manifest" in blob.name,
-                                                 blobs_by_backup[backup_name][tokenmap_fqdn]))
-                manifest_blob = manifest_blob_list[0] if len(manifest_blob_list) > 0 else None
-                schema_blob_list = list(filter(lambda blob: "schema" in blob.name,
-                                               blobs_by_backup[backup_name][tokenmap_fqdn]))
-                schema_blob = schema_blob_list[0] if len(schema_blob_list) > 0 else None
-                started_blob_list = list(filter(lambda blob: "started" in blob.name,
-                                                blobs_by_backup[backup_name][tokenmap_fqdn]))
-                started_blob = started_blob_list[0] if len(started_blob_list) > 0 else None
-                finished_blob_list = list(filter(lambda blob: "finished" in blob.name,
-                                                 blobs_by_backup[backup_name][tokenmap_fqdn]))
-                finished_blob = finished_blob_list[0] if len(finished_blob_list) > 0 else None
+                manifest_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'manifest')
+                schema_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'schema')
+                started_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'started')
+                finished_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'finished')
+                if started_blob is not None:
+                    started_timestamp = self.get_timestamp_from_blob_name(started_blob.name)
+                else:
+                    started_timestamp = None
+                if finished_blob is not None:
+                    finished_timestamp = self.get_timestamp_from_blob_name(finished_blob.name)
+                else:
+                    finished_timestamp = None
 
             node_backup = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
                                      manifest_blob=manifest_blob, schema_blob=schema_blob,
-                                     started_blob=started_blob, finished_blob=finished_blob)
+                                     started_timestamp=started_timestamp,
+                                     finished_timestamp=finished_timestamp)
+
             if node_backup.exists():
                 yield node_backup
             else:
@@ -161,6 +163,10 @@ class Storage(object):
     def get_backup_name_from_backup_index_blob(self, blob_name):
         return blob_name.split('/')[2]
 
+    def get_timestamp_from_blob_name(self, blob_name):
+        name_without_extension = self.remove_extension(blob_name)
+        return int(name_without_extension.split('/')[-1].split('_')[-1])
+
     def remove_extension(self, fqdn_with_extension):
         replaces = {
             '.json': '',
@@ -172,6 +178,16 @@ class Storage(object):
         for old, new in replaces.items():
             r = r.replace(old, new)
         return r
+
+    def lookup_blob(self, blobs_by_backup, backup_name, fqdn, blob_name_chunk):
+        """
+        This function looks up blobs in blobs_by_backup, which is a double dict (k->k->v).
+        The blob_name_chunk tells which blob for given backup and fqdn we want.
+        It can be 'schema', 'manifest', 'started', 'finished'
+        """
+        blob_list = list(filter(lambda blob: blob_name_chunk in blob.name,
+                                blobs_by_backup[backup_name][fqdn]))
+        return blob_list[0] if len(blob_list) > 0 else None
 
     def list_cluster_backups(self):
         node_backups = sorted(self.list_node_backups(), key=lambda b: (b.name, b.started))

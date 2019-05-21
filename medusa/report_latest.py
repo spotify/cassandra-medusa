@@ -70,16 +70,17 @@ def check_node_backup(storage, fqdn, report_to_ffwd, ffwd_client):
         return
 
     finished = latest_node_backup.finished
-    node_backup_finished_ago = (datetime.datetime.now(finished.tzinfo) - finished)
+    now = int(datetime.datetime.now().timestamp())
+    node_backup_finished_seconds_ago = int(now - finished)
     logging.info('Latest node backup '
-                 'finished {} seconds ago'.format(node_backup_finished_ago.seconds))
+                 'finished {} seconds ago'.format(node_backup_finished_seconds_ago))
 
     if report_to_ffwd:
         logging.debug('Sending time since last node backup to ffwd')
         finished_ago_metric = ffwd_client.metric(key='medusa-node-backup',
                                                  what='seconds-since-backup',
                                                  backupname=latest_node_backup.name)
-        finished_ago_metric.send(node_backup_finished_ago.seconds)
+        finished_ago_metric.send(node_backup_finished_seconds_ago)
 
 
 def check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client):
@@ -93,15 +94,16 @@ def check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client):
     logging.info('- Name: {}'.format(latest_complete_cluster_backup.name))
 
     finished = latest_complete_cluster_backup.finished
-    cluster_backup_finished_ago = (datetime.datetime.now(finished.tzinfo) - finished)
-    logging.info('- Finished: {} seconds ago'.format(cluster_backup_finished_ago.seconds))
+    now = int(datetime.datetime.now().timestamp())
+    cluster_backup_finished_seconds_ago = int(now - finished)
+    logging.info('- Finished: {} seconds ago'.format(cluster_backup_finished_seconds_ago))
 
     if report_to_ffwd:
         logging.debug("Sending time since last complete cluster backup to ffwd")
         finished_ago_metric = ffwd_client.metric(key='medusa-cluster-backup',
                                                  what='seconds-since-backup',
                                                  backupname=latest_complete_cluster_backup.name)
-        finished_ago_metric.send(cluster_backup_finished_ago.seconds)
+        finished_ago_metric.send(cluster_backup_finished_seconds_ago)
 
 
 def check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client):
