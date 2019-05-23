@@ -74,18 +74,35 @@ def i_am_using_storage_provider(self, storage_provider):
             shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
         os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
 
-        config['storage'] = {'host_file_separator': ',', 'bucket_name': 'medusa_it_bucket', 'key_file': '',
-                             'storage_provider': 'local', 'fqdn': 'localhost',
-                             'api_key_or_username': '', 'api_secret_or_password': '', 'base_path': '/tmp'}
+        config['storage'] = {
+            'host_file_separator': ',',
+            'bucket_name': 'medusa_it_bucket',
+            'key_file': '',
+            'storage_provider': 'local',
+            'fqdn': 'localhost',
+            'api_key_or_username': '',
+            'api_secret_or_password': '',
+            'base_path': '/tmp'
+        }
     elif storage_provider == "google_storage":
-        config['storage'] = {'host_file_separator': ',', 'bucket_name': 'medusa_it_bucket',
-                             'key_file': '~/medusa_credentials.json',
-                             'storage_provider': 'google_storage', 'fqdn': 'localhost',
-                             'api_key_or_username': '', 'api_secret_or_password': '', 'base_path': '/tmp'}
+        config['storage'] = {
+            'host_file_separator': ',',
+            'bucket_name': 'medusa_it_bucket',
+            'key_file': '~/medusa_credentials.json',
+            'storage_provider': 'google_storage',
+            'fqdn': 'localhost',
+            'api_key_or_username': '',
+            'api_secret_or_password': '',
+            'base_path': '/tmp'
+        }
 
-    config['cassandra'] = {'is_ccm': 1, 'stop_cmd': 'ccm stop', 'start_cmd': 'ccm start',
-                           'config_file': os.path.expanduser(os.path.join('~/.ccm', world.cluster_name, 'node1',
-                                                                          'conf', 'cassandra.yaml'))}
+    config['cassandra'] = {
+        'is_ccm': 1,
+        'stop_cmd': 'ccm stop',
+        'start_cmd': 'ccm start',
+        'config_file': os.path.expanduser(os.path.join('~/.ccm', world.cluster_name, 'node1', 'conf', 'cassandra.yaml'))
+    }
+
     world.config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
@@ -301,6 +318,18 @@ def _recreate_the_index(self):
 @step(r'I can report latest backups without errors')
 def _can_report_backups_without_errors(self):
     medusa.report_latest.report_latest(config=world.config, report_to_ffwd=False)
+
+
+@step(r'the backup index does not exist')
+def _the_backup_index_does_not_exist(self):
+    storage = Storage(config=world.config.storage)
+    assert False is medusa.index.index_exists(storage)
+
+
+@step(r'the backup index exists')
+def _the_backup_index_exists(self):
+    storage = Storage(config=world.config.storage)
+    assert True is medusa.index.index_exists(storage)
 
 
 def connect_cassandra():

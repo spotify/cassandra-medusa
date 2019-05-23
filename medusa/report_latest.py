@@ -18,6 +18,7 @@ import datetime
 import ffwd
 import logging
 import time
+import medusa.index
 from medusa.metrics.transport import MedusaTransport
 from medusa.storage import Storage
 
@@ -36,7 +37,7 @@ def report_latest(config, report_to_ffwd):
             ))
             storage = Storage(config=config.storage)
             fqdn = config.storage.fqdn
-            check_node_backup(storage, fqdn, report_to_ffwd, ffwd_client)
+            check_node_backup(config, storage, fqdn, report_to_ffwd, ffwd_client)
             check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client)
             check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client)
             break
@@ -62,8 +63,13 @@ def report_latest(config, report_to_ffwd):
                     finished_ago_metric.send(long_time_flag_value)
 
 
-def check_node_backup(storage, fqdn, report_to_ffwd, ffwd_client):
+def check_node_backup(config, storage, fqdn, report_to_ffwd, ffwd_client):
     latest_node_backup = storage.latest_node_backup(fqdn=fqdn)
+
+    if latest_node_backup is None:
+        logging.info('Did not find the latest node backup. Will try rebuild the index')
+        medusa.index.build_indices(config, noop=False)
+        latest_node_backup = storage.latest_node_backup(fqdn=fqdn)
 
     if latest_node_backup is None:
         logging.info('This node has not been backed up yet')
