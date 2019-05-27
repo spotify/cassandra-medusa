@@ -84,19 +84,16 @@ class Storage(object):
             if any(map(lambda blob: blob.name.endswith('/schema.cql'), backup_blobs)):
                 yield NodeBackup(storage=self, fqdn=fqdn, name=name, preloaded_blobs=blobs)
 
-    def list_node_backups(self, *, fqdn=None):
+    def list_node_backups(self, *, fqdn=None, backup_index=None):
         """
         Lists node backups using the index.
         If there is no backup index, no backups will be found.
         Use discover_node_backups to discover backups from the data folders.
         """
 
-        # list all backups in the index, keep only object names, and only files containing "tokenmap"
-        # as we also store the manifest and the schema there
-        path = 'index/backup_index'
-        backup_index = self.storage_driver.list_objects(path)
+        if backup_index is None:
+            backup_index = self.list_backup_index()
         blobs_by_backup = self.group_backup_index_by_backup_and_node(backup_index)
-
         all_backups = list(filter(lambda backup_file: "tokenmap" in backup_file,
                            list(map(lambda b: b.name, backup_index))))
 
@@ -143,6 +140,10 @@ class Storage(object):
                 yield node_backup
             else:
                 logging.debug('Backup {} for fqdn {} present only in index'.format(backup_name, fqdn))
+
+    def list_backup_index(self):
+        path = 'index/backup_index'
+        return self.storage_driver.list_objects(path)
 
     def group_backup_index_by_backup_and_node(self, backup_index):
         logging.debug("Files in the backup index: {}".format(backup_index))
@@ -191,8 +192,8 @@ class Storage(object):
                                 blobs_by_backup[backup_name][fqdn]))
         return blob_list[0] if len(blob_list) > 0 else None
 
-    def list_cluster_backups(self):
-        node_backups = sorted(self.list_node_backups(), key=lambda b: (b.name, b.started))
+    def list_cluster_backups(self, backup_index=None):
+        node_backups = sorted(self.list_node_backups(backup_index=backup_index), key=lambda b: (b.name, b.started))
         for name, node_backups in itertools.groupby(node_backups, key=operator.attrgetter('name')):
             yield ClusterBackup(name, node_backups)
 
@@ -208,19 +209,20 @@ class Storage(object):
             logging.info('Node {} does not have latest backup'.format(fqdn))
             return None
 
-    def latest_cluster_backup(self):
+    def latest_cluster_backup(self, backup_index=None):
         """
         Get the latest backup attempted (successful or not)
         """
-        last_started = max(self.list_cluster_backups(), key=operator.attrgetter('started'), default=None)
+        last_started = max(self.list_cluster_backups(backup_index=backup_index),
+                           key=operator.attrgetter('started'), default=None)
         logging.debug("Last cluster backup : {}".format(last_started))
         return last_started
 
-    def latest_complete_cluster_backup(self):
+    def latest_complete_cluster_backup(self, backup_index=None):
         """
         Get the latest *complete* backup (ie successful on all nodes)
         """
-        finished_backups = filter(operator.attrgetter('finished'), self.list_cluster_backups())
+        finished_backups = filter(operator.attrgetter('finished'), self.list_cluster_backups(backup_index=backup_index))
         last_finished = max(finished_backups, key=operator.attrgetter('finished'), default=None)
         return last_finished
 
