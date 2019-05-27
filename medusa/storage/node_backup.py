@@ -19,7 +19,8 @@ import pathlib
 
 class NodeBackup(object):
     def __init__(self, *, storage, fqdn, name, preloaded_blobs=None, manifest_blob=None, schema_blob=None,
-                 tokenmap_blob=None, preload_blobs=False, started_timestamp=None, finished_timestamp=None):
+                 tokenmap_blob=None, preload_blobs=False, started_timestamp=None, started_blob=None,
+                 finished_timestamp=None, finished_blob=None):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
@@ -41,10 +42,12 @@ class NodeBackup(object):
                 )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
-        self._cached_manifest = None
-        self._cached_manifest_blob = manifest_blob
-        self._cached_schema_blob = schema_blob
-        self._cached_tokenmap_blob = tokenmap_blob
+        self.cached_manifest = None
+        self.cached_manifest_blob = manifest_blob
+        self.cached_schema_blob = schema_blob
+        self.cached_tokenmap_blob = tokenmap_blob
+        self.started_blob = started_blob
+        self.finished_blob = finished_blob
         self._started = started_timestamp
         self._finished = finished_timestamp
 
@@ -84,9 +87,9 @@ class NodeBackup(object):
 
     @property
     def tokenmap(self):
-        if self._cached_tokenmap_blob is None:
-            self._cached_tokenmap_blob = self._storage.storage_driver.get_blob(self.tokenmap_path)
-        return self._storage.storage_driver.read_blob_as_string(self._cached_tokenmap_blob)
+        if self.cached_tokenmap_blob is None:
+            self.cached_tokenmap_blob = self._storage.storage_driver.get_blob(self.tokenmap_path)
+        return self._storage.storage_driver.read_blob_as_string(self.cached_tokenmap_blob)
 
     @tokenmap.setter
     def tokenmap(self, tokenmap):
@@ -112,11 +115,11 @@ class NodeBackup(object):
             return self._started
 
         # otherwise set it from the schema blob
-        if self._cached_schema_blob is None:
-            self._cached_schema_blob = self._storage.storage_driver.get_blob(self._schema_path)
+        if self.cached_schema_blob is None:
+            self.cached_schema_blob = self._storage.storage_driver.get_blob(self._schema_path)
 
-        if self._cached_schema_blob is not None:
-            dt = self._storage.storage_driver.get_object_datetime(self._cached_schema_blob)
+        if self.cached_schema_blob is not None:
+            dt = self._storage.storage_driver.get_object_datetime(self.cached_schema_blob)
             self._started = int(dt.timestamp())
             return self._started
 
@@ -131,11 +134,11 @@ class NodeBackup(object):
             return self._finished
 
         # otherwise set it from the manifest blob
-        if self._cached_manifest_blob is None:
-            self._cached_manifest_blob = self._storage.storage_driver.get_blob(self._manifest_path)
+        if self.cached_manifest_blob is None:
+            self.cached_manifest_blob = self._storage.storage_driver.get_blob(self._manifest_path)
 
-        if self._cached_manifest_blob is not None:
-            dt = self._storage.storage_driver.get_object_datetime(self._cached_manifest_blob)
+        if self.cached_manifest_blob is not None:
+            dt = self._storage.storage_driver.get_object_datetime(self.cached_manifest_blob)
             self._finished = int(dt.timestamp())
             return self._finished
 
@@ -149,13 +152,13 @@ class NodeBackup(object):
 
     @property
     def manifest(self):
-        if self._cached_manifest is None:
-            self._cached_manifest = self._storage.storage_driver.get_blob_content_as_string(self.manifest_path)
-        return self._cached_manifest
+        if self.cached_manifest is None:
+            self.cached_manifest = self._storage.storage_driver.get_blob_content_as_string(self.manifest_path)
+        return self.cached_manifest
 
     @manifest.setter
     def manifest(self, manifest):
-        self._cached_manifest = None
+        self.cached_manifest = None
         self._storage.storage_driver.upload_blob_from_string(self.manifest_path, manifest)
 
     def datapath(self, *, keyspace, columnfamily):

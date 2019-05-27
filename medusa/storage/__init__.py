@@ -115,11 +115,9 @@ class Storage(object):
             _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
             # tokenmap file is in format 'tokenmap_fqdn.json'
             tokenmap_fqdn = tokenmap_file.split('_')[1].replace('.json', '')
-            manifest_blob = None
-            schema_blob = None
-            tokenmap_blob = None
-            started_timestamp = None
-            finished_timestamp = None
+            manifest_blob, schema_blob, tokenmap_blob = None, None, None
+            started_blob, finished_blob = None, None
+            started_timestamp, finished_timestamp = None, None
             if tokenmap_fqdn in blobs_by_backup[backup_name]:
                 manifest_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'manifest')
                 schema_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'schema')
@@ -137,7 +135,8 @@ class Storage(object):
 
             nb = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
                             manifest_blob=manifest_blob, schema_blob=schema_blob, tokenmap_blob=tokenmap_blob,
-                            started_timestamp=started_timestamp, finished_timestamp=finished_timestamp)
+                            started_timestamp=started_timestamp, started_blob=started_blob,
+                            finished_timestamp=finished_timestamp, finished_blob=finished_blob)
             node_backups.append(nb)
 
         # once we have all the backups, we sort them by their start time. we get oldest ones first
@@ -160,8 +159,9 @@ class Storage(object):
                 previous_existed = True
                 yield node_backup
             else:
-                # if a backup doesn't exist, we should remove its entry from the index too
                 logging.debug('Backup {} for fqdn {} present only in index'.format(node_backup.name, node_backup.fqdn))
+                # if a backup doesn't exist, we should remove its entry from the index too
+                self.remove_backup_from_index(node_backup)
 
     def group_backup_index_by_backup_and_node(self, backup_index):
         logging.debug("Files in the backup index: {}".format(backup_index))
@@ -221,6 +221,8 @@ class Storage(object):
             latest_backup_name = self.storage_driver.get_blob_content_as_string(index_path)
             node_backup = NodeBackup(storage=self, fqdn=fqdn, name=latest_backup_name)
             if not node_backup.exists():
+                logging.warning('Latest backup points to non-existent backup. Deleting the marker')
+                self.remove_latest_backup_marker(fqdn)
                 raise Exception
             return node_backup
         except Exception:
@@ -248,3 +250,32 @@ class Storage(object):
             if cluster_backup.name == backup_name:
                 return cluster_backup
         raise KeyError('No such backup')
+
+    def remove_backup_from_index(self, node_backup):
+        """
+        Takes a node backup and tries to remove corresponding items from the index.
+        This usually happens when the node_backup.exists() returns false, which means it's schema in the
+        meta folder does not exist.
+        We are checking and deleting each blob separately because there is no easy way to list and get the objects.
+        """
+        if node_backup.cached_tokenmap_blob is not None:
+            self.storage_driver.delete_object(node_backup.cached_tokenmap_blob)
+        if node_backup.cached_schema_blob is not None:
+            self.storage_driver.delete_object(node_backup.cached_schema_blob)
+        if node_backup.cached_manifest_blob is not None:
+            self.storage_driver.delete_object(node_backup.cached_manifest_blob)
+        if node_backup.started_blob is not None:
+            self.storage_driver.delete_object(node_backup.started_blob)
+        if node_backup.finished_blob is not None:
+            self.storage_driver.delete_object(node_backup.finished_blob)
+
+    def remove_latest_backup_marker(self, fqdn):
+        """
+        Removes the markers of the latest backup for a fqdn.
+        Unlike remove_backup_from_index, here we do call list because the path is not ambiguous, and because we can't
+        get the blobs from anywhere.
+        Then we can call the delete object on the results.
+        """
+        markers = self.storage_driver.list_objects('index/latest_backup/{}/'.format(fqdn))
+        for marker in markers:
+            self.storage_driver.delete_object(marker)
