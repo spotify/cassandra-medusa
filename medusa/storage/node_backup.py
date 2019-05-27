@@ -41,7 +41,7 @@ class NodeBackup(object):
                 )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
-        self._cached_manifest = storage.storage_driver.read_blob_as_string(manifest_blob) if manifest_blob else None
+        self._cached_manifest = None
         self._cached_manifest_blob = manifest_blob
         self._cached_schema_blob = schema_blob
         self._cached_tokenmap_blob = tokenmap_blob
