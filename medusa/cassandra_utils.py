@@ -370,16 +370,17 @@ class Cassandra(object):
             jvm_opts = '-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false'.format(','.join(token_list))
             if self._os_has_systemd:
                 tokens_env = 'sudo systemctl set-environment JVM_OPTS="{}"'.format(jvm_opts)
+                cmd = "{} && {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
             else:
                 tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
-            # Have to use command line as Subprocess does not handle quotes well
-            # undoing 'shlex' split, back to a string in this case for '_start_cmd'
-            # joining the 2 pieces of the command
-            # Also, if the command to run cassandra uses sudo, we need to remove it
-            # to add it as the first element
-            if 'sudo' in self._start_cmd:
-                self._start_cmd.remove('sudo')
-            cmd = "{} {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
+                # Have to use command line as Subprocess does not handle quotes well
+                # undoing 'shlex' split, back to a string in this case for '_start_cmd'
+                # joining the 2 pieces of the command
+                # Also, if the command to run cassandra uses sudo, we need to remove it
+                # to add it as the first element
+                if 'sudo' in self._start_cmd:
+                    self._start_cmd.remove('sudo')
+                cmd = "{} {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
             logging.debug('Starting Cassandra with {}'.format(cmd))
             # run the command using 'shell=True' option
             # to interpret the string command well
