@@ -110,6 +110,7 @@ class Storage(object):
             relevant_backups = all_backups
 
         # use the backup names and fqdns from index entries to construct NodeBackup objects
+        node_backups = list()
         for backup_index_entry in relevant_backups:
             _, _, backup_name, tokenmap_file = backup_index_entry.split('/')
             # tokenmap file is in format 'tokenmap_fqdn.json'
@@ -134,15 +135,33 @@ class Storage(object):
                 else:
                     finished_timestamp = None
 
-            node_backup = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
-                                     manifest_blob=manifest_blob, schema_blob=schema_blob, tokenmap_blob=tokenmap_blob,
-                                     started_timestamp=started_timestamp,
-                                     finished_timestamp=finished_timestamp)
+            nb = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
+                            manifest_blob=manifest_blob, schema_blob=schema_blob, tokenmap_blob=tokenmap_blob,
+                            started_timestamp=started_timestamp, finished_timestamp=finished_timestamp)
+            node_backups.append(nb)
+
+        # once we have all the backups, we sort them by their start time. we get oldest ones first
+        sorted_node_backups = sorted(node_backups, key=lambda nb: nb.started)
+
+        # then, before returning the backups, we pick only the existing ones
+        previous_existed = False
+        for node_backup in sorted_node_backups:
+
+            # we try to be smart here - once we have seen an existing one, we assume all later ones exist too
+            if previous_existed:
+                yield node_backup
+                continue
+
+            # the idea is to save .exist() calls as they actually go to the storage backend and cost something
+            # this is mostly meant to handle the transition period when backups expire before the index does,
+            # which is a consequence of the transition period and running the build-index command
 
             if node_backup.exists():
+                previous_existed = True
                 yield node_backup
             else:
-                logging.debug('Backup {} for fqdn {} present only in index'.format(backup_name, fqdn))
+                # if a backup doesn't exist, we should remove its entry from the index too
+                logging.debug('Backup {} for fqdn {} present only in index'.format(node_backup.name, node_backup.fqdn))
 
     def group_backup_index_by_backup_and_node(self, backup_index):
         logging.debug("Files in the backup index: {}".format(backup_index))
