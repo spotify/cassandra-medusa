@@ -141,7 +141,11 @@ class Storage(object):
             node_backups.append(nb)
 
         # once we have all the backups, we sort them by their start time. we get oldest ones first
-        sorted_node_backups = sorted(node_backups, key=lambda nb: nb.started)
+        sorted_node_backups = sorted(
+            # before sorting the backups, ensure we can work out at least their start time
+            filter(lambda nb: nb.started is not None, node_backups),
+            key=lambda nb: nb.started
+        )
 
         # then, before returning the backups, we pick only the existing ones
         previous_existed = False
