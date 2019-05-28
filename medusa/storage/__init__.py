@@ -164,7 +164,6 @@ class Storage(object):
                 logging.debug('Backup {} for fqdn {} present only in index'.format(node_backup.name, node_backup.fqdn))
 
     def group_backup_index_by_backup_and_node(self, backup_index):
-        logging.debug("Files in the backup index: {}".format(backup_index))
         blobs_by_backup = {}
         sorted_backup_index = sorted(backup_index,
                                      key=lambda blob: (self.get_backup_name_from_backup_index_blob(blob.name),
@@ -174,7 +173,6 @@ class Storage(object):
             for k, g in itertools.groupby(backups, lambda blob: self.get_fqdn_from_backup_index_blob(blob.name)):
                 blobs_by_node[k] = list(g)
             blobs_by_backup[backup_name] = blobs_by_node
-        logging.debug("Backups : {}".format(blobs_by_backup))
         return blobs_by_backup
 
     def get_fqdn_from_backup_index_blob(self, blob_name):
