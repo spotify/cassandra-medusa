@@ -37,9 +37,10 @@ def report_latest(config, report_to_ffwd):
             ))
             storage = Storage(config=config.storage)
             fqdn = config.storage.fqdn
+            backup_index = storage.list_backup_index()
             check_node_backup(config, storage, fqdn, report_to_ffwd, ffwd_client)
-            check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client)
-            check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client)
+            check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index)
+            check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index)
             break
         except Exception as e:
             if (retry + 1) < MAX_RETRIES:
@@ -89,8 +90,8 @@ def check_node_backup(config, storage, fqdn, report_to_ffwd, ffwd_client):
         finished_ago_metric.send(node_backup_finished_seconds_ago)
 
 
-def check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client):
-    latest_complete_cluster_backup = storage.latest_complete_cluster_backup()
+def check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index):
+    latest_complete_cluster_backup = storage.latest_complete_cluster_backup(backup_index=backup_index)
 
     if latest_complete_cluster_backup is None:
         logging.info('The cluster this node belongs to has no complete backup yet')
@@ -112,8 +113,8 @@ def check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client):
         finished_ago_metric.send(cluster_backup_finished_seconds_ago)
 
 
-def check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client):
-    latest_cluster_backup = storage.latest_cluster_backup()
+def check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index):
+    latest_cluster_backup = storage.latest_cluster_backup(backup_index=backup_index)
 
     if latest_cluster_backup is None:
         logging.info('The cluster this node belongs to has not started a backup yet')
