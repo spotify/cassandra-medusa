@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import configparser
 import datetime
+import hashlib
 import os
 import shutil
+import tempfile
 import unittest
 
+from medusa.backup import generate_md5_hash
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.index import build_indices
 from medusa.storage import Storage
@@ -122,6 +126,39 @@ class RestoreNodeTest(unittest.TestCase):
         self.assertFalse(
             medusa.storage.abstract_storage.AbstractStorage.hashes_match(hash1, hash2)
         )
+
+    def test_generate_md5_hash(self):
+        with tempfile.NamedTemporaryFile() as tf:
+            # write random bytes
+            two_megabytes = 2 * 1024 * 1024
+            tf.write(os.urandom(two_megabytes))
+            tf.flush()
+
+            # compute checksum of the whole file at once
+            tf.seek(0)
+            checksum_full = hashlib.md5(tf.read()).digest()
+            digest_full = base64.encodestring(checksum_full).decode('UTF-8').strip()
+
+            # compute checksum using default-size chunks
+            tf.seek(0)
+            digest_chunk = generate_md5_hash(tf.name)
+
+            # compare the digests
+            self.assertEqual(digest_chunk, digest_full)
+
+            # compute checksum using custom size chunks
+            tf.seek(0)
+            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=128))
+            tf.seek(0)
+            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=256))
+            tf.seek(0)
+            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=1024))
+            tf.seek(0)
+            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=100000000))     # 100M
+            tf.seek(0)
+            self.assertEqual(digest_full, generate_md5_hash(tf.name, block_size=-1))
+            tf.seek(0)
+            self.assertNotEqual(digest_full, generate_md5_hash(tf.name, block_size=0))
 
     def test_get_object_datetime(self):
         file1_content = "content of the test file1"
