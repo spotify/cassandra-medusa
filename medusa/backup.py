@@ -33,18 +33,30 @@ from medusa.metrics.transport import MedusaTransport
 from medusa.storage import Storage, format_bytes_str
 
 
+BLOCK_SIZE_BYTES = 65536
+
+
 def url_to_path(url):
     return url.split('/', 3)[-1]
 
 
-def generate_md5_hash(src):
+def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
+
+    checksum = hashlib.md5()
     with open(src, 'rb') as f:
-        # Read data and checksum
-        checksum = hashlib.md5(f.read()).digest()
-        # Convert into a bytes type that can be base64 encoded
-        base64_md5 = base64.encodestring((checksum)).decode('UTF-8').strip()
-        # Print the Base64 encoded CRC32C
-        return base64_md5
+        # Incrementally read data and update the digest
+        while True:
+            read_data = f.read(block_size)
+            if not read_data:
+                break
+            checksum.update(read_data)
+
+    # Once we have all the data, compute checksum
+    checksum = checksum.digest()
+    # Convert into a bytes type that can be base64 encoded
+    base64_md5 = base64.encodestring(checksum).decode('UTF-8').strip()
+    # Print the Base64 encoded CRC32C
+    return base64_md5
 
 
 class NodeBackupCache(object):
