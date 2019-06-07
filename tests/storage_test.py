@@ -22,7 +22,7 @@ import tempfile
 import unittest
 
 from medusa.backup import generate_md5_hash
-from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
+from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict, CassandraConfig
 from medusa.index import build_indices
 from medusa.storage import Storage
 import medusa.storage.abstract_storage
@@ -45,9 +45,12 @@ class RestoreNodeTest(unittest.TestCase):
         config['storage'] = {'host_file_separator': ',', 'bucket_name': 'medusa_test_bucket', 'key_file': '',
                              'storage_provider': 'local', 'prefix': '', 'fqdn': '127.0.0.1',
                              'api_key_or_username': '', 'api_secret_or_password': '', 'base_path': '/tmp'}
+        config['cassandra'] = {
+            'is_ccm': 1
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
-            cassandra=None,
+            cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
             ssh=None
         )
 

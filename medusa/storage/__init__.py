@@ -76,13 +76,17 @@ class Storage(object):
         """
 
         prefix_path = fqdn if fqdn else ''
-        all_blobs = sorted(self.storage_driver.list_objects(path=prefix_path), key=operator.attrgetter('name'))
+        logging.info("listing blobs...")
+        storage_objects = filter(lambda blob: "meta" in blob.name, self.storage_driver.list_objects(path=prefix_path))
+        all_blobs = sorted(storage_objects, key=operator.attrgetter('name'))
+        logging.info("finished listing blobs")
 
         for node_backup, blobs in itertools.groupby(all_blobs, key=self._get_node_backup_from_blob):
             backup_blobs = list(blobs)
             fqdn, name = node_backup
             if any(map(lambda blob: blob.name.endswith('/schema.cql'), backup_blobs)):
-                yield NodeBackup(storage=self, fqdn=fqdn, name=name, preloaded_blobs=blobs)
+                logging.info("found backup {}.{}".format(fqdn, name))
+                yield NodeBackup(storage=self, fqdn=fqdn, name=name, preloaded_blobs=backup_blobs)
 
     def list_node_backups(self, *, fqdn=None, backup_index=None):
         """

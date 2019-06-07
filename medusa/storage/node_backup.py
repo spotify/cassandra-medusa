@@ -42,6 +42,7 @@ class NodeBackup(object):
                 )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
+        logging.debug("Cached blobs : {}".format(self._cached_blobs.keys()))
         self.cached_manifest = None
         self.cached_manifest_blob = manifest_blob
         self.cached_schema_blob = schema_blob
@@ -57,6 +58,7 @@ class NodeBackup(object):
     def _blob(self, path):
         blob = self._cached_blobs.get(path)
         if blob is None:
+            logging.debug("blob {} was not found in cache".format(path))
             blob = self._storage.storage_driver.get_blob(str(path))
             self._cached_blobs[path] = blob
         return blob
@@ -88,7 +90,7 @@ class NodeBackup(object):
     @property
     def tokenmap(self):
         if self.cached_tokenmap_blob is None:
-            self.cached_tokenmap_blob = self._storage.storage_driver.get_blob(self.tokenmap_path)
+            self.cached_tokenmap_blob = self._blob(self.tokenmap_path)
         return self._storage.storage_driver.read_blob_as_string(self.cached_tokenmap_blob)
 
     @tokenmap.setter
@@ -116,7 +118,7 @@ class NodeBackup(object):
 
         # otherwise set it from the schema blob
         if self.cached_schema_blob is None:
-            self.cached_schema_blob = self._storage.storage_driver.get_blob(self._schema_path)
+            self.cached_schema_blob = self._blob(self._schema_path)
 
         if self.cached_schema_blob is not None:
             dt = self._storage.storage_driver.get_object_datetime(self.cached_schema_blob)
@@ -135,7 +137,7 @@ class NodeBackup(object):
 
         # otherwise set it from the manifest blob
         if self.cached_manifest_blob is None:
-            self.cached_manifest_blob = self._storage.storage_driver.get_blob(self._manifest_path)
+            self.cached_manifest_blob = self._blob(self._manifest_path)
 
         if self.cached_manifest_blob is not None:
             dt = self._storage.storage_driver.get_object_datetime(self.cached_manifest_blob)
@@ -165,7 +167,7 @@ class NodeBackup(object):
         return self.data_path / keyspace / columnfamily
 
     def exists(self):
-        return self._storage.storage_driver.get_blob(self.schema_path) is not None
+        return self._blob(self.schema_path) is not None
 
     def size(self):
         return sum(

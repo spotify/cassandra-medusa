@@ -1,12 +1,3 @@
-# -*- coding: utf-8 -*-
-# Copyright 2018 Spotify AB
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,9 +6,11 @@
 
 import logging
 import sys
+import shlex
 import traceback
 
 from medusa.storage import Storage
+from medusa.cassandra_utils import Cassandra
 
 
 def update_backup_index(storage, node_backup):
@@ -38,7 +31,17 @@ def build_indices(config, noop):
     """
     try:
         storage = Storage(config=config.storage)
-        all_backups = storage.discover_node_backups()
+        is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
+        all_backups = []
+        if is_ccm != 1:
+            cassandra = Cassandra(config.cassandra)
+            with cassandra.new_session() as cql_session:
+                tokenmap = cql_session.tokenmap()
+            for fqdn in tokenmap.keys():
+                logging.info("processing {}".format(fqdn))
+                all_backups = all_backups + list(storage.discover_node_backups(fqdn=fqdn))
+        else:
+            all_backups = list(storage.discover_node_backups())
         latest_node_backups = dict()
 
         if noop:
