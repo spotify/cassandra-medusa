@@ -42,7 +42,7 @@ def cleanup_storage(storage_provider):
         if os.path.isdir(os.path.join("/tmp", "medusa_it_bucket")):
             shutil.rmtree(os.path.join("/tmp", "medusa_it_bucket"))
         os.makedirs(os.path.join("/tmp", "medusa_it_bucket"))
-    elif storage_provider == "google_storage":
+    elif storage_provider == "google_storage" or storage_provider.find("s3") == 0:
         storage = Storage(config=world.config.storage)
         objects = storage.storage_driver.list_objects()
         for obj in objects:
@@ -95,6 +95,18 @@ def i_am_using_storage_provider(self, storage_provider):
             'fqdn': 'localhost',
             'api_key_or_username': '',
             'api_secret_or_password': '',
+            'base_path': '/tmp'
+        }
+    elif storage_provider.startswith("s3"):
+        config['storage'] = {
+            'host_file_separator': ',',
+            'bucket_name': 'tlp-medusa-dev',
+            'key_file': '~/.aws/credentials',
+            'storage_provider': storage_provider,
+            'fqdn': 'localhost',
+            'api_key_or_username': '',
+            'api_secret_or_password': '',
+            'api_profile': 'default',
             'base_path': '/tmp'
         }
 

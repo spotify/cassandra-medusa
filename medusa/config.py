@@ -26,7 +26,7 @@ StorageConfig = collections.namedtuple('StorageConfig',
                                        ['bucket_name', 'key_file', 'prefix', 'fqdn',
                                         'host_file_separator', 'storage_provider',
                                         'api_key_or_username', 'api_secret_or_password', 'base_path',
-                                        'max_backup_age', 'max_backup_count'])
+                                        'max_backup_age', 'max_backup_count', 'api_profile'])
 CassandraConfig = collections.namedtuple('CassandraConfig',
                                          ['start_cmd', 'stop_cmd',
                                           'config_file', 'cql_username', 'cql_password',
@@ -46,7 +46,8 @@ def load_config(args, config_file):
     config['storage'] = {
         'host_file_separator': ',',
         'max_backup_age': 0,
-        'max_backup_count': 0
+        'max_backup_count': 0,
+        'api_profile': 'default'
     }
 
     config['cassandra'] = {
@@ -84,7 +85,8 @@ def load_config(args, config_file):
                                args['prefix'], args['fqdn'],
                                args['host_file_separator'], args['storage_provider'],
                                args['api_key_or_username'], args['api_secret_or_password'], args['base_path'],
-                               args['max_backup_age'], args['max_backup_count']))
+                               args['max_backup_age'], args['max_backup_count'],
+                               args['api_profile']))
         if value is not None
     }})
 

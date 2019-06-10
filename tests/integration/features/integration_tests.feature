@@ -25,7 +25,8 @@ Feature: Integration tests
 
         Examples:
         | Storage   |
-        | local      |
+        | local     |
+#        | s3_us_west_oregon     |
 #        | google_storage      |
 
     Scenario Outline: Perform a backup and verify its index
@@ -47,6 +48,7 @@ Feature: Integration tests
         Examples:
         | Storage   |
         | local      |
+#        | s3_us_west_oregon     |
 #        | google_storage      |
 
     Scenario Outline: Perform a backup and verify the latest backup is updated correctly
@@ -66,6 +68,7 @@ Feature: Integration tests
         Examples:
         | Storage   |
         | local      |
+#        | s3_us_west_oregon     |
 #        | google_storage      |        
 
     Scenario Outline: Perform a fake backup (by just writing an index) on different days and verify reports are correct
@@ -213,6 +216,7 @@ Scenario Outline: Perform an incremental backup, verify it, and restore it
         | Storage   |
         | local      |
 #        | google_storage      |
+#        | s3_us_west_oregon      |
 
 Scenario Outline: Run a purge on backups
         Given I have a fresh ccm cluster running named "scenario9"
@@ -252,3 +256,4 @@ Scenario Outline: Run a purge on backups
         | Storage   |
         | local      |
 #        | google_storage      |
+#        | s3_us_west_oregon      |

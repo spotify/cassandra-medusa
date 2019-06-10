@@ -118,7 +118,7 @@ def cleanup_obsolete_files(storage, fqdn):
         logging.debug("  - [{}] exists in storage, but not in manifest".format(path))
         obj = storage.storage_driver.get_blob(path)
         nb_objects_purged += 1
-        total_purged_size += obj.size
+        total_purged_size += int(obj.size)
         storage.storage_driver.delete_object(obj)
     return (nb_objects_purged, total_purged_size)
 
