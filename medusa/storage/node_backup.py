@@ -15,6 +15,7 @@
 import json
 import logging
 import pathlib
+import traceback
 
 
 class NodeBackup(object):
@@ -57,6 +58,8 @@ class NodeBackup(object):
     def _blob(self, path):
         blob = self._cached_blobs.get(path)
         if blob is None:
+            logging.debug("Blob {} was not found in cache.".format(path))
+            logging.debug("Stacktrace: {}".format(self.get_stacktrace()))
             blob = self._storage.storage_driver.get_blob(str(path))
             self._cached_blobs[path] = blob
         return blob
@@ -88,7 +91,7 @@ class NodeBackup(object):
     @property
     def tokenmap(self):
         if self.cached_tokenmap_blob is None:
-            self.cached_tokenmap_blob = self._storage.storage_driver.get_blob(self.tokenmap_path)
+            self.cached_tokenmap_blob = self._blob(self.tokenmap_path)
         return self._storage.storage_driver.read_blob_as_string(self.cached_tokenmap_blob)
 
     @tokenmap.setter
@@ -116,7 +119,7 @@ class NodeBackup(object):
 
         # otherwise set it from the schema blob
         if self.cached_schema_blob is None:
-            self.cached_schema_blob = self._storage.storage_driver.get_blob(self._schema_path)
+            self.cached_schema_blob = self._blob(self._schema_path)
 
         if self.cached_schema_blob is not None:
             dt = self._storage.storage_driver.get_object_datetime(self.cached_schema_blob)
@@ -135,7 +138,7 @@ class NodeBackup(object):
 
         # otherwise set it from the manifest blob
         if self.cached_manifest_blob is None:
-            self.cached_manifest_blob = self._storage.storage_driver.get_blob(self._manifest_path)
+            self.cached_manifest_blob = self._blob(self._manifest_path)
 
         if self.cached_manifest_blob is not None:
             dt = self._storage.storage_driver.get_object_datetime(self.cached_manifest_blob)
@@ -165,7 +168,7 @@ class NodeBackup(object):
         return self.data_path / keyspace / columnfamily
 
     def exists(self):
-        return self._storage.storage_driver.get_blob(self.schema_path) is not None
+        return self._blob(self.schema_path) is not None
 
     def size(self):
         return sum(
@@ -179,3 +182,10 @@ class NodeBackup(object):
             len(section['objects'])
             for section in json.loads(self.manifest)
         )
+
+    def get_stacktrace(self):
+        try:
+            raise IOError('Stacktrace:')
+        except IOError as e:
+            stack_trace = ''.join(traceback.format_exception(None, e, e.__traceback__))
+            return stack_trace
