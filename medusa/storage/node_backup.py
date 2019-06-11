@@ -15,6 +15,7 @@
 import json
 import logging
 import pathlib
+import traceback
 
 
 class NodeBackup(object):
@@ -42,7 +43,6 @@ class NodeBackup(object):
                 )
         self._cached_blobs = {pathlib.Path(blob.name): blob
                               for blob in preloaded_blobs}
-        logging.debug("Cached blobs : {}".format(self._cached_blobs.keys()))
         self.cached_manifest = None
         self.cached_manifest_blob = manifest_blob
         self.cached_schema_blob = schema_blob
@@ -58,7 +58,8 @@ class NodeBackup(object):
     def _blob(self, path):
         blob = self._cached_blobs.get(path)
         if blob is None:
-            logging.debug("blob {} was not found in cache".format(path))
+            logging.debug("Blob {} was not found in cache.".format(path))
+            logging.debug("Stacktrace: {}".format(self.get_stacktrace()))
             blob = self._storage.storage_driver.get_blob(str(path))
             self._cached_blobs[path] = blob
         return blob
@@ -181,3 +182,10 @@ class NodeBackup(object):
             len(section['objects'])
             for section in json.loads(self.manifest)
         )
+
+    def get_stacktrace(self):
+        try:
+            raise IOError('Stacktrace:')
+        except IOError as e:
+            stack_trace = ''.join(traceback.format_exception(None, e, e.__traceback__))
+            return stack_trace
