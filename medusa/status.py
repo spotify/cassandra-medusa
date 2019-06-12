@@ -14,7 +14,12 @@
 # limitations under the License.
 import logging
 import sys
+from datetime import datetime
+
 from medusa.storage import Storage, format_bytes_str
+
+
+TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
 def status(config, backup_name):
@@ -31,12 +36,14 @@ def status(config, backup_name):
     else:
         print('{.name} [Incomplete!]'.format(cluster_backup))
 
+    started = datetime.fromtimestamp(cluster_backup.started).strftime(TIMESTAMP_FORMAT)
     if cluster_backup.finished is None:
-        print('- Started: {0.started:%Y-%m-%d %H:%M:%S}, '
-              'Finished: never'.format(cluster_backup))
+        print('- Started: {}, '
+              'Finished: never'.format(started))
     else:
-        print('- Started: {0.started:%Y-%m-%d %H:%M:%S}, '
-              'Finished: {0.finished:%Y-%m-%d %H:%M:%S}'.format(cluster_backup))
+        finished = datetime.fromtimestamp(cluster_backup.finished).strftime(TIMESTAMP_FORMAT)
+        print('- Started: {}, '
+              'Finished: {}'.format(started, finished))
 
     print('- {0} nodes completed, '
           '{1} nodes incomplete, '
