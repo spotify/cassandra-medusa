@@ -19,6 +19,7 @@ import medusa.index
 import medusa.listing
 import medusa.report_latest
 import medusa.restore_node
+import medusa.status
 import medusa.verify
 
 from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, _namedtuple_from_dict
@@ -147,6 +148,11 @@ def _i_can_see_the_backup_named_backupname_when_i_list_the_backups(self, backup_
             found = True
 
     assert found is True
+
+
+@step('I can see the backup status for "([^"]*)" when I run the status command')
+def _i_can_see_backup_status_when_i_run_the_status_command(self, backup_name):
+    medusa.status.status(config=world.config, backup_name=backup_name)
 
 
 @step(r'I can see no backups when I list the backups')

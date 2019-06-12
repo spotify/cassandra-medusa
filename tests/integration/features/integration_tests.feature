@@ -12,6 +12,7 @@ Feature: Integration tests
         And run a "ccm node1 nodetool flush" command
         And I perform a backup of the node named "first_backup"
         Then I can see the backup named "first_backup" when I list the backups
+        And I can see the backup status for "first_backup" when I run the status command
         And the backup index exists
         And the backup named "first_backup" has 2 SSTables for the "test" table in keyspace "medusa"
         And I can verify the backup named "first_backup" successfully
