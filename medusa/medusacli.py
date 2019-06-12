@@ -143,12 +143,14 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
               default=False, is_flag=True)
 @click.option('--keep-auth', help='Keep system_auth keyspace as found on the node',
               default=False, is_flag=True)
+@click.option('--seeds', help='Nodes to wait for after downloading backup but before starting C*',
+              default=None)
 @pass_MedusaConfig
-def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth):
+def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds):
     """
     Restore single Cassandra node
     """
-    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth)
+    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds)
 
 
 @cli.command()
