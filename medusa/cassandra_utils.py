@@ -209,7 +209,9 @@ class Cassandra(object):
             result = subprocess.run(["systemctl", "--version"], stdout=PIPE, stderr=PIPE)
             logging.debug("This server has systemd: {}".format(result.returncode == 0))
             return result.returncode == 0
-        except FileNotFoundError:
+        except (AttributeError, FileNotFoundError):
+            # AttributeError is thrown when subprocess.run is not found, which happens on Trusty
+            # Trusty doesn't have systemd, so the semantics of this code still hold
             logging.debug("This server has systemd: False")
             return False
 

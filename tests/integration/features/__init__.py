@@ -183,7 +183,8 @@ def _i_can_verify_the_backup_named_successfully(self, backup_name):
 
 @step(r'I restore the backup named "([^"]*)"')
 def _i_restore_the_backup_named(self, backup_name):
-    medusa.restore_node.restore_node(world.config, Path("/tmp"), backup_name, in_place=True, keep_auth=False)
+    medusa.restore_node.restore_node(world.config, Path("/tmp"), backup_name,
+                                     in_place=True, keep_auth=False, seeds=None)
 
 
 @step(r'I have "([^"]*)" rows in the "([^"]*)" table')
