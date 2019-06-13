@@ -39,8 +39,6 @@ class GSUtil(object):
         self._env = dict(os.environ, CLOUDSDK_CONFIG=self._gcloud_config.name)
         cmd = ['gcloud', 'auth', 'activate-service-account',
                '--key-file={}'.format(os.path.expanduser(self._config.key_file))]
-        logging.debug('Authenticating gcloud with {}'.format(self._config.key_file))
-        logging.debug(self._env)
         subprocess.check_call(cmd,
                               env=self._env,
                               stdout=subprocess.DEVNULL,
