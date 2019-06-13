@@ -50,8 +50,10 @@ class RestoreNodeTest(unittest.TestCase):
         }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
+
             cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-            ssh=None
+            ssh=None,
+            restore=None
         )
 
         self.storage = Storage(config=self.config.storage)

@@ -90,6 +90,8 @@ class AbstractStorage(abc.ABC):
 
     def get_blob_content_as_string(self, path):
         blob = self.get_blob(str(path))
+        if blob is None:
+            return None
         return self.read_blob_as_string(blob)
 
     def get_blob_content_as_bytes(self, path):

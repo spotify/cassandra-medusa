@@ -34,6 +34,7 @@ class NodeBackup(object):
         self._tokenmap_path = self._meta_path / 'tokenmap.json'
         self._schema_path = self._meta_path / 'schema.cql'
         self._manifest_path = self._meta_path / 'manifest.json'
+        self._restore_verify_query_path = self._meta_path / 'restore_verify_query.json'
 
         if preloaded_blobs is None:
             preloaded_blobs = []
@@ -109,6 +110,18 @@ class NodeBackup(object):
     @schema.setter
     def schema(self, schema):
         self._storage.storage_driver.upload_blob_from_string(self.schema_path, schema)
+
+    @property
+    def restore_verify_query_path(self):
+        return self._restore_verify_query_path
+
+    @property
+    def restore_verify_query(self):
+        return self._storage.storage_driver.get_blob_content_as_string(self.restore_verify_query_path)
+
+    @restore_verify_query.setter
+    def restore_verify_query(self, restore_verify_query):
+        self._storage.storage_driver.upload_blob_from_string(self.restore_verify_query_path, restore_verify_query)
 
     @property
     def started(self):

@@ -31,8 +31,9 @@ CassandraConfig = collections.namedtuple('CassandraConfig',
                                           'config_file', 'cql_username', 'cql_password',
                                           'check_running', 'is_ccm'])
 SSHConfig = collections.namedtuple('SSHConfig', ['username', 'key_file'])
+RestoreConfig = collections.namedtuple('RestoreConfig', ['health_check'])
 MedusaConfig = collections.namedtuple('MedusaConfig',
-                                      ['storage', 'cassandra', 'ssh'])
+                                      ['storage', 'cassandra', 'ssh', 'restore'])
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
@@ -56,6 +57,10 @@ def load_config(args, config_file):
     config['ssh'] = {
         'username': os.environ.get('USER') or '',
         'key_file': ''
+    }
+
+    config['restore'] = {
+        'health_check': 'cql'
     }
 
     if config_file:
@@ -86,10 +91,17 @@ def load_config(args, config_file):
         if value is not None
     }})
 
+    config.read_dict({'restore': {
+        key: value
+        for key, value in zip(RestoreConfig._fields, ([args['health_check']]))
+        if value is not None
+    }})
+
     medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
         ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
+        restore=_namedtuple_from_dict(RestoreConfig, config['restore'])
     )
 
     for field in ['bucket_name', 'storage_provider']:

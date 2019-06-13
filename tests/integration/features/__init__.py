@@ -107,7 +107,8 @@ def i_am_using_storage_provider(self, storage_provider):
     world.config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
-        ssh=None
+        ssh=None,
+        restore=None
     )
     cleanup_storage(storage_provider)
 
@@ -135,7 +136,7 @@ def _i_run_a_whatever_command(self, command):
 
 @step(r'I perform a backup of the node named "([^"]*)"')
 def _i_perform_a_backup_of_the_node_named_backupname(self, backup_name):
-    medusa.backup.main(world.config, backup_name, None)
+    medusa.backup.main(world.config, backup_name, None, None)
 
 
 @step(r'I can see the backup named "([^"]*)" when I list the backups')
@@ -183,8 +184,8 @@ def _i_can_verify_the_backup_named_successfully(self, backup_name):
 
 @step(r'I restore the backup named "([^"]*)"')
 def _i_restore_the_backup_named(self, backup_name):
-    medusa.restore_node.restore_node(world.config, Path("/tmp"), backup_name,
-                                     in_place=True, keep_auth=False, seeds=None)
+    medusa.restore_node.restore_node(world.config, Path("/tmp"), backup_name, in_place=True, keep_auth=False,
+                                     seeds=None, verify=None)
 
 
 @step(r'I have "([^"]*)" rows in the "([^"]*)" table')
