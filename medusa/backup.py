@@ -43,7 +43,7 @@ def url_to_path(url):
 def generate_md5_hash(src, block_size=BLOCK_SIZE_BYTES):
 
     checksum = hashlib.md5()
-    with open(src, 'rb') as f:
+    with open(str(src), 'rb') as f:
         # Incrementally read data and update the digest
         while True:
             read_data = f.read(block_size)
