@@ -5,7 +5,7 @@ set -e
 display_usage() {
   echo
   echo "Sets up restores with Medusa. Only needed when restoring to a different Hardware" >&2
-  echo "Usage: $0 -p GCP_PROJECT -b GCP_BUCKET --restore-role RESTORE_ROLE --source-role SOURCE_ROLE --source-dc SOURCE_DC --hosts HOSTS [-f RESTORE_TEST_CLUSTER_FREQUENCY] [-a SERVICE_ACCOUNT_NAME] [--local-hecuba]" >&2
+  echo "Usage: $0 -p/--project GCP_PROJECT -b/--bucket GCP_BUCKET --restore-role RESTORE_ROLE --source-role SOURCE_ROLE --source-dc SOURCE_DC --hosts HOSTS [-f/--restore-test-frequency RESTORE_TEST_CLUSTER_FREQUENCY] [-a/--service-acount SERVICE_ACCOUNT_NAME] [--local-hecuba]" >&2
   echo
   echo "With:"
   echo "- GCP_PROJECT --> project owning the bucket with backups"
@@ -36,7 +36,7 @@ do
       shift # past argument
       shift # past value
       ;;
-    -b|--bucket-name)
+    -b|--bucket)
       BUCKET_NAME="$2"
       shift # past argument
       shift # past value
