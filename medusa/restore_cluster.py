@@ -105,7 +105,8 @@ class RestoreJob(object):
             err_msg = '{} is not a directory'.format(temp_dir)
             logging.error(err_msg)
             raise Exception(err_msg)
-        self.temp_dir = temp_dir
+        self.temp_dir = temp_dir  # temporary files
+        self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.host_map = {}  # Map of backup host/target host for the restore process
         self.bypass_checks = bypass_checks
 
@@ -174,8 +175,7 @@ class RestoreJob(object):
         # invoke `nohup medusa-wrapper #{command}` on each target host
         # wait for exit on each
         logging.info("Starting cluster restore...")
-        work = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
-        logging.info('Working directory for this execution: {}'.format(work))
+        logging.info('Working directory for this execution: {}'.format(self.work_dir))
         for source, target in self.host_map.items():
             logging.info("About to restore on {} using {} as backup source".format(target, source))
 
@@ -194,17 +194,17 @@ class RestoreJob(object):
         stop_remotes = []
         logging.info("Stopping Cassandra on all nodes")
         for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
-            if self.check_cassandra_running(target, work):
+            if self.check_cassandra_running(target):
                 logging.info("Cassandra is running on {}. Stopping it...".format(target))
-                client, connect_args = self._connect(target, work)
-                command = 'nohup sh -c "{}"'.format(self.config.cassandra.stop_cmd)
+                client, connect_args = self._connect(target)
+                command = 'sh -c "{}"'.format(self.config.cassandra.stop_cmd)
                 stop_remotes.append(self._run(target, client, connect_args, command))
             else:
                 logging.info("Cassandra is not running on {}.".format(target))
 
         # wait for all nodes to stop
         logging.info("Waiting for all nodes to stop...")
-        finished, broken = self._wait_for(work, stop_remotes)
+        finished, broken = self._wait_for(stop_remotes)
         if len(broken) > 0:
             err_msg = "Some Cassandras failed to stop. Exiting"
             logging.error(err_msg)
@@ -220,12 +220,12 @@ class RestoreJob(object):
         for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
             logging.info('Restoring data on {}...'.format(target))
             seeds = None if target in target_seeds else target_seeds
-            remote = self._trigger_restore(target, source, work, seeds=seeds)
+            remote = self._trigger_restore(target, source, seeds=seeds)
             remotes.append(remote)
 
         # wait for the restores
         logging.info("Starting to wait for the nodes to restore")
-        finished, broken = self._wait_for(work, remotes)
+        finished, broken = self._wait_for(remotes)
         if len(broken) > 0:
             err_msg = "Some nodes failed to restore. Exiting"
             logging.error(err_msg)
@@ -237,8 +237,8 @@ class RestoreJob(object):
             hosts = list(map(lambda r: r.target, remotes))
             verify_restore(hosts, self.cluster_backup.complete_nodes(), self.config)
 
-    def _trigger_restore(self, target, source, work, seeds=None):
-        client, connect_args = self._connect(target, work)
+    def _trigger_restore(self, target, source, seeds=None):
+        client, connect_args = self._connect(target)
 
         # TODO: If this command fails, the node is currently still marked as finished and not as broken.
         in_place_option = "--in-place" if self.in_place else ""
@@ -249,16 +249,17 @@ class RestoreJob(object):
         verify_option = "--no-verify"
         command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
                   '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup}"'\
-            .format(work=work,
+            .format(work=self.work_dir,
                     fqdn=source,
                     in_place=in_place_option,
                     keep_auth=keep_auth_option,
                     seeds=seeds_option,
                     verify=verify_option,
                     backup=self.cluster_backup.name)
+        logging.debug("Restoring on node {} with the following command {}".format(target, command))
         return self._run(target, client, connect_args, command)
 
-    def _wait_for(self, work, remotes):
+    def _wait_for(self, remotes):
         finished, broken = [], []
 
         while True:
@@ -285,7 +286,7 @@ class RestoreJob(object):
                         broken.append(remote)
                         logging.error("Command failed on {} : ".format(remote.target))
                         try:
-                            stderr = self.read_file(remote, work / "stderr")
+                            stderr = self.read_file(remote, self.work_dir / "stderr")
                         except IOError:
                             stderr = 'There was no stderr file'
                         logging.error(stderr)
@@ -305,7 +306,7 @@ class RestoreJob(object):
                     client.connect(**remote.connect_args)
 
                     # TODO: check pid to exist before assuming medusa-wrapper to pick it up
-                    command = 'cd {work}; medusa-wrapper'.format(work=work)
+                    command = 'cd {work}; medusa-wrapper'.format(work=self.work_dir)
                     stdin, stdout, stderr = client.exec_command(command)
                     stdin.close()
                     stdout.close()
@@ -314,7 +315,7 @@ class RestoreJob(object):
                                         stdout.channel)
 
         if len(broken) > 0:
-            logging.info("Command failed on the following nodes :")
+            logging.info("Command failed on the following nodes:")
             for remote in broken:
                 logging.info(remote.target)
         else:
@@ -322,7 +323,7 @@ class RestoreJob(object):
 
         return finished, broken
 
-    def _connect(self, target, work):
+    def _connect(self, target):
         logging.debug("Connecting to {}".format(target))
 
         pkey = None
@@ -344,10 +345,11 @@ class RestoreJob(object):
         logging.debug("Successfully connected to {}".format(target))
         sftp = client.open_sftp()
         try:
-            sftp.mkdir(str(work))
+            sftp.mkdir(str(self.work_dir))
         except OSError:
-            err_msg = 'Creating working directory {} on {} failed. It probably exists.'.format(str(work), target)
-            logging.error(err_msg)
+            err_msg = 'Working directory {} on {} failed.' \
+                      'Folder might exist already, ignoring exception'.format(str(self.work_dir), target)
+            logging.debug(err_msg)
         except Exception as ex:
             err_msg = 'Creating working directory on {} failed: {}'.format(target, str(ex))
             logging.error(err_msg)
@@ -364,7 +366,7 @@ class RestoreJob(object):
 
     def _run(self, target, client, connect_args, command):
         stdin, stdout, stderr = client.exec_command(command)
-        logging.debug('Running {} remotely on {}'.format(command, connect_args['hostname']))
+        logging.debug('Running \'{}\' remotely on {}'.format(command, connect_args['hostname']))
         stdin.close()
         stdout.close()
         stderr.close()
@@ -375,8 +377,8 @@ class RestoreJob(object):
             with ftp_client.file(remotepath.as_posix(), 'r') as f:
                 return str(f.read(), 'utf-8')
 
-    def check_cassandra_running(self, host, work):
-        client, connect_args = self._connect(host, work)
-        command = 'nohup sh -c "{}"'.format(self.config.cassandra.check_running)
+    def check_cassandra_running(self, host):
+        client, connect_args = self._connect(host)
+        command = 'sh -c "{}"'.format(self.config.cassandra.check_running)
         remote = self._run(host, client, connect_args, command)
         return remote.channel.recv_exit_status() == 0
