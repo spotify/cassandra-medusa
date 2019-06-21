@@ -9,7 +9,7 @@ import sys
 import shlex
 import traceback
 
-from medusa.storage import Storage
+import medusa.storage
 from medusa.cassandra_utils import Cassandra
 
 
@@ -30,7 +30,7 @@ def build_indices(config, noop):
     For all node backups found this way, it will find the latest one per node and update index accordingly.
     """
     try:
-        storage = Storage(config=config.storage)
+        storage = medusa.storage.Storage(config=config.storage)
         is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
         all_backups = []
         if is_ccm != 1:
@@ -80,6 +80,9 @@ def add_backup_start_to_index(storage, node_backup):
         node_backup.name, node_backup.fqdn, node_backup.started
     )
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.started))
+    if node_backup.is_incremental is True:
+        dst = 'index/backup_index/{}/incremental_{}'.format(node_backup.name, node_backup.fqdn)
+        storage.storage_driver.upload_blob_from_string(dst, 'incremental')
 
 
 def add_backup_finish_to_index(storage, node_backup):
@@ -96,6 +99,14 @@ def set_latest_backup_in_index(storage, node_backup):
     storage.storage_driver.upload_blob_from_string(dst, node_backup.tokenmap)
     dst = 'index/latest_backup/{}/backup_name.txt'.format(node_backup.fqdn)
     storage.storage_driver.upload_blob_from_string(dst, node_backup.name)
+
+
+def clean_backup_from_index(storage, node_backup):
+    index_files = storage.storage_driver.list_objects("index/backup_index/{}".format(node_backup.name))
+    for obj in index_files:
+        if "_" + node_backup.fqdn in obj.name:
+            logging.debug("Cleaning from backup index: {}".format(obj.name))
+            storage.storage_driver.delete_object(obj)
 
 
 def index_exists(storage):

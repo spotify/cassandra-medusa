@@ -22,6 +22,7 @@ import pathlib
 
 from libcloud.storage.providers import Provider
 
+import medusa.index
 from medusa.storage.cluster_backup import ClusterBackup
 from medusa.storage.node_backup import NodeBackup
 from medusa.storage.google_storage import GoogleStorage
@@ -42,6 +43,7 @@ class Storage(object):
         self._config = config
         self._prefix = pathlib.Path(config.prefix or '.')
         self.storage_driver = self._connect_storage()
+        self.storage_provider = self._config.storage_provider
 
     def _connect_storage(self):
         if self._config.storage_provider == Provider.GOOGLE_STORAGE:
@@ -55,11 +57,12 @@ class Storage(object):
     def config(self):
         return self._config
 
-    def get_node_backup(self, *, fqdn, name):
+    def get_node_backup(self, *, fqdn, name, incremental_mode=False):
         return NodeBackup(
             storage=self,
             name=name,
-            fqdn=fqdn
+            fqdn=fqdn,
+            incremental_mode=incremental_mode
         )
 
     @staticmethod
@@ -125,6 +128,7 @@ class Storage(object):
                 tokenmap_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'tokenmap')
                 started_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'started')
                 finished_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'finished')
+                incremental_blob = self.lookup_blob(blobs_by_backup, backup_name, tokenmap_fqdn, 'incremental')
                 if started_blob is not None:
                     started_timestamp = self.get_timestamp_from_blob_name(started_blob.name)
                 else:
@@ -137,7 +141,8 @@ class Storage(object):
             nb = NodeBackup(storage=self, fqdn=tokenmap_fqdn, name=backup_name,
                             manifest_blob=manifest_blob, schema_blob=schema_blob, tokenmap_blob=tokenmap_blob,
                             started_timestamp=started_timestamp, started_blob=started_blob,
-                            finished_timestamp=finished_timestamp, finished_blob=finished_blob)
+                            finished_timestamp=finished_timestamp, finished_blob=finished_blob,
+                            incremental_blob=incremental_blob)
             node_backups.append(nb)
 
         # once we have all the backups, we sort them by their start time. we get oldest ones first
@@ -226,7 +231,11 @@ class Storage(object):
         index_path = 'index/latest_backup/{}/backup_name.txt'.format(fqdn)
         try:
             latest_backup_name = self.storage_driver.get_blob_content_as_string(index_path)
-            node_backup = NodeBackup(storage=self, fqdn=fqdn, name=latest_backup_name)
+            incremental_blob = self.storage_driver.get_blob('{}/{}/meta/incremental'.format(fqdn, latest_backup_name))
+            node_backup = NodeBackup(storage=self,
+                                     fqdn=fqdn,
+                                     name=latest_backup_name,
+                                     incremental_blob=incremental_blob)
             if not node_backup.exists():
                 logging.warning('Latest backup points to non-existent backup. Deleting the marker')
                 self.remove_latest_backup_marker(fqdn)
@@ -266,16 +275,7 @@ class Storage(object):
         meta folder does not exist.
         We are checking and deleting each blob separately because there is no easy way to list and get the objects.
         """
-        if node_backup.cached_tokenmap_blob is not None:
-            self.storage_driver.delete_object(node_backup.cached_tokenmap_blob)
-        if node_backup.cached_schema_blob is not None:
-            self.storage_driver.delete_object(node_backup.cached_schema_blob)
-        if node_backup.cached_manifest_blob is not None:
-            self.storage_driver.delete_object(node_backup.cached_manifest_blob)
-        if node_backup.started_blob is not None:
-            self.storage_driver.delete_object(node_backup.started_blob)
-        if node_backup.finished_blob is not None:
-            self.storage_driver.delete_object(node_backup.finished_blob)
+        medusa.index.clean_backup_from_index(self, node_backup)
 
     def remove_latest_backup_marker(self, fqdn):
         """

@@ -26,6 +26,7 @@ import medusa.config
 import medusa.download
 import medusa.index
 import medusa.listing
+import medusa.purge
 import medusa.report_latest
 import medusa.restore_cluster
 import medusa.restore_node
@@ -75,13 +76,14 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Check for staggering initial backups for duration seconds')
 @click.option('--restore-verify-query', default=None)
+@click.option('--mode', default="full", type=click.Choice(['full', 'incremental']))
 @pass_MedusaConfig
-def backup(medusaconfig, backup_name, stagger, restore_verify_query):
+def backup(medusaconfig, backup_name, stagger, restore_verify_query, mode):
     """
     Backup Cassandra
     """
     stagger_time = datetime.timedelta(seconds=stagger) if stagger else None
-    medusa.backup.main(medusaconfig, backup_name, stagger_time, restore_verify_query)
+    medusa.backup.main(medusaconfig, backup_name, stagger_time, restore_verify_query, mode)
 
 
 @cli.command()
@@ -209,3 +211,14 @@ def build_index(medusa_config, noop):
     Builds indices for all present backups and prints them in logs. Might upload to buckets if asked to.
     """
     medusa.index.build_indices(medusa_config, noop)
+
+
+@cli.command()
+@pass_MedusaConfig
+def purge(medusaconfig):
+    """
+    Delete obsolete backups
+    """
+    medusa.purge.main(medusaconfig,
+                      max_backup_age=int(medusaconfig.storage.max_backup_age),
+                      max_backup_count=int(medusaconfig.storage.max_backup_count))

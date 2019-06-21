@@ -53,4 +53,8 @@ class GoogleStorage(AbstractStorage):
         if "gs://" in os.fspath(path):
             return path
         else:
-            return "gs://{}".format(self.bucket.name)
+            return "gs://{}/{}".format(self.bucket.name, path)
+
+    def get_cache_path(self, path):
+        # Full path for files that will be taken from previous backups
+        return self.get_download_path(path)

@@ -17,6 +17,7 @@ from cassandra.cluster import Cluster
 import medusa.backup
 import medusa.index
 import medusa.listing
+import medusa.purge
 import medusa.report_latest
 import medusa.restore_node
 import medusa.status
@@ -134,9 +135,9 @@ def _i_run_a_whatever_command(self, command):
     os.popen(command).read()
 
 
-@step(r'I perform a backup of the node named "([^"]*)"')
-def _i_perform_a_backup_of_the_node_named_backupname(self, backup_name):
-    medusa.backup.main(world.config, backup_name, None, None)
+@step(r'I perform a backup in "([^"]*)" mode of the node named "([^"]*)"')
+def _i_perform_a_backup_of_the_node_named_backupname(self, backup_mode, backup_name):
+    medusa.backup.main(world.config, backup_name, None, None, backup_mode)
 
 
 @step(r'I can see the backup named "([^"]*)" when I list the backups')
@@ -149,6 +150,18 @@ def _i_can_see_the_backup_named_backupname_when_i_list_the_backups(self, backup_
             found = True
 
     assert found is True
+
+
+@step(r'I cannot see the backup named "([^"]*)" when I list the backups')
+def _i_cannot_see_the_backup_named_backupname_when_i_list_the_backups(self, backup_name):
+    storage = Storage(config=world.config.storage)
+    cluster_backups = storage.list_cluster_backups()
+    found = False
+    for backup in cluster_backups:
+        if backup.name == backup_name:
+            found = True
+
+    assert found is False
 
 
 @step('I can see the backup status for "([^"]*)" when I run the status command')
@@ -338,6 +351,48 @@ def _the_backup_index_does_not_exist(self):
 def _the_backup_index_exists(self):
     storage = Storage(config=world.config.storage)
     assert True is medusa.index.index_exists(storage)
+
+
+@step(r'I can see (\d+) SSTables? in the SSTable pool for the "([^"]*)" table in keyspace "([^"]*)"')
+def _i_can_see_nb_sstables_in_the_sstable_pool(self, nb_sstables, table_name, keyspace):
+    storage = Storage(config=world.config.storage)
+    path = os.path.join(world.config.storage.fqdn, "data", keyspace, table_name)
+    objects = storage.storage_driver.list_objects(path)
+    sstables = list(filter(lambda obj: '-Data.db' in obj.name, objects))
+    if len(sstables) != int(nb_sstables):
+        logging.error("{} SSTables : {}".format(len(sstables), sstables))
+        logging.error("Was expecting {} SSTables".format(nb_sstables))
+        assert len(sstables) == int(nb_sstables)
+
+
+@step(r'backup named "([^"]*)" has (\d+) files? in the manifest for the "([^"]*)" table in keyspace "([^"]*)"')
+def _backup_named_something_has_nb_files_in_the_manifest(self, backup_name, nb_files, table_name, keyspace):
+    storage = Storage(config=world.config.storage)
+    node_backups = storage.list_node_backups()
+    # Find the backup we're looking for
+    target_backup = list(filter(lambda backup: backup.name == backup_name, node_backups))[0]
+    # Parse its manifest
+    manifest = json.loads(target_backup.manifest)
+    for section in manifest:
+        if section['keyspace'] == keyspace and section['columnfamily'][:len(table_name)] == table_name:
+            if len(section['objects']) != int(nb_files):
+                logging.error("Was expecting {} files, got {}".format(nb_files, len(section['objects'])))
+                assert len(section['objects']) == int(nb_files)
+
+
+@step(r'verify fails on the backup named "([^"]*)"')
+def _verify_fails_on_the_backup_named(self, backup_name):
+    try:
+        medusa.verify.verify(world.config, backup_name)
+        raise AssertionError("Backup verification should have failed but didn't.")
+    except RuntimeError:
+        # This exception is required to be raised to validate the step
+        pass
+
+
+@step(r'I purge the backup history to retain only (\d+) backups')
+def _i_purge_the_backup_history_to_retain_only_nb_backups(self, backup_count):
+    medusa.purge.main(world.config, max_backup_count=int(backup_count))
 
 
 def connect_cassandra():

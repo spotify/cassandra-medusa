@@ -16,6 +16,7 @@
 import collections
 import json
 import logging
+import os
 import socket
 import subprocess
 import sys
@@ -40,7 +41,13 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
 
     storage = Storage(config=config.storage)
 
-    node_backup = storage.get_node_backup(fqdn=config.storage.fqdn, name=backup_name)
+    incremental_blob = storage.storage_driver.get_blob(
+        os.path.join(config.storage.fqdn, backup_name, 'meta', 'incremental'))
+
+    node_backup = storage.get_node_backup(
+        fqdn=config.storage.fqdn,
+        name=backup_name,
+        incremental_mode=True if incremental_blob is not None else False)
     if not node_backup.exists():
         logging.error('No such backup')
         sys.exit(1)

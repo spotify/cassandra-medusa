@@ -10,9 +10,10 @@ Feature: Integration tests
         And run a "ccm node1 nodetool flush" command
         And I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
-        And I perform a backup of the node named "first_backup"
+        And I perform a backup in "full" mode of the node named "first_backup"
         Then I can see the backup named "first_backup" when I list the backups
         And I can see the backup status for "first_backup" when I run the status command
+        And backup named "first_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
         And the backup index exists
         And the backup named "first_backup" has 2 SSTables for the "test" table in keyspace "medusa"
         And I can verify the backup named "first_backup" successfully
@@ -33,11 +34,11 @@ Feature: Integration tests
         And I create the "test" table in keyspace "medusa"
         When I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
-        And I perform a backup of the node named "second_backup"
+        And I perform a backup in "full" mode of the node named "second_backup"
         Then the backup index exists
         And I can see the backup index entry for "second_backup"
         And I can see the latest backup for "localhost" being called "second_backup"
-        Given I perform a backup of the node named "third_backup"
+        Given I perform a backup in "full" mode of the node named "third_backup"
         Then I can see the backup index entry for "second_backup"
         Then I can see the backup index entry for "third_backup"
         And I can see the latest backup for "localhost" being called "third_backup"
@@ -55,11 +56,11 @@ Feature: Integration tests
         Given I create the "test" table in keyspace "medusa"
         When I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
-        And I perform a backup of the node named "fourth_backup"
+        And I perform a backup in "full" mode of the node named "fourth_backup"
         And I can see the latest backup for "localhost" being called "fourth_backup"
         When I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
-        And I perform a backup of the node named "fifth_backup"
+        And I perform a backup in "full" mode of the node named "fifth_backup"
         And I can see the latest backup for "localhost" being called "fifth_backup"
 
         Examples:
@@ -115,8 +116,8 @@ Feature: Integration tests
         And I create the "test" table in keyspace "medusa"
         When I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
-        And I perform a backup of the node named "second_backup"
-        And I perform a backup of the node named "third_backup"
+        And I perform a backup in "full" mode of the node named "second_backup"
+        And I perform a backup in "full" mode of the node named "third_backup"
         And I truncate the backup index
         Then the backup index does not exist
         And there is no latest complete backup
@@ -138,7 +139,7 @@ Feature: Integration tests
         And I create the "test" table in keyspace "medusa"
         When I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
-        And I perform a backup of the node named "first_backup"
+        And I perform a backup in "full" mode of the node named "first_backup"
         When I truncate the backup folder
         Then the backup index exists
         And I can see no backups when I list the backups
@@ -155,7 +156,7 @@ Feature: Integration tests
         And I create the "test" table in keyspace "medusa"
         When I load "100" rows in the "medusa.test" table
         And run a "ccm node1 nodetool flush" command
-        And I perform a backup of the node named "first_backup"
+        And I perform a backup in "full" mode of the node named "first_backup"
         Then the backup index exists
         When I truncate the backup index
         Then the backup index does not exist
@@ -166,3 +167,88 @@ Feature: Integration tests
         | Storage   |
         | local      |
 # other storage providers than local won't work with this test
+
+Scenario Outline: Perform an incremental backup, verify it, and restore it
+        Given I have a fresh ccm cluster running named "scenario8"
+        And I am using "<Storage>" as storage provider
+        And I create the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup in "incremental" mode of the node named "first_backup"
+        Then I can see the backup named "first_backup" when I list the backups
+        And I can verify the backup named "first_backup" successfully
+        And backup named "first_backup" has 8 files in the manifest for the "test" table in keyspace "medusa"
+        And I can see 1 SSTable in the SSTable pool for the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        Then I have "200" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup in "incremental" mode of the node named "second_backup"
+        Then I can see 2 SSTables in the SSTable pool for the "test" table in keyspace "medusa"
+        And I can see the backup named "second_backup" when I list the backups
+        And I can see the backup status for "second_backup" when I run the status command
+        And I can verify the backup named "second_backup" successfully
+        And backup named "first_backup" has 8 files in the manifest for the "test" table in keyspace "medusa"
+        And backup named "second_backup" has 16 files in the manifest for the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        Then I have "300" rows in the "medusa.test" table
+        Given I perform a backup in "incremental" mode of the node named "third_backup"
+        Then I can see the backup named "third_backup" when I list the backups
+        And I can see the backup named "first_backup" when I list the backups
+        And I can see the backup named "second_backup" when I list the backups
+        And I can verify the backup named "third_backup" successfully
+        When I restore the backup named "second_backup"
+        Then I have "200" rows in the "medusa.test" table
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        Then I have "300" rows in the "medusa.test" table
+        Given I perform a backup in "incremental" mode of the node named "fourth_backup"
+        Then I can see the backup named "fourth_backup" when I list the backups
+        And I can see the backup named "first_backup" when I list the backups
+        And I can see the backup named "second_backup" when I list the backups
+        And I can see the backup named "third_backup" when I list the backups
+        And verify fails on the backup named "third_backup"
+
+        Examples:
+        | Storage   |
+        | local      |
+#        | google_storage      |
+
+Scenario Outline: Run a purge on backups
+        Given I have a fresh ccm cluster running named "scenario9"
+        And I am using "<Storage>" as storage provider
+        And I create the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup in "incremental" mode of the node named "first_backup"
+        And I perform a backup in "incremental" mode of the node named "second_backup"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And run a "ccm node1 nodetool compact medusa" command
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup in "incremental" mode of the node named "third_backup"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup in "incremental" mode of the node named "fourth_backup"
+        And run a "ccm node1 nodetool compact medusa" command
+        And I perform a backup in "incremental" mode of the node named "fifth_backup"
+        Then I can see the backup named "first_backup" when I list the backups
+        Then I can see the backup named "second_backup" when I list the backups
+        Then I can see the backup named "third_backup" when I list the backups
+        Then I can see the backup named "fourth_backup" when I list the backups
+        Then I can see the backup named "fifth_backup" when I list the backups
+        And I can verify the backup named "fifth_backup" successfully
+        When I purge the backup history to retain only 2 backups
+        Then I cannot see the backup named "first_backup" when I list the backups
+        Then I cannot see the backup named "second_backup" when I list the backups
+        Then I cannot see the backup named "third_backup" when I list the backups
+        Then I can see the backup named "fourth_backup" when I list the backups
+        Then I can see the backup named "fifth_backup" when I list the backups
+        And I can verify the backup named "fourth_backup" successfully
+        And I can verify the backup named "fifth_backup" successfully
+
+        Examples:
+        | Storage   |
+        | local      |
+#        | google_storage      |

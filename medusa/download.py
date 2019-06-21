@@ -30,7 +30,8 @@ def download_data(storageconfig, backup, destination):
         srcs = ['{}{}'.format(storage.storage_driver.get_path_prefix(backup.data_path), obj['path'])
                 for obj in section['objects']]
         dst.mkdir(parents=True)
-        storage.storage_driver.download_blobs(srcs, dst)
+        if len(srcs) > 0:
+            storage.storage_driver.download_blobs(srcs, dst)
 
     logging.info('Downloading the data...')
     storage.storage_driver.download_blobs(

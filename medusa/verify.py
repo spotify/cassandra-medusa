@@ -15,7 +15,6 @@
 import base64
 import json
 import logging
-import sys
 from medusa.storage import Storage
 
 
@@ -43,20 +42,24 @@ def validate_manifest(storage, node_backup):
             yield("  - [{}] Doesn't exists".format(obj['path']))
             continue
         if base64.b64decode(obj['MD5']).hex() != str(blob.hash) and obj['MD5'] != str(blob.hash):
-            logging.error("Expected {} got {}".format(base64.b64decode(obj['MD5']).hex(), blob.hash))
+            logging.error("Expected {} got {} for {}".format(base64.b64decode(obj['MD5']).hex(),
+                                                             blob.hash,
+                                                             obj['path']))
             yield("  - [{}] Wrong checksum".format(obj['path']))
             continue
         if obj['size'] != blob.size:
             yield("  - [{}] Wrong file size".format(obj['path']))
             continue
 
-    paths_in_manifest = {
-        "{}{}".format(storage.storage_driver.get_path_prefix(node_backup.data_path), obj['path'])
-        for obj in objects_in_manifest
-    }
-    paths_in_storage = set(data_objects.keys())
-    for path in paths_in_storage - paths_in_manifest:
-        yield("  - [{}] exists in storage, but not in manifest".format(path))
+    if node_backup.is_incremental is False:
+        # Only for full backups as incremental backups can have more files in data dir than in manifest
+        paths_in_manifest = {
+            "{}{}".format(storage.storage_driver.get_path_prefix(node_backup.data_path), obj['path'])
+            for obj in objects_in_manifest
+        }
+        paths_in_storage = set(data_objects.keys())
+        for path in paths_in_storage - paths_in_manifest:
+            yield("  - [{}] exists in storage, but not in manifest".format(path))
 
 
 def verify(config, backup_name):
@@ -66,7 +69,7 @@ def verify(config, backup_name):
         cluster_backup = storage.get_cluster_backup(backup_name)
     except KeyError:
         logging.error('No such backup')
-        sys.exit(1)
+        raise RuntimeError("Manifest validation failed")
 
     print('Validating {0.name} ...'.format(cluster_backup))
 
@@ -89,6 +92,6 @@ def verify(config, backup_name):
         print("- Manifest validation: Failed!")
         for error in consistency_errors:
             print(error)
-        sys.exit(1)
+        raise RuntimeError("Manifest validation failed")
     else:
         print("- Manifest validated: OK!!")

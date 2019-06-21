@@ -75,6 +75,9 @@ class AbstractStorage(abc.ABC):
         if isinstance(src, str) or isinstance(src, pathlib.Path):
             src = [src]
         for src_file in src:
+            if not isinstance(src, pathlib.Path):
+                src_file = pathlib.Path(src_file)
+            logging.info("Uploading {}".format(src_file))
             obj = self.driver.upload_object(os.fspath(src_file), container=self.bucket,
                                             object_name=str("{}/{}".format(dest, src_file.name)))
             manifest_objects.append(medusa.storage.ManifestObject(obj.name, obj.size, obj.hash))
@@ -121,7 +124,12 @@ class AbstractStorage(abc.ABC):
         return base64.b64decode(manifest_hash).hex() == str(object_hash) or manifest_hash == str(object_hash)
 
     def get_path_prefix(self, path):
-        return "{}/".format(path)
+        return ""
+
+    @abc.abstractmethod
+    def get_cache_path(self, path):
+        # Full path for files that will be taken from previous backups
+        pass
 
     def get_download_path(self, path):
         return path

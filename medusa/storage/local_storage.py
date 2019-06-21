@@ -45,3 +45,7 @@ class LocalStorage(AbstractStorage):
 
     def get_object_datetime(self, blob):
         return datetime.datetime.fromtimestamp(int(blob.extra["modify_time"]))
+
+    def get_cache_path(self, path):
+        # Full path for files that will be taken from previous backups
+        return "{}/{}/{}".format(self.config.base_path, self.config.bucket_name, path)

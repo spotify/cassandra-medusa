@@ -20,19 +20,27 @@ import pathlib
 class NodeBackup(object):
     def __init__(self, *, storage, fqdn, name, preloaded_blobs=None, manifest_blob=None, schema_blob=None,
                  tokenmap_blob=None, preload_blobs=False, started_timestamp=None, started_blob=None,
-                 finished_timestamp=None, finished_blob=None):
+                 finished_timestamp=None, finished_blob=None, incremental_blob=None, incremental_mode=False):
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
         if self._storage._prefix != '.':
-            self._node_backup_path = self._storage._prefix / fqdn / name
+            self._node_base_path = self._storage._prefix / fqdn
         else:
-            self._node_backup_path = fqdn / name
+            self._node_base_path = fqdn
+        self._node_backup_path = self._node_base_path / name
         self._meta_path = self._node_backup_path / 'meta'
-        self._data_path = self._node_backup_path / 'data'
+        if incremental_mode is True or incremental_blob is not None:
+            # Incremental backup, storage tree is different than full backups
+            self._data_path = self._node_base_path / 'data'
+            self._incremental = True
+        else:
+            self._data_path = self._node_backup_path / 'data'
+            self._incremental = False
         self._tokenmap_path = self._meta_path / 'tokenmap.json'
         self._schema_path = self._meta_path / 'schema.cql'
         self._manifest_path = self._meta_path / 'manifest.json'
+        self._incremental_path = self._meta_path / 'incremental'
         self._restore_verify_query_path = self._meta_path / 'restore_verify_query.json'
 
         if preloaded_blobs is None:
@@ -110,6 +118,18 @@ class NodeBackup(object):
         self._storage.storage_driver.upload_blob_from_string(self.schema_path, schema)
 
     @property
+    def incremental_path(self):
+        return self._incremental_path
+
+    @property
+    def is_incremental(self):
+        return self._incremental
+
+    @schema.setter
+    def incremental(self, incremental):
+        self._storage.storage_driver.upload_blob_from_string(self.incremental_path, incremental)
+
+    @property
     def restore_verify_query_path(self):
         return self._restore_verify_query_path
 
@@ -177,6 +197,10 @@ class NodeBackup(object):
 
     def datapath(self, *, keyspace, columnfamily):
         return self.data_path / keyspace / columnfamily
+
+    @property
+    def backup_path(self):
+        return self._node_backup_path
 
     def exists(self):
         return self._blob(self.schema_path) is not None
