@@ -5,7 +5,7 @@ set -e
 display_usage() {
   echo
   echo "Sets up restores with Medusa. Only needed when restoring to a different Hardware" >&2
-  echo "Usage: $0 -p/--project GCP_PROJECT -b/--bucket GCP_BUCKET --restore-role RESTORE_ROLE --source-role SOURCE_ROLE --source-dc SOURCE_DC --hosts HOSTS [-f/--restore-test-frequency RESTORE_TEST_CLUSTER_FREQUENCY] [-a/--service-acount SERVICE_ACCOUNT_NAME] [--local-hecuba]" >&2
+  echo "Usage: $0 -p/--project GCP_PROJECT -b/--bucket GCP_BUCKET --restore-role RESTORE_ROLE --source-role SOURCE_ROLE --source-dc SOURCE_DC --hosts HOSTS [-f/--restore-test-frequency RESTORE_TEST_CLUSTER_FREQUENCY] [-a/--service-account SERVICE_ACCOUNT_NAME] [--local-hecuba] [--ssh-username SSH_USERNAME] [--ssh-key SSH_KEY]" >&2
   echo
   echo "With:"
   echo "- GCP_PROJECT --> project owning the bucket with backups"
@@ -16,6 +16,8 @@ display_usage() {
   echo "- RESTORE_TEST_CLUSTER_FREQUENCY --> {disabled, daily, weekly}"
   echo "- SERVICE_ACCOUNT_NAME --> The name of the service account to create/use"
   echo "- LOCAL_HECUBA --> Flag, no value to pass. if the option/flag is given, runs the hecuba command locally to create the restore cluster"
+  echo "- SSH_USERNAME --> username to use when sshing into the cluster to restore data"
+  echo "- SSH_KEY --> unencrypted RSA private key for the user defined by SSH_USERNAME"
   echo "Example: $0 identity2-medusa identity2-backup identity2restorecassandra gew1 identity2cassandra gew disabled" >&2
   echo
   echo
@@ -61,7 +63,7 @@ do
       shift # past argument
       shift # past value
       ;;
-    -a|--service-acount)
+    -a|--service-account)
       SERVICE_ACCOUNT_NAME="$2"
       shift # past argument
       shift # past value
@@ -78,16 +80,27 @@ do
       echo ${HOSTS[@]}
       ;;
     -l|--local-hecuba)
-        LOCAL_HECUBA=true
-        shift # past argument
-        ;;
+      LOCAL_HECUBA=true
+      shift # past argument
+      ;;
+    --ssh-username)
+      SSH_USERNAME="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    --ssh-key)
+      SSH_KEY="$2"
+      shift # past argument
+      shift # past value
+      ;;
     *)    # unknown option
+      echo "Unknown option : ${key}"
       display_usage
       ;;
   esac
 done
 
-mandatory_options=('GCP_PROJECT' 'BUCKET_NAME' 'RESTORE_ROLE' 'SOURCE_ROLE' 'SOURCE_DC')
+mandatory_options=('GCP_PROJECT' 'BUCKET_NAME' 'RESTORE_ROLE' 'SOURCE_ROLE' 'SOURCE_DC' 'SSH_USERNAME' 'SSH_KEY')
 for opt in ${mandatory_options[@]}
 do
   # Get the value behind the name variable (ie ${!opt} --> evaluate $GCP_PROJECT, then $BUCKET_NAME, etc
@@ -130,11 +143,8 @@ description="Granted to service accounts performing only restores with medusa."
 permissions="storage.buckets.get,storage.buckets.getIamPolicy,storage.objects.get,storage.objects.getIamPolicy,storage.objects.list,iam.serviceAccounts.delete"
 ROLE_EXISTS=$(gcloud iam roles list --project ${GCP_PROJECT} | grep title | grep -c ${GCP_ROLE} || true)
 if [ ${ROLE_EXISTS} -eq 1 ]; then
-    echo "Role ${GCP_ROLE} already exists in project ${GCP_PROJECT}, updating it"
-    gcloud iam roles update ${GCP_ROLE} \
-        --project ${GCP_PROJECT} \
-        --description "${description}" \
-        --permissions ${permissions}
+    echo "Role ${GCP_ROLE} already exists in project ${GCP_PROJECT}. Updating..."
+    gcloud iam roles update ${GCP_ROLE} --project ${GCP_PROJECT} --description "${description}" --permissions ${permissions} || echo "Failed updating role. Continuing nonetheless..."
 else
     echo "Role ${GCP_ROLE} does not exist in project ${GCP_PROJECT}, creating ..."
     gcloud iam roles create ${GCP_ROLE} \
@@ -161,6 +171,17 @@ echo
 # Add credentials to celo
 echo "Pushing restore service account's secret to CELO. Will ask for password"
 (curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm ${SERVICE_ACCOUNT_NAME}.json) || exit $?
+echo
+
+echo $SSH_USERNAME > medusa_ssh_username.txt
+# Add ssh username to celo
+echo "Pushing user ssh key to CELO. Will ask for password"
+(curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::ssh_username' --data-urlencode secret@medusa_ssh_username.txt && rm medusa_ssh_username.txt) || exit $?
+echo
+
+# Add ssh key to celo
+echo "Pushing user ssh key to CELO. Will ask for password"
+(curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::ssh_key' --data-urlencode secret@${SSH_KEY}) || exit $?
 echo
 
 # Grant permissions
@@ -195,3 +216,4 @@ echo
 
 echo "Restore setup done. Please review & merge the PR above"
 echo
+
