@@ -38,7 +38,7 @@ class AbstractStorage(abc.ABC):
 
     def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
-        logging.debug("[Storage] Listing objects in {}".format(path))
+        logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
         if path is None:
             objects = self.driver.list_container_objects(self.bucket)
         else:
