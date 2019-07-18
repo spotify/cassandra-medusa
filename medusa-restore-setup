@@ -71,13 +71,12 @@ do
     --hosts)
       HOSTS=()
       shift # past argument
-      re='^-[a-zA-Z]$|^--\w$'
+      re='^-[a-zA-Z]$|^--[a-zA-Z0-9_-]+$'
       while [[ ! "$1" =~ $re ]] && [ -n "$1" ]
       do
         HOSTS+=("$1")
         shift # past host
       done
-      echo ${HOSTS[@]}
       ;;
     -l|--local-hecuba)
       LOCAL_HECUBA=true
@@ -100,20 +99,38 @@ do
   esac
 done
 
-mandatory_options=('GCP_PROJECT' 'BUCKET_NAME' 'RESTORE_ROLE' 'SOURCE_ROLE' 'SOURCE_DC' 'SSH_USERNAME' 'SSH_KEY')
+mandatory_options=('GCP_PROJECT' 'BUCKET_NAME' 'RESTORE_ROLE' 'SOURCE_ROLE' 'SOURCE_DC')
 for opt in ${mandatory_options[@]}
 do
   # Get the value behind the name variable (ie ${!opt} --> evaluate $GCP_PROJECT, then $BUCKET_NAME, etc
   if [ -z "${!opt}" ]
   then
-        echo
-        echo "$opt is not defined, plese set it using the corresponding option"
-        echo
-        display_usage
+    echo
+    echo "$opt is not defined, plese set it using the corresponding option"
+    echo
+    display_usage
   else
     echo "${opt} --> ${!opt}"
   fi
 done
+
+# ssh_key and ssh_username should always be set in pair and always be set for restore tests
+if [ -n "${RESTORE_TEST_CLUSTER_FREQUENCY}" -a \( -z "${SSH_USERNAME}" -o -z "${SSH_KEY}" \) ]
+then
+  echo
+  echo "SSH_USERNAME and SSH_KEY are not defined, but are mandatory for automated restore tests"
+  echo
+  display_usage
+fi
+
+if [ \( -z "${SSH_USERNAME}" -a -n "${SSH_KEY}" \) -o \( -n "${SSH_USERNAME}" -a -z "${SSH_KEY}" \) ]
+then
+  echo
+  echo "SSH_USERNAME and SSH_KEY are not both defined, when one is set the other should be as well"
+  echo
+  display_usage
+fi
+
 
 if [ -z "${RESTORE_TEST_CLUSTER_FREQUENCY}" ]
 then
@@ -123,6 +140,15 @@ if [ -z "${SERVICE_ACCOUNT_NAME}" ]
 then
       SERVICE_ACCOUNT_NAME="${RESTORE_ROLE}-medusa"
 fi
+
+# Display acknowledged hosts
+echo "HOSTS --> ${HOSTS[@]}"
+# and other options for the user to double check
+echo "RESTORE_TEST_CLUSTER_FREQUENCY --> ${RESTORE_TEST_CLUSTER_FREQUENCY}"
+echo "SERVICE_ACCOUNT_NAME --> ${SERVICE_ACCOUNT_NAME}"
+echo "SSH_USERNAME --> ${SSH_USERNAME}"
+echo "SSH_KEY --> ${SSH_KEY}"
+echo "LOCAL_HECUBA --> ${LOCAL_HECUBA:-False}"
 
 # truncate the service account name to 30 characters as Google disallows more...
 SERVICE_ACCOUNT_NAME=${SERVICE_ACCOUNT_NAME:0:30}
@@ -173,16 +199,20 @@ echo "Pushing restore service account's secret to CELO. Will ask for password"
 (curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::credentials' --data-urlencode secret@${SERVICE_ACCOUNT_NAME}.json && rm ${SERVICE_ACCOUNT_NAME}.json) || exit $?
 echo
 
-echo $SSH_USERNAME > medusa_ssh_username.txt
-# Add ssh username to celo
-echo "Pushing user ssh key to CELO. Will ask for password"
-(curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::ssh_username' --data-urlencode secret@medusa_ssh_username.txt && rm medusa_ssh_username.txt) || exit $?
-echo
 
-# Add ssh key to celo
-echo "Pushing user ssh key to CELO. Will ask for password"
-(curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::ssh_key' --data-urlencode secret@${SSH_KEY}) || exit $?
-echo
+if [ -n "${SSH_USERNAME}" -a -n "${SSH_KEY}" ]
+then
+  echo $SSH_USERNAME > medusa_ssh_username.txt
+  # Add ssh username to celo
+  echo "Pushing user ssh key to CELO. Will ask for password"
+  (curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::ssh_username' --data-urlencode secret@medusa_ssh_username.txt && rm medusa_ssh_username.txt) || exit $?
+  echo
+
+  # Add ssh key to celo
+  echo "Pushing user ssh key to CELO. Will ask for password"
+  (curl --fail -u ${USER} -X POST https://celo.spotify.net/role/${RESTORE_ROLE}/production -d key='medusa::ssh_key' --data-urlencode secret@${SSH_KEY}) || exit $?
+  echo
+fi
 
 # Grant permissions
 # Check existing setup
@@ -216,4 +246,3 @@ echo
 
 echo "Restore setup done. Please review & merge the PR above"
 echo
-
