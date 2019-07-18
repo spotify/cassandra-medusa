@@ -1,3 +1,10 @@
+spotify-medusa (0.1.0) trusty; urgency=medium
+
+  * Add the incremental backup mode
+  * New command to handle purge of old backups
+
+ -- Alexander Dejanovski <adejanovski@spotify.com>  Thu, 18 Jul 2019 13:00:00 +0000
+
 spotify-medusa (0.0.5) trusty; urgency=medium
 
   * Backward compatibility break as metadata changed in this version (in manifest, 'token' became 'tokens')
