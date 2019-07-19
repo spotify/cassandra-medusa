@@ -91,3 +91,4 @@ Specifically, the script should do the following:
 - [ ] Configure (automated) restore tests
 
 [olc]:https://cloud.google.com/storage/docs/lifecycle
+
