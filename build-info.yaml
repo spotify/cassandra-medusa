@@ -17,27 +17,3 @@ pipelines:
               - action: 'gcr.io/action-containers/medusa-it:1.0.0-2'
                 entrypoint: "/bin/bash"
                 args: ["run_integration_tests.sh"]
-  - pipeline: 'master'
-    ref: 'master'
-    stages:
-      - stage: 'old build debian package'
-        tasks:
-          - task: 'debbuild'
-            steps:
-              - action: 'gcr.io/action-containers/debian-packages:17'
-                args: ['build', 'publish']
-                envs:
-                  RELEASE: stable
-                  DISTRIBUTION: trusty
-  - pipeline: 'master-bionic'
-    ref: 'master-bionic'
-    stages:
-      - stage: 'build debian bionic package'
-        tasks:
-          - task: "Build and publish for Bionic"
-            steps:
-              - action: "gcr.io/action-containers/debian-packages-bionic:9"
-                args: ["build", "publish"]
-                envs:
-                  RELEASE: stable
-                  DISTRIBUTION: bionic
