@@ -72,7 +72,7 @@ def cli(ctx, verbosity, without_log_timestamp, config_file, **kwargs):
     ctx.obj = medusa.config.load_config(args, config_file)
 
 
-@cli.command()
+@cli.command(name='backup')
 @click.option('--backup-name', help='Custom name for the backup')
 @click.option('--stagger', default=None, type=int, help='Check for staggering initial backups for duration seconds')
 @click.option('--restore-verify-query', default=None)
@@ -86,7 +86,7 @@ def backup(medusaconfig, backup_name, stagger, restore_verify_query, mode):
     medusa.backup.main(medusaconfig, backup_name, stagger_time, restore_verify_query, mode)
 
 
-@cli.command()
+@cli.command(name='fetch-tokenmap')
 @click.option('--backup-name', help='backup name', required=True)
 @pass_MedusaConfig
 def fetch_tokenmap(medusaconfig, backup_name):
@@ -96,7 +96,7 @@ def fetch_tokenmap(medusaconfig, backup_name):
     medusa.fetch_tokenmap.main(medusaconfig, backup_name)
 
 
-@cli.command()
+@cli.command(name='list-backups')
 @click.option('--show-all/--no-show-all', default=False, help="List all backups in the bucket")
 @pass_MedusaConfig
 def list_backups(medusaconfig, show_all):
@@ -106,7 +106,7 @@ def list_backups(medusaconfig, show_all):
     medusa.listing.list_backups(medusaconfig, show_all)
 
 
-@cli.command()
+@cli.command(name='download')
 @click.option('--backup-name', help='Custom name for the backup', required=True)
 @click.option('--download-destination', help='Download destination', required=True)
 @pass_MedusaConfig
@@ -117,7 +117,7 @@ def download(medusaconfig, backup_name, download_destination):
     medusa.download.download_cmd(medusaconfig, backup_name, Path(download_destination))
 
 
-@cli.command()
+@cli.command(name='restore-cluster')
 @click.option('--backup-name', help='Backup name', required=True)
 @click.option('--seed-target', help='seed of the target hosts', required=False)
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
@@ -143,7 +143,7 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
                                        verify)
 
 
-@cli.command()
+@cli.command(name='restore-node')
 @click.option('--temp-dir', help='Directory for temporary storage', default="/tmp")
 @click.option('--backup-name', help='Backup name', required=True)
 @click.option('--in-place', help='Indicates if the restore happens on the node the backup was done on.',
@@ -162,7 +162,7 @@ def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds
     medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds, verify)
 
 
-@cli.command()
+@cli.command(name='status')
 @click.option('--backup-name', help='Backup name', required=True)
 @pass_MedusaConfig
 def status(medusaconfig, backup_name):
@@ -172,7 +172,7 @@ def status(medusaconfig, backup_name):
     medusa.status.status(medusaconfig, backup_name)
 
 
-@cli.command()
+@cli.command(name='verify')
 @click.option('--backup-name', help='Backup name', required=True)
 @pass_MedusaConfig
 def verify(medusaconfig, backup_name):
@@ -182,7 +182,7 @@ def verify(medusaconfig, backup_name):
     medusa.verify.verify(medusaconfig, backup_name)
 
 
-@cli.command()
+@cli.command(name='report-last-backup')
 @click.option('--ffwd', default=False, is_flag=True, help='Report to ffwd')
 @pass_MedusaConfig
 def report_last_backup(medusa_config, ffwd):
@@ -193,7 +193,7 @@ def report_last_backup(medusa_config, ffwd):
     medusa.report_latest.report_latest(medusa_config, ffwd)
 
 
-@cli.command()
+@cli.command(name='get-last-complete-cluster-backup')
 @pass_MedusaConfig
 def get_last_complete_cluster_backup(medusa_config):
     """
@@ -203,7 +203,7 @@ def get_last_complete_cluster_backup(medusa_config):
     print(backup.name)
 
 
-@cli.command()
+@cli.command(name='build-index')
 @click.option('--noop', default=False, is_flag=True, help='Compute and print the index only. Do not upload')
 @pass_MedusaConfig
 def build_index(medusa_config, noop):
@@ -213,7 +213,7 @@ def build_index(medusa_config, noop):
     medusa.index.build_indices(medusa_config, noop)
 
 
-@cli.command()
+@cli.command(name='purge')
 @pass_MedusaConfig
 def purge(medusaconfig):
     """
