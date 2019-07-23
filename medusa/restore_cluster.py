@@ -117,7 +117,7 @@ class RestoreJob(object):
 
         # CASE 1 : We're restoring in place and a seed target has been provided
         if self.seed_target is not None:
-            logging.info('Restore will happen "In-Place", no new hardawre is involved')
+            logging.info('Restore will happen "In-Place", no new hardware is involved')
             self.in_place = True
             self.session_provider = CqlSessionProvider([self.seed_target],
                                                        username=self.config.cassandra.cql_username,
@@ -128,7 +128,7 @@ class RestoreJob(object):
 
         # CASE 2 : We're restoring out of place, i.e. doing a restore test
         if self.host_list is not None:
-            logging.info('Restore will happen on new hardawre')
+            logging.info('Restore will happen on new hardware')
             self.in_place = False
             self._populate_hostmap()
 
@@ -311,8 +311,7 @@ class RestoreJob(object):
                     stdin.close()
                     stdout.close()
                     stderr.close()
-                    remotes[i] = Remote(remote.target, remote.connect_args, client,
-                                        stdout.channel)
+                    remotes[i] = Remote(remote.target, remote.connect_args, client, stdout.channel)
 
         if len(broken) > 0:
             logging.info("Command failed on the following nodes:")

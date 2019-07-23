@@ -136,7 +136,7 @@ def throttle_backup():
     p = psutil.Process(os.getpid())
     p.ionice(psutil.IOPRIO_CLASS_IDLE)
     p.nice(19)
-    logging.debug("Processus {} was set to use only idle IO and CPU resources".format(p))
+    logging.debug("Process {} was set to use only idle IO and CPU resources".format(p))
 
 
 def stagger(fqdn, storage, tokenmap):

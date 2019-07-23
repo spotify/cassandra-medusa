@@ -31,7 +31,7 @@ def status(config, backup_name):
         logging.error('No such backup')
         sys.exit(1)
 
-    if (cluster_backup.is_complete()):
+    if cluster_backup.is_complete():
         print('{.name}'.format(cluster_backup))
     else:
         print('{.name} [Incomplete!]'.format(cluster_backup))
@@ -47,7 +47,8 @@ def status(config, backup_name):
 
     print('- {0} nodes completed, '
           '{1} nodes incomplete, '
-          '{2} nodes missing'.format(len(cluster_backup.complete_nodes()), len(cluster_backup.incomplete_nodes()),
+          '{2} nodes missing'.format(len(cluster_backup.complete_nodes()),
+                                     len(cluster_backup.incomplete_nodes()),
                                      len(cluster_backup.missing_nodes())
                                      ))
 

@@ -103,7 +103,7 @@ class CqlSession(object):
         for token, host in token_map.token_to_host_owner.items():
             if host.address == listen_address:
                 return token.value
-        raise RuntimeError('Unable to current token')
+        raise RuntimeError('Unable to get current token')
 
     def datacenter(self):
         logging.debug('Checking datacenter...')
