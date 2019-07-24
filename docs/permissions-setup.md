@@ -1,23 +1,28 @@
 # GCP Permissions Needed For Medusa To Operate
 
-This document is relevant for Spotify environment. Once Medusa goes FOSS, this should be rewritten.
+This document describes what GCP permissions are needed at various stages of setting up and using Medusa.
 
-There are three roles involved in the operations of Medusa.
+When dealing with GCP permissions, it is a good practice to group these into roles.
+At the very least, allowing a service account to manipulate objects in GCS happens via a IAM role, not via an account.
+That is why we recommend establishing three roles:
+  - `setup` role - used to create buckets and service accounts for the backup and restore parts.
+  - `backup` role - used to upload objects.
+  - `restore` role - used for restores. This is a version of the `backup` role but with read-only access.
 
-The first role, [MedusaSetupAgent](https://console.cloud.google.com/iam-admin/roles/details/projects%3Cmedusa-backups%3Croles%3CMedusaSetupAgent?organizationId=642708779950&project=medusa-backups), gathers all the permissions needed to setup backups with Medusa.
-- This role is assigned to the default service account of `database-infra` project: `984981252538-compute@developer.gserviceaccount.com`.
-- This makes it possible to run the `setup_once.sh` script from basesusers host.
-- The setup script requires a set of permissions:
-  - `storage.buckets.create` - to create the bucket.
-  - `iam.serviceAccounts.create` - to create the service account.
+
+## Permissions for setting up Medusa
+
+The permissions needed to set Medusa up are:
+  - `storage.buckets.create` - to create a bucket where Medusa uploads.
+  - `iam.serviceAccounts.create` - to create the service account Medusa will run under.
   - `iam.serviceAccountKeys.create` - to create a key for this account.
   - `storage.buckets.getIamPolicy` - to get the IAM policy of the newly created bucket.
-  - `storage.buckets.setIamPolicy` - to set the IAM policy, so the MedusaStorageAgent can be used.
+  - `storage.buckets.setIamPolicy` - to set the IAM policy, so the newly created account can be used.
 
-The second role, [MedusaStorageAgent](https://console.cloud.google.com/iam-admin/roles/details/projects%3Cmedusa-backups%3Croles%3CMedusaStorageAgent?organizationId=642708779950&project=medusa-backups), gathers permissions needed by Medusa itself to upload and download files to GCS.
-- When setting up Medusa backups, the setup script assigns this role to the service account used by Medusa to access GCP.
-- Because all the backup buckets will live in this project, there’s no need to share this role across projects.
-- These are the permissions granted:
+
+## Permissions for doing backups
+
+Doing backups with Medusa needs these permissions:
   - `storage.buckets.get`
   - `storage.buckets.getIamPolicy`
   - `storage.objects.create`
@@ -26,9 +31,10 @@ The second role, [MedusaStorageAgent](https://console.cloud.google.com/iam-admin
   - `storage.objects.getIamPolicy`
   - `storage.objects.list`
 
-The third role, [MedusaRestoreAgent](), gathers permissions needed to restore data using Medusa.
-- This role is assigned to the service accounts used for restore testing backups.
-- These are the permissions granted:
+
+## Permissions for doing restores
+
+These are the permissions needed to restore data using Medusa.
   - `storage.buckets.get`
   - `storage.buckets.getIamPolicy`
   - `storage.objects.get`
