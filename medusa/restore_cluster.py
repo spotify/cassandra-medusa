@@ -21,13 +21,20 @@ import datetime
 import traceback
 import paramiko
 import ffwd
+import subprocess
+import os
 
 from medusa.metrics.transport import MedusaTransport
 from medusa.cassandra_utils import CqlSessionProvider
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
 
-Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel'])
+Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel', 'stdout', 'stderr'])
+SSH_ADD_KEYS_CMD = "ssh-add"
+SSH_AGENT_CREATE_CMD = "ssh-agent"
+SSH_AGENT_KILL_CMD = "ssh-agent -k"
+SSH_AUTH_SOCK_ENVVAR = "SSH_AUTH_SOCK"
+SSH_AGENT_PID_ENVVAR = "SSH_AGENT_PID"
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify):
@@ -109,6 +116,7 @@ class RestoreJob(object):
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.host_map = {}  # Map of backup host/target host for the restore process
         self.bypass_checks = bypass_checks
+        self._ssh_agent_started = False
 
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -134,6 +142,8 @@ class RestoreJob(object):
 
         logging.info('Starting Restore on all the nodes in this list: {}'.format(self.host_list))
         self._restore_data()
+        if self._ssh_agent_started is True:
+            self.ssh_cleanup()
 
     def _populate_ringmap(self, tokenmap, target_tokenmap):
         for host, ringitem in target_tokenmap.items():
@@ -285,6 +295,8 @@ class RestoreJob(object):
                     else:
                         broken.append(remote)
                         logging.error("Command failed on {} : ".format(remote.target))
+                        logging.error("Output : {}".format(remote.stdout.readlines()))
+                        logging.error("Err output : {}".format(remote.stderr.readlines()))
                         try:
                             stderr = self.read_file(remote, self.work_dir / "stderr")
                         except IOError:
@@ -307,11 +319,7 @@ class RestoreJob(object):
 
                     # TODO: check pid to exist before assuming medusa-wrapper to pick it up
                     command = 'cd {work}; medusa-wrapper'.format(work=self.work_dir)
-                    stdin, stdout, stderr = client.exec_command(command)
-                    stdin.close()
-                    stdout.close()
-                    stderr.close()
-                    remotes[i] = Remote(remote.target, remote.connect_args, client, stdout.channel)
+                    remotes[i] = self._run(remote.target, client, remote.connect_args, command)
 
         if len(broken) > 0:
             logging.info("Command failed on the following nodes:")
@@ -328,9 +336,13 @@ class RestoreJob(object):
         pkey = None
         if self.config.ssh.key_file is not None and self.config.ssh.key_file != "":
             pkey = paramiko.RSAKey.from_private_key_file(self.config.ssh.key_file, None)
+            if self._ssh_agent_started is False:
+                self.create_agent()
+                add_key_cmd = "{} {}".format(SSH_ADD_KEYS_CMD, self.config.ssh.key_file)
+                subprocess.check_output(add_key_cmd, universal_newlines=True, shell=True)
+                self._ssh_agent_started = True
 
         client = paramiko.SSHClient()
-
         client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
         connect_args = {
             'hostname': target,
@@ -356,20 +368,19 @@ class RestoreJob(object):
         finally:
             sftp.close()
 
-        # Forwarding argent for the following exec_command
-        transport = client.get_transport()
-        session = transport.open_session()
-        paramiko.agent.AgentRequestHandler(session)
-
         return client, connect_args
 
     def _run(self, target, client, connect_args, command):
-        stdin, stdout, stderr = client.exec_command(command)
+        transport = client.get_transport()
+        session = transport.open_session()
+        session.get_pty()
+        paramiko.agent.AgentRequestHandler(session)
+        session.exec_command(command.replace("sudo", "sudo -S"))
+        bufsize = -1
+        stdout = session.makefile("r", bufsize)
+        stderr = session.makefile_stderr("r", bufsize)
         logging.debug('Running \'{}\' remotely on {}'.format(command, connect_args['hostname']))
-        stdin.close()
-        stdout.close()
-        stderr.close()
-        return Remote(target, connect_args, client, stdout.channel)
+        return Remote(target, connect_args, client, stdout.channel, stdout, stderr)
 
     def read_file(self, remote, remotepath):
         with remote.client.open_sftp() as ftp_client:
@@ -381,3 +392,25 @@ class RestoreJob(object):
         command = 'sh -c "{}"'.format(self.config.cassandra.check_running)
         remote = self._run(host, client, connect_args, command)
         return remote.channel.recv_exit_status() == 0
+
+    def create_agent(self):
+        """
+        Function that creates the agent and sets the environment variables.
+        """
+        output = subprocess.check_output(SSH_AGENT_CREATE_CMD, universal_newlines=True, shell=True)
+        if output:
+            output = output.strip().split("\n")
+            for item in output[0:2]:
+                envvar, val = item.split(";")[0].split("=")
+                logging.debug("Setting environment variable: {}={}".format(envvar, val))
+                os.environ[envvar] = val
+
+    def ssh_cleanup(self):
+        """
+        Function that kills the agents created so that there aren't too many agents lying around eating up resources.
+        """
+        # Kill the agent
+        subprocess.check_output(SSH_AGENT_KILL_CMD, universal_newlines=True, shell=True)
+        # Reset these values so that other function
+        os.environ[SSH_AUTH_SOCK_ENVVAR] = ""
+        os.environ[SSH_AGENT_PID_ENVVAR] = ""
