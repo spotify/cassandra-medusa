@@ -39,10 +39,21 @@ class GSUtil(object):
         self._env = dict(os.environ, CLOUDSDK_CONFIG=self._gcloud_config.name)
         cmd = ['gcloud', 'auth', 'activate-service-account',
                '--key-file={}'.format(os.path.expanduser(self._config.key_file))]
-        subprocess.check_call(cmd,
-                              env=self._env,
-                              stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL)
+
+        max_retries = 5
+        attempts = 0
+
+        while attempts < max_retries:
+            try:
+                subprocess.check_call(cmd, env=self._env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                break
+            except subprocess.CalledProcessError as e:
+                logging.warning('Activating service account failed: {}. Will retry'.format(e))
+                attempts += 1
+                if attempts == max_retries:
+                    logging.error('All attempts to activate service account failed')
+                    raise e
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
