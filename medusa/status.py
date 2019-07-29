@@ -45,12 +45,21 @@ def status(config, backup_name):
         print('- Started: {}, '
               'Finished: {}'.format(started, finished))
 
-    print('- {0} nodes completed, '
-          '{1} nodes incomplete, '
-          '{2} nodes missing'.format(len(cluster_backup.complete_nodes()),
-                                     len(cluster_backup.incomplete_nodes()),
-                                     len(cluster_backup.missing_nodes())
-                                     ))
+    complete_nodes = cluster_backup.complete_nodes()
+    incomplete_nodes = cluster_backup.incomplete_nodes()
+    missing_nodes = cluster_backup.missing_nodes()
+    print('- {0} nodes completed, {1} nodes incomplete, {2} nodes missing'.format(
+        len(complete_nodes), len(incomplete_nodes), len(missing_nodes)))
+
+    if len(incomplete_nodes) > 0:
+        print('- Incomplete nodes:')
+        for node_backup in incomplete_nodes:
+            print('    {}'.format(node_backup.fqdn))
+
+    if len(missing_nodes) > 0:
+        print('- Missing nodes:')
+        for fqdn in missing_nodes:
+            print('    {}'.format(fqdn))
 
     print('- {} files, {}'.format(
         cluster_backup.num_objects(),
