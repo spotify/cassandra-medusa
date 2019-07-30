@@ -15,7 +15,6 @@
 
 
 import datetime
-import ffwd
 import json
 import logging
 import pathlib
@@ -26,10 +25,11 @@ import psutil
 import os
 import base64
 import hashlib
+
 from libcloud.storage.providers import Provider
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
-from medusa.metrics.transport import MedusaTransport
+from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str, ManifestObject
 
 
@@ -168,7 +168,7 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
 
     start = datetime.datetime.now()
     backup_name = backup_name_arg or start.strftime('%Y%m%d%H')
-    ffwd_client = ffwd.FFWD(transport=MedusaTransport)
+    monitoring = Monitoring(config=config.monitoring)
 
     try:
         storage = Storage(config=config.storage)
@@ -263,29 +263,23 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
         logging.debug('Emitting metrics')
 
         # Monitoring update
-        backup_duration_metric = ffwd_client.metric(key='medusa-node-backup',
-                                                    what='backup-duration',
-                                                    backupname=backup_name)
         logging.info('actual duration: {}'.format(actual_backup_duration.seconds))
-        backup_duration_metric.send(actual_backup_duration.seconds)
-        backup_size_metric = ffwd_client.metric(key='medusa-node-backup',
-                                                what='backup-size',
-                                                backupname=backup_name)
-        backup_size_metric.send(node_backup.size())
-        backup_error_metric = ffwd_client.metric(key='medusa-node-backup',
-                                                 what='backup-error',
-                                                 backupname=backup_name)
-        backup_error_metric.send(0)
+        tags = ['medusa-node-backup', 'backup-duration', backup_name]
+        monitoring.send(tags, actual_backup_duration.seconds)
+
+        tags = ['medusa-node-backup', 'backup-size', backup_name]
+        monitoring.send(tags, node_backup.size())
+
+        tags = ['medusa-node-backup', 'backup-error', backup_name]
+        monitoring.send(tags, 0)
 
         logging.debug('Done emitting metrics')
 
     except Exception as e:
-        traceback.print_exc()
-        backup_error_metric = ffwd_client.metric(key='medusa-node-backup',
-                                                 what='backup-error',
-                                                 backupname=backup_name)
-        backup_error_metric.send(1)
+        tags = ['medusa-node-backup', 'backup-error', backup_name]
+        monitoring.send(tags, 1)
         logging.error('This error happened during the backup: {}'.format(str(e)))
+        traceback.print_exc()
         sys.exit(1)
 
 

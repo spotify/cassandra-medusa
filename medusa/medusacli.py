@@ -183,14 +183,14 @@ def verify(medusaconfig, backup_name):
 
 
 @cli.command(name='report-last-backup')
-@click.option('--ffwd', default=False, is_flag=True, help='Report to ffwd')
+@click.option('--push-metrics', default=False, is_flag=True, help='Also push the information via metrics')
 @pass_MedusaConfig
-def report_last_backup(medusa_config, ffwd):
+def report_last_backup(medusa_config, push_metrics):
     """
-    Find time since last backup
+    Find time since last backup and print it to stdout
     :return:
     """
-    medusa.report_latest.report_latest(medusa_config, ffwd)
+    medusa.report_latest.report_latest(medusa_config, push_metrics)
 
 
 @cli.command(name='get-last-complete-cluster-backup')

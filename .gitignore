@@ -11,3 +11,4 @@ __pycache__/
 /dist/
 /*.egg-info/
 .vscode/settings.json
+metrics.json

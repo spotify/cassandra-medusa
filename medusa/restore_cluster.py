@@ -20,11 +20,10 @@ import uuid
 import datetime
 import traceback
 import paramiko
-import ffwd
 import subprocess
 import os
 
-from medusa.metrics.transport import MedusaTransport
+from medusa.monitoring import Monitoring
 from medusa.cassandra_utils import CqlSessionProvider
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
@@ -38,7 +37,7 @@ SSH_AGENT_PID_ENVVAR = "SSH_AGENT_PID"
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify):
-    ffwd_client = ffwd.FFWD(transport=MedusaTransport)
+    monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
         if seed_target is not None:
@@ -73,25 +72,23 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
         restore_duration = restore_end_time - restore_start_time
 
         logging.debug('Emitting metrics')
-        restore_duration_metric = ffwd_client.metric(key='medusa-cluster-restore',
-                                                     what='restore-duration',
-                                                     backupname=backup_name)
+
         logging.info('Restore duration: {}'.format(restore_duration.seconds))
-        restore_duration_metric.send(restore_duration.seconds)
-        restore_error_metric = ffwd_client.metric(key='medusa-cluster-restore',
-                                                  what='restore-error',
-                                                  backupname=backup_name)
-        restore_error_metric.send(0)
+        tags = ['medusa-cluster-restore', 'restore-duration', backup_name]
+        monitoring.send(tags, restore_duration.seconds)
+
+        tags = ['medusa-cluster-restore', 'restore-error', backup_name]
+        monitoring.send(tags, 0)
+
         logging.debug('Done emitting metrics')
         logging.info('Successfully restored the cluster')
 
     except Exception as e:
-        traceback.print_exc()
-        restore_error_metric = ffwd_client.metric(key='medusa-cluster-restore',
-                                                  what='restore-error',
-                                                  backupname=backup_name)
-        restore_error_metric.send(1)
+        tags = ['medusa-cluster-restore', 'restore-error', backup_name]
+        monitoring.send(tags, 1)
+
         logging.error('This error happened during the cluster restore: {}'.format(str(e)))
+        traceback.print_exc()
         sys.exit(1)
 
 
