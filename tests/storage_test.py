@@ -178,19 +178,19 @@ class RestoreNodeTest(unittest.TestCase):
         blob_name = "index/backup_index/2019051307/manifest_node1.whatever.com.json"
         self.assertEquals(
             "node1.whatever.com",
-            self.storage.get_fqdn_from_backup_index_blob(blob_name)
+            self.storage.get_fqdn_from_backup_index_blob_name(blob_name)
         )
 
         blob_name = "index/backup_index/2019051307/schema_node2.whatever.com.cql"
         self.assertEquals(
             "node2.whatever.com",
-            self.storage.get_fqdn_from_backup_index_blob(blob_name)
+            self.storage.get_fqdn_from_backup_index_blob_name(blob_name)
         )
 
         blob_name = "index/backup_index/2019051307/schema_node3.whatever.com.txt"
         self.assertEquals(
             "node3.whatever.com",
-            self.storage.get_fqdn_from_backup_index_blob(blob_name)
+            self.storage.get_fqdn_from_backup_index_blob_name(blob_name)
         )
 
     def test_parse_backup_index(self):

@@ -37,7 +37,7 @@ def report_latest(config, push_metrics):
             ))
             storage = Storage(config=config.storage)
             fqdn = config.storage.fqdn
-            backup_index = storage.list_backup_index()
+            backup_index = storage.list_backup_index_blobs()
             check_node_backup(config, storage, fqdn, push_metrics, monitoring)
             check_complete_cluster_backup(storage, push_metrics, monitoring, backup_index)
             check_latest_cluster_backup(storage, push_metrics, monitoring, backup_index)
