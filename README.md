@@ -1,9 +1,7 @@
 Medusa
 ======
 
-Medusa is a prototype of a Cassandra backup system based on Google Cloud Storage. This project
-is in very early development, and should not be used for production yet. Medusa will most likely
-not be this projects final name.
+Medusa is an Apache Cassandra backup system.
 
 
 Design and Datastructures
@@ -23,10 +21,10 @@ network bandwidth.
 #### Data structures
 The backed up data is stored in a Google Cloud Storage using the following structure:
 ```
-gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/data/<keyspace>/<column family>/<SSTAble files ...>
-gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/meta/schema.cql
-gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/meta/tokenmap.json
-gs://<bucket name>/<optional prefix>/<backup name>/<fqdn>/meta/manifest.json
+gs://<bucket name>/<optional prefix>/<fqdn>/<backup name>/data/<keyspace>/<column family>/<SSTAble files ...>
+gs://<bucket name>/<optional prefix>/<fqdn>/<backup name>/meta/schema.cql
+gs://<bucket name>/<optional prefix>/<fqdn>/<backup name>/meta/tokenmap.json
+gs://<bucket name>/<optional prefix>/<fqdn>/<backup name>/meta/manifest.json
 ```
 
 - `<optional prefix>` allows several clusters to share the same bucket, but is not encouraged as
@@ -36,28 +34,25 @@ buckets are cheap anyway. The support for this prefix might be dropped in later 
   from different nodes with the same `<backup name>` is considered part of the same backup, and
   expected to have been created at close to the same time.
 - `schema.cql` contains the CQL commands to recreate the schema. This is the very first file to be
-  uploaded to the bucket, and thus the existance of this file indicates that a backup has begun.
+  uploaded to the bucket, and thus the existence of this file indicates that a backup has begun.
 - `tokenmap.json` contains the topology (token) configuration of the cluster as seen by the node
   at the time of backup.
 - `manifest.json` will contain a list of all expected data files along with expected sizes and
   MD5 checksums. This can be used to easily validate the content of a backup in a bucket.
   The content of `manifest.json` is generated on the node as part of the upload process.
-  This is the last file to be uploaded to the bucket, thus the existance of this file means that the
+  This is the last file to be uploaded to the bucket, thus the existence of this file means that the
   backup is complete.
 
 #### Optimizations
 As Cassandra's SSTables are immutable, it is possible to optimize the backup operation by
-recognizing duplicate files in precious backups and avoid copying them twice. This optimization is
-planned, but not implemented yet.
+recognizing duplicate files in precious backups and avoid copying them twice. For the same reason, it is possible
+to copy each SSTable exactly once and then refer to it from multiple manifests.
 
 ### Restore
-Restoring is a bit more complicated and opinionated than backuping up as it depends on whatever
-tools you're using to manage the cluster's configuration and processes. Thus at this point
-medusa only provide the necessary operations to build your own restore scripts for your environment.
-The following sections outlines what should go into such scripts.
-
-Medusa might be developed to integrate with a particular environment later on, e.g. Hecuba2 and
-SystemD.
+Restoring is a bit more complicated and opinionated than backing up as it depends on whatever
+tools you're using to manage the cluster's configuration and processes. Medusa provides both the necessary operations
+to build your own restore scripts for your environment, but it also offers one implementation of the entire restore
+process.
 
 #### Restoring a single Cassandra node
 - Before attempting to restore a Cassandra node, the restore script must compare the node's token
@@ -79,16 +74,13 @@ SystemD.
 - Run the [the previous section](#Restoring-a-single-Cassandra-node) on each individual node.
 
 ### Initial setup and access controls
-Provided is a `medusa-setup` which helps you set up the required infrastructure to use medusa.
+We will provide `medusa-gcs-setup` which helps you set up the required infrastructure to use Medusa in GCP.
 Specifically, the script should do the following:
-- [x] Create bucket
-- [x] Create service account
-- [x] Provision a key for service account
-- [x] Spotify-specific: Distribute credentials
-- [x] Spotify-specific: Grant service account permissions on the bucket
-- [x] Spotify-specific: configure medusa for your hosts
+- [ ] Create bucket
+- [ ] Create service account
+- [ ] Provision a key for service account
+- [ ] Grant service account permissions on the bucket
 - [ ] Configure [object lifecycle policies][olc]
 - [ ] Configure (automated) restore tests
 
 [olc]:https://cloud.google.com/storage/docs/lifecycle
-
