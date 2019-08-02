@@ -15,11 +15,11 @@ structures are designed to aid making decisions about the backup state of the en
 
 ### Backup
 Backups are simply performed by making a Cassandra snapshot and copying the snapshot along with
-the schema and topology to a Google Cloud Storage bucket. The main performance limitation is
+the schema and topology to a cloud storage bucket. The main performance limitation is
 network bandwidth.
 
 #### Data structures
-The backed up data is stored in a Google Cloud Storage using the following structure:
+The backed up data is stored in a Google Cloud Storage using the following structure (a GCS example):
 ```
 gs://<bucket name>/<optional prefix>/<fqdn>/<backup name>/data/<keyspace>/<column family>/<SSTAble files ...>
 gs://<bucket name>/<optional prefix>/<fqdn>/<backup name>/meta/schema.cql
@@ -45,8 +45,10 @@ buckets are cheap anyway. The support for this prefix might be dropped in later 
 
 #### Optimizations
 As Cassandra's SSTables are immutable, it is possible to optimize the backup operation by
-recognizing duplicate files in precious backups and avoid copying them twice. For the same reason, it is possible
-to copy each SSTable exactly once and then refer to it from multiple manifests.
+recognizing duplicate files in previous backups and copying each SSTable exactly once.
+
+For the same reason, it is possible to copy each SSTable exactly once and then refer to it from multiple manifests.
+With this approach, Medusa also manages to save resources by storing each SSTable exactly once.
 
 ### Restore
 Restoring is a bit more complicated and opinionated than backing up as it depends on whatever
@@ -80,7 +82,6 @@ Specifically, the script should do the following:
 - [ ] Create service account
 - [ ] Provision a key for service account
 - [ ] Grant service account permissions on the bucket
-- [ ] Configure [object lifecycle policies][olc]
-- [ ] Configure (automated) restore tests
+- [ ] Configure [object lifecycle policies][olc] when using full mode
 
 [olc]:https://cloud.google.com/storage/docs/lifecycle
