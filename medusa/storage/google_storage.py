@@ -50,7 +50,7 @@ class GoogleStorage(AbstractStorage):
         return ""
 
     def get_download_path(self, path):
-        if "gs://" in os.fspath(path):
+        if "gs://" in path:
             return path
         else:
             return "gs://{}/{}".format(self.bucket.name, path)
