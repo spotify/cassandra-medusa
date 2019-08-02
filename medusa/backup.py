@@ -106,7 +106,6 @@ class NodeBackupCache(object):
                     # File was already present in the previous backup
                     # In case the backup isn't incremental or the cache backup isn't incremental, copy from cache
                     if self._incremental_mode is False or self._node_backup_cache_is_incremental is False:
-                        logging.debug("from cache : {}".format(cached_item['path']))
                         retained.append(
                             self._storage_driver.get_cache_path(
                                 '{}{}'.format(
