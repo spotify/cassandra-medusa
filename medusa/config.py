@@ -19,22 +19,36 @@ import logging
 import os
 import pathlib
 import sys
+
 import medusa.storage
 import medusa.cassandra_utils
 
-StorageConfig = collections.namedtuple('StorageConfig',
-                                       ['bucket_name', 'key_file', 'prefix', 'fqdn',
-                                        'host_file_separator', 'storage_provider',
-                                        'api_key_or_username', 'api_secret_or_password', 'base_path',
-                                        'max_backup_age', 'max_backup_count', 'api_profile'])
-CassandraConfig = collections.namedtuple('CassandraConfig',
-                                         ['start_cmd', 'stop_cmd',
-                                          'config_file', 'cql_username', 'cql_password',
-                                          'check_running', 'is_ccm'])
-SSHConfig = collections.namedtuple('SSHConfig', ['username', 'key_file'])
-RestoreConfig = collections.namedtuple('RestoreConfig', ['health_check'])
-MedusaConfig = collections.namedtuple('MedusaConfig',
-                                      ['storage', 'cassandra', 'ssh', 'restore'])
+
+StorageConfig = collections.namedtuple(
+    'StorageConfig',
+    ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider', 'api_key_or_username',
+     'api_secret_or_password', 'base_path', 'max_backup_age', 'max_backup_count', 'api_profile']
+)
+
+CassandraConfig = collections.namedtuple(
+    'CassandraConfig',
+    ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm']
+)
+
+SSHConfig = collections.namedtuple(
+    'SSHConfig',
+    ['username', 'key_file']
+)
+
+RestoreConfig = collections.namedtuple(
+    'RestoreConfig',
+    ['health_check']
+)
+
+MedusaConfig = collections.namedtuple(
+    'MedusaConfig',
+    ['storage', 'cassandra', 'ssh', 'restore']
+)
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
 
@@ -74,32 +88,26 @@ def load_config(args, config_file):
         logging.debug('Loading configuration from {}'.format(DEFAULT_CONFIGURATION_PATH))
         config.read_file(DEFAULT_CONFIGURATION_PATH.open())
     else:
-        logging.error("no configuration file provided via cli invocation and file not found in {}"
-                      .format(DEFAULT_CONFIGURATION_PATH))
+        logging.error(
+            'No configuration file provided via CLI, nor no default file found in {}'.format(DEFAULT_CONFIGURATION_PATH)
+        )
         sys.exit(1)
 
     config.read_dict({'storage': {
         key: value
-        for key, value in zip(StorageConfig._fields,
-                              (args['bucket_name'], args['key_file'],
-                               args['prefix'], args['fqdn'],
-                               args['host_file_separator'], args['storage_provider'],
-                               args['api_key_or_username'], args['api_secret_or_password'], args['base_path'],
-                               args['max_backup_age'], args['max_backup_count'],
-                               args['api_profile']))
+        for key, value in _zip_fields_with_arg_values(StorageConfig._fields, args)
         if value is not None
     }})
 
     config.read_dict({'ssh': {
         key: value
-        for key, value in zip(SSHConfig._fields,
-                              (args['ssh_username'], args['ssh_key_file']))
+        for key, value in _zip_fields_with_arg_values(SSHConfig._fields, args)
         if value is not None
     }})
 
     config.read_dict({'restore': {
         key: value
-        for key, value in zip(RestoreConfig._fields, ([args['health_check']]))
+        for key, value in _zip_fields_with_arg_values(RestoreConfig._fields, args)
         if value is not None
     }})
 
@@ -126,6 +134,10 @@ def load_config(args, config_file):
             sys.exit(2)
 
     return medusa_config
+
+
+def _zip_fields_with_arg_values(fields, args):
+    return [(field, args[field]) for field in fields]
 
 
 def _namedtuple_from_dict(cls, data):
