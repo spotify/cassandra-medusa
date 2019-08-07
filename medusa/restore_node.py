@@ -47,7 +47,9 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
     node_backup = storage.get_node_backup(
         fqdn=config.storage.fqdn,
         name=backup_name,
-        incremental_mode=True if incremental_blob is not None else False)
+        incremental_mode=True if incremental_blob is not None else False
+    )
+
     if not node_backup.exists():
         logging.error('No such backup')
         sys.exit(1)
@@ -101,8 +103,7 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
 def clean_path(p):
     if p.exists():
         logging.debug('Cleaning ({})'.format(p))
-        subprocess.check_output(['sudo', '-u', p.owner(),
-                                 'rm', '-rf', str(p)])
+        subprocess.check_output(['sudo', '-u', p.owner(), 'rm', '-rf', str(p)])
 
 
 def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, keep_auth):
@@ -153,6 +154,7 @@ def maybe_restore_section(section, download_dir, cassandra_data_dir, in_place, k
 def get_node_tokens(node_fqdn, token_map_file):
     token_map = json.load(token_map_file)
     token = token_map[node_fqdn]['tokens']
+
     # if vnodes, then the tokens come as an iterable
     if isinstance(token, collections.Iterable):
         return list(map(str, token))
