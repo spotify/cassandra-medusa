@@ -23,25 +23,34 @@ import shlex
 import socket
 import subprocess
 import time
-from subprocess import PIPE
 import uuid
 import yaml
+
+from subprocess import PIPE
 
 from cassandra.cluster import Cluster, ExecutionProfile
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.auth import PlainTextAuthProvider
 
 
+SnapshotPath = collections.namedtuple(
+    'SnapshotPath',
+    ['path', 'keyspace', 'columnfamily']
+)
+
+
 class CqlSessionProvider(object):
+
     def __init__(self, ip_addresses, *, username=None, password=None):
         self._ip_addresses = ip_addresses
-        self._auth_provider = (PlainTextAuthProvider(username=username,
-                                                     password=password)
-                               if username and password else None)
+
+        auth_provider = PlainTextAuthProvider(username=username, password=password) if username and password else None
+        self._auth_provider = auth_provider
+
         load_balancing_policy = WhiteListRoundRobinPolicy(ip_addresses)
-        self._execution_profiles = {'local': ExecutionProfile(
-            load_balancing_policy=load_balancing_policy
-        )}
+        self._execution_profiles = {
+            'local': ExecutionProfile(load_balancing_policy=load_balancing_policy)
+        }
 
     def new_session(self, retry=False):
         """
@@ -109,11 +118,13 @@ class CqlSession(object):
         logging.debug('Checking datacenter...')
         listen_address = self.cluster.contact_points[0]
         token_map = self.cluster.metadata.token_map
+
         for host in token_map.token_to_host_owner.values():
-            logging.debug('Checking host {} against {}/{}'
-                          .format(host.address, listen_address, socket.gethostbyname(listen_address)))
-            if host.address == listen_address or host.address == socket.gethostbyname(listen_address):
+            socket_host = socket.gethostbyname(listen_address)
+            logging.debug('Checking host {} against {}/{}'.format(host.address, listen_address, socket_host))
+            if host.address == listen_address or host.address == socket_host:
                 return host.datacenter
+
         raise RuntimeError('Unable to current datacenter')
 
     def tokenmap(self):
@@ -158,11 +169,8 @@ class CqlSession(object):
                 if row.keyspace_name not in self.EXCLUDED_KEYSPACES)
 
 
-SnapshotPath = collections.namedtuple('SnapshotPath',
-                                      ['path', 'keyspace', 'columnfamily'])
-
-
 class CassandraConfigReader(object):
+
     DEFAULT_CASSANDRA_CONFIG = '/etc/cassandra/cassandra.yaml'
 
     def __init__(self, cassandra_config=None):
@@ -206,6 +214,7 @@ class CassandraConfigReader(object):
 
 
 class Cassandra(object):
+
     SNAPSHOT_PATTERN = '*/*/snapshots/{}'
 
     def __init__(self, cassandra_config, contact_point=None):
@@ -213,7 +222,7 @@ class Cassandra(object):
         self._stop_cmd = shlex.split(cassandra_config.stop_cmd)
         self._is_ccm = int(shlex.split(cassandra_config.is_ccm)[0])
         self._os_has_systemd = self._has_systemd()
-        logging.warning("is ccm : {}".format(self._is_ccm))
+        logging.warning('is ccm : {}'.format(self._is_ccm))
 
         config_reader = CassandraConfigReader(cassandra_config.config_file)
         self._root = config_reader.root
@@ -228,13 +237,13 @@ class Cassandra(object):
 
     def _has_systemd(self):
         try:
-            result = subprocess.run(["systemctl", "--version"], stdout=PIPE, stderr=PIPE)
-            logging.debug("This server has systemd: {}".format(result.returncode == 0))
+            result = subprocess.run(['systemctl', '--version'], stdout=PIPE, stderr=PIPE)
+            logging.debug('This server has systemd: {}'.format(result.returncode == 0))
             return result.returncode == 0
         except (AttributeError, FileNotFoundError):
             # AttributeError is thrown when subprocess.run is not found, which happens on Trusty
             # Trusty doesn't have systemd, so the semantics of this code still hold
-            logging.debug("This server has systemd: False")
+            logging.debug('This server has systemd: False')
             return False
 
     def new_session(self):
@@ -298,22 +307,23 @@ class Cassandra(object):
     def create_snapshot(self):
         tag = 'medusa-{}'.format(uuid.uuid4())
         cmd = ['nodetool', 'snapshot', '-t', tag]
+
         if self._is_ccm == 1:
-            os.popen("ccm node1 nodetool \"snapshot -t {}\"".format(tag)).read()
+            os.popen('ccm node1 nodetool \"snapshot -t {}\"'.format(tag)).read()
         else:
-            logging.debug(' '.join(cmd))
-            subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                                  universal_newlines=True)
+            logging.debug('Executing: {}'.format(' '.join(cmd)))
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
+
         return Cassandra.Snapshot(self, tag)
 
     def delete_snapshot(self, tag):
         cmd = ['nodetool', 'clearsnapshot', '-t', tag]
+
         if self._is_ccm == 1:
-            os.popen("ccm node1 nodetool \"clearsnapshot -t {}\"".format(tag)).read()
+            os.popen('ccm node1 nodetool \"clearsnapshot -t {}\"'.format(tag)).read()
         else:
-            logging.debug(' '.join(cmd))
-            subprocess.check_call(cmd, stdout=subprocess.DEVNULL,
-                                  universal_newlines=True)
+            logging.debug('Executing: {}'.format(' '.join(cmd)))
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, universal_newlines=True)
 
     def list_snapshotnames(self):
         return {
@@ -337,6 +347,7 @@ class Cassandra(object):
     def _columnfamily_path(self, keyspace_name, columnfamily_name, cf_id):
         root = pathlib.Path(self._root)
         keyspace_path = root / keyspace_name / columnfamily_name
+
         if keyspace_path.exists() and keyspace_path.is_dir():
             return keyspace_path
         else:
@@ -351,6 +362,7 @@ class Cassandra(object):
     def _full_columnfamily_name(self, keyspace_name, columnfamily_name, cf_id):
         root = pathlib.Path(self._root)
         keyspace_path = root / keyspace_name / columnfamily_name
+
         if keyspace_path.exists() and keyspace_path.is_dir():
             return columnfamily_name
         else:
@@ -360,20 +372,16 @@ class Cassandra(object):
             return '{}-{}'.format(columnfamily_name, directory_postfix)
 
     def schema_path_mapping(self):
+
+        def _full_cf_name(row):
+            return self._full_columnfamily_name(row.keyspace_name, row.columnfamily_name, row.cf_id)
+
+        def _full_cf_path(row):
+            return self._columnfamily_path(row.keyspace_name, row.columnfamily_name, row.cf_id)
+
         with self._cql_session_provider.new_session() as session:
             return {
-                (
-                    row.keyspace_name,
-                    self._full_columnfamily_name(
-                        row.keyspace_name,
-                        row.columnfamily_name,
-                        row.cf_id
-                    )
-                ): self._columnfamily_path(
-                    row.keyspace_name,
-                    row.columnfamily_name,
-                    row.cf_id
-                )
+                (row.keyspace_name, _full_cf_name(row)): _full_cf_path(row)
                 for row in session.schema_path_mapping()
             }
 
@@ -394,7 +402,7 @@ class Cassandra(object):
             jvm_opts = '-Dcassandra.initial_token={} -Dcassandra.auto_bootstrap=false'.format(','.join(token_list))
             if self._os_has_systemd:
                 tokens_env = 'sudo systemctl set-environment JVM_OPTS="{}"'.format(jvm_opts)
-                cmd = "{} && {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
+                cmd = '{} && {}'.format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
             else:
                 tokens_env = 'sudo env JVM_OPTS="{}"'.format(jvm_opts)
                 # Have to use command line as Subprocess does not handle quotes well
@@ -404,7 +412,7 @@ class Cassandra(object):
                 # to add it as the first element
                 if 'sudo' in self._start_cmd:
                     self._start_cmd.remove('sudo')
-                cmd = "{} {}".format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
+                cmd = '{} {}'.format(tokens_env, ' '.join(shlex.quote(x) for x in self._start_cmd))
             logging.debug('Starting Cassandra with {}'.format(cmd))
             # run the command using 'shell=True' option
             # to interpret the string command well
@@ -434,6 +442,7 @@ def wait_for_node_to_come_up(health_check, host, retries=10, delay=6):
         else:
             time.sleep(delay)
             attempts = attempts + 1
+
     raise CassandraNodeNotUpError(host, attempts)
 
 
@@ -494,6 +503,5 @@ class CassandraNodeNotUpError(Exception):
     """
 
     def __init(self, host, attempts):
-        message = 'Could not verify that Cassandra is up on {host} after {attempts}'.format(
-            host=host, attempts=attempts)
-        super(CassandraNodeNotUpError, self).__init__(message)
+        msg = 'Could not verify that Cassandra is up on {host} after {attempts}'.format(host=host, attempts=attempts)
+        super(CassandraNodeNotUpError, self).__init__(msg)
