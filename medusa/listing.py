@@ -17,6 +17,7 @@
 from datetime import datetime
 from medusa.storage import Storage
 
+
 TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
