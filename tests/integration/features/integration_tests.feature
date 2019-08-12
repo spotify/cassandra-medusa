@@ -257,3 +257,20 @@ Scenario Outline: Run a purge on backups
         | local      |
 #        | google_storage      |
 #        | s3_us_west_oregon      |
+
+Scenario Outline: Run a backup and restore and verify metrics
+        Given I have a fresh ccm cluster running named "scenario10"
+        And I am using "<Storage>" as storage provider
+        And I create the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup in "incremental" mode of the node named "first_backup"
+        Then I see "3" metrics emitted
+        When I can report latest backups without errors
+        Then I see "10" metrics emitted
+
+        Examples:
+        | Storage   |
+        | local      |
+#        | google_storage      |
+#        | s3_us_west_oregon      |

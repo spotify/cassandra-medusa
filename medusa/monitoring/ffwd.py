@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2018 Spotify AB
+# Copyright 2019 Spotify AB
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import socket
+import ffwd
 import json
+import socket
+
+from medusa.monitoring.abstract import AbstractMonitoring
+
+
+class FfwdMonitoring(AbstractMonitoring):
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.ffwd_client = ffwd.FFWD(transport=MedusaTransport)
+
+    def send(self, tags, value):
+        if len(tags) != 3:
+            raise AssertionError("FFWD monitoring implementation needs 3 tags: 'key', 'what' and 'backup_name'")
+
+        key, what, backup_name = tags
+        metric = self.ffwd_client.metric(key=key, what=what, backupname=backup_name)
+        metric.send(value)
 
 
 # MedusaTransport is very similar to the original UDPTransport

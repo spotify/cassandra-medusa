@@ -15,20 +15,19 @@
 
 
 from datetime import datetime, timedelta
-import ffwd
 import json
 import logging
 import sys
 import traceback
 import os
 from medusa.index import clean_backup_from_index
-from medusa.metrics.transport import MedusaTransport
+from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str
 
 
 def main(config, max_backup_age=0, max_backup_count=0):
     backups_to_purge = list()
-    ffwd_client = ffwd.FFWD(transport=MedusaTransport)
+    monitoring = Monitoring(config=config.monitoring)
 
     try:
         logging.info('Starting purge')
@@ -45,14 +44,12 @@ def main(config, max_backup_age=0, max_backup_count=0):
         purge_backups(storage, backups_to_purge, config.storage.fqdn)
 
         logging.debug('Emitting metrics')
-        purge_error_metric = ffwd_client.metric(key='medusa-node-backup',
-                                                what='purge-error')
-        purge_error_metric.send(0)
+        tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
+        monitoring.send(tags, 0)
     except Exception as e:
         traceback.print_exc()
-        purge_error_metric = ffwd_client.metric(key='medusa-node-backup',
-                                                what='purge-error')
-        purge_error_metric.send(1)
+        tags = ['medusa-node-backup', 'purge-error', 'PURGE-ERROR']
+        monitoring.send(tags, 1)
         logging.error('This error happened during the purge: {}'.format(str(e)))
         sys.exit(1)
 

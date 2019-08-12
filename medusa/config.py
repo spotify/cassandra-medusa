@@ -23,7 +23,6 @@ import sys
 import medusa.storage
 import medusa.cassandra_utils
 
-
 StorageConfig = collections.namedtuple(
     'StorageConfig',
     ['bucket_name', 'key_file', 'prefix', 'fqdn', 'host_file_separator', 'storage_provider', 'api_key_or_username',
@@ -45,9 +44,14 @@ RestoreConfig = collections.namedtuple(
     ['health_check']
 )
 
+MonitoringConfig = collections.namedtuple(
+    'MonitoringConfig',
+    ['monitoring_provider']
+)
+
 MedusaConfig = collections.namedtuple(
     'MedusaConfig',
-    ['storage', 'cassandra', 'ssh', 'restore']
+    ['storage', 'cassandra', 'ssh', 'restore', 'monitoring']
 )
 
 DEFAULT_CONFIGURATION_PATH = pathlib.Path('/etc/medusa/medusa.ini')
@@ -57,6 +61,7 @@ def load_config(args, config_file):
     config = configparser.ConfigParser(interpolation=None)
 
     # Set defaults
+
     config['storage'] = {
         'host_file_separator': ',',
         'max_backup_age': 0,
@@ -79,6 +84,10 @@ def load_config(args, config_file):
 
     config['restore'] = {
         'health_check': 'cql'
+    }
+
+    config['monitoring'] = {
+        'monitoring_provider': 'None'
     }
 
     if config_file:
@@ -111,11 +120,18 @@ def load_config(args, config_file):
         if value is not None
     }})
 
+    config.read_dict({'monitoring': {
+        key: value
+        for key, value in _zip_fields_with_arg_values(MonitoringConfig._fields, args)
+        if value is not None
+    }})
+
     medusa_config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
         ssh=_namedtuple_from_dict(SSHConfig, config['ssh']),
-        restore=_namedtuple_from_dict(RestoreConfig, config['restore'])
+        restore=_namedtuple_from_dict(RestoreConfig, config['restore']),
+        monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
     )
 
     for field in ['bucket_name', 'storage_provider']:

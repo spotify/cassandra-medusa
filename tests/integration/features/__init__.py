@@ -23,8 +23,9 @@ import medusa.restore_node
 import medusa.status
 import medusa.verify
 
-from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, _namedtuple_from_dict
+from medusa.config import MedusaConfig, StorageConfig, CassandraConfig, MonitoringConfig, _namedtuple_from_dict
 from medusa.storage import Storage
+from medusa.monitoring import LocalMonitoring
 
 
 def kill_cassandra():
@@ -35,6 +36,10 @@ def kill_cassandra():
             logging.info(line)
             pid = int(line.split(None, 1)[0])
             os.kill(pid, signal.SIGKILL)
+
+
+def cleanup_monitoring():
+    LocalMonitoring(world.config.monitoring).truncate_metric_file()
 
 
 def cleanup_storage(storage_provider):
@@ -117,13 +122,19 @@ def i_am_using_storage_provider(self, storage_provider):
         'config_file': os.path.expanduser(os.path.join('~/.ccm', world.cluster_name, 'node1', 'conf', 'cassandra.yaml'))
     }
 
+    config['monitoring'] = {
+        'monitoring_provider': 'local'
+    }
+
     world.config = MedusaConfig(
         storage=_namedtuple_from_dict(StorageConfig, config['storage']),
         cassandra=_namedtuple_from_dict(CassandraConfig, config['cassandra']),
+        monitoring=_namedtuple_from_dict(MonitoringConfig, config['monitoring']),
         ssh=None,
         restore=None
     )
     cleanup_storage(storage_provider)
+    cleanup_monitoring()
 
 
 @step(r'I create the "([^"]*)" table in keyspace "([^"]*)"')
@@ -350,7 +361,7 @@ def _recreate_the_index(self):
 
 @step(r'I can report latest backups without errors')
 def _can_report_backups_without_errors(self):
-    medusa.report_latest.report_latest(config=world.config, report_to_ffwd=False)
+    medusa.report_latest.report_latest(config=world.config, push_metrics=True)
 
 
 @step(r'the backup index does not exist')
@@ -405,6 +416,14 @@ def _verify_fails_on_the_backup_named(self, backup_name):
 @step(r'I purge the backup history to retain only (\d+) backups')
 def _i_purge_the_backup_history_to_retain_only_nb_backups(self, backup_count):
     medusa.purge.main(world.config, max_backup_count=int(backup_count))
+
+
+@step(r'I see "(\d+)" metrics emitted')
+def _i_see_metrics_emitted(self, metrics_count):
+    metrics = list(LocalMonitoring(world.config).load_metrics())
+    logging.info('There is {} metrics'.format(len(metrics)))
+    logging.info('The metrics are: {}'.format(metrics))
+    assert int(len(metrics)) == int(metrics_count)
 
 
 def connect_cassandra():

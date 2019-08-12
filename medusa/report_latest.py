@@ -15,19 +15,19 @@
 # limitations under the License.
 
 import datetime
-import ffwd
 import logging
 import time
 import medusa.index
-from medusa.metrics.transport import MedusaTransport
+from medusa.monitoring import Monitoring
 from medusa.storage import Storage
 
 
-def report_latest(config, report_to_ffwd):
+def report_latest(config, push_metrics):
     MAX_RETRIES = 3
     SLEEP_TIME = 15
     retry = 0
-    ffwd_client = ffwd.FFWD(transport=MedusaTransport)
+
+    monitoring = Monitoring(config=config.monitoring)
 
     for retry in range(MAX_RETRIES):
         try:
@@ -38,9 +38,9 @@ def report_latest(config, report_to_ffwd):
             storage = Storage(config=config.storage)
             fqdn = config.storage.fqdn
             backup_index = storage.list_backup_index()
-            check_node_backup(config, storage, fqdn, report_to_ffwd, ffwd_client)
-            check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index)
-            check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index)
+            check_node_backup(config, storage, fqdn, push_metrics, monitoring)
+            check_complete_cluster_backup(storage, push_metrics, monitoring, backup_index)
+            check_latest_cluster_backup(storage, push_metrics, monitoring, backup_index)
             break
         except Exception as e:
             if (retry + 1) < MAX_RETRIES:
@@ -52,19 +52,16 @@ def report_latest(config, report_to_ffwd):
                 continue
             else:
                 logging.error('This error happened during the check: {}'.format(e), exc_info=True)
-                if report_to_ffwd:
+                if push_metrics:
                     # Set latest known complete backup to ~ 10 years ago to attract the attention
                     # of the operator on the broken monitoring.
+                    logging.info("Sending a big value to 'seconds-since-backup' metric to trigger alerts.")
                     long_time_flag_value = 315365400
-                    logging.info("Sending a big value to 'seconds-since-backup' metric"
-                                 " to trigger alerts.")
-                    finished_ago_metric = ffwd_client.metric(key='medusa-cluster-backup',
-                                                             what='seconds-since-backup',
-                                                             backupname='TRACKING-ERROR')
-                    finished_ago_metric.send(long_time_flag_value)
+                    tags = ['medusa-cluster-backup', 'seconds-since-backup', 'TRACKING-ERROR']
+                    monitoring.send(tags, long_time_flag_value)
 
 
-def check_node_backup(config, storage, fqdn, report_to_ffwd, ffwd_client):
+def check_node_backup(config, storage, fqdn, push_metrics, monitoring):
     latest_node_backup = storage.latest_node_backup(fqdn=fqdn)
 
     if latest_node_backup is None:
@@ -82,15 +79,13 @@ def check_node_backup(config, storage, fqdn, report_to_ffwd, ffwd_client):
     logging.info('Latest node backup '
                  'finished {} seconds ago'.format(node_backup_finished_seconds_ago))
 
-    if report_to_ffwd:
-        logging.debug('Sending time since last node backup to ffwd')
-        finished_ago_metric = ffwd_client.metric(key='medusa-node-backup',
-                                                 what='seconds-since-backup',
-                                                 backupname=latest_node_backup.name)
-        finished_ago_metric.send(node_backup_finished_seconds_ago)
+    if push_metrics:
+        logging.debug('Sending time since last node backup to them monitoring backend')
+        tags = ['medusa-node-backup', 'seconds-since-backup', latest_node_backup.name]
+        monitoring.send(tags, node_backup_finished_seconds_ago)
 
 
-def check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index):
+def check_complete_cluster_backup(storage, push_metrics, monitoring, backup_index):
     latest_complete_cluster_backup = storage.latest_complete_cluster_backup(backup_index=backup_index)
 
     if latest_complete_cluster_backup is None:
@@ -105,15 +100,13 @@ def check_complete_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_i
     cluster_backup_finished_seconds_ago = int(now - finished)
     logging.info('- Finished: {} seconds ago'.format(cluster_backup_finished_seconds_ago))
 
-    if report_to_ffwd:
-        logging.debug("Sending time since last complete cluster backup to ffwd")
-        finished_ago_metric = ffwd_client.metric(key='medusa-cluster-backup',
-                                                 what='seconds-since-backup',
-                                                 backupname=latest_complete_cluster_backup.name)
-        finished_ago_metric.send(cluster_backup_finished_seconds_ago)
+    if push_metrics:
+        logging.debug("Sending time since last complete cluster backup to monitoring backend")
+        tags = ['medusa-cluster-backup', 'seconds-since-backup', latest_complete_cluster_backup.name]
+        monitoring.send(tags, cluster_backup_finished_seconds_ago)
 
 
-def check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_index):
+def check_latest_cluster_backup(storage, push_metrics, monitoring, backup_index):
     latest_cluster_backup = storage.latest_cluster_backup(backup_index=backup_index)
 
     if latest_cluster_backup is None:
@@ -155,27 +148,21 @@ def check_latest_cluster_backup(storage, report_to_ffwd, ffwd_client, backup_ind
     number_of_files = latest_cluster_backup.num_objects()
     logging.info('- Total files: {}'.format(number_of_files))
 
-    if report_to_ffwd:
-        complete_nodes_count_metric = ffwd_client.metric(key='medusa-cluster-backup',
-                                                         what='complete-backups-node-count',
-                                                         backupname=latest_cluster_backup.name)
-        complete_nodes_count_metric.send(complete_nodes_count)
-        incomplete_nodes_count_metric = ffwd_client.metric(key='medusa-cluster-backup',
-                                                           what='incomplete-backups-node-count',
-                                                           backupname=latest_cluster_backup.name)
-        incomplete_nodes_count_metric.send(incomplete_nodes_count)
-        missing_nodes_count_metric = ffwd_client.metric(key='medusa-cluster-backup',
-                                                        what='missing-backups-node-count',
-                                                        backupname=latest_cluster_backup.name)
-        missing_nodes_count_metric.send(missing_nodes_count)
-        total_backup_size_metric = ffwd_client.metric(key='medusa-cluster-backup',
-                                                      what='backup-total-size',
-                                                      backupname=latest_cluster_backup.name)
-        total_backup_size_metric.send(latest_cluster_backup_size)
-        total_number_of_files_metric = ffwd_client.metric(key='medusa-cluster-backup',
-                                                          what='backup-total-file-count',
-                                                          backupname=latest_cluster_backup.name)
-        total_number_of_files_metric.send(number_of_files)
+    if push_metrics:
+        tags = ['medusa-cluster-backup', 'complete-backups-node-count', latest_cluster_backup.name]
+        monitoring.send(tags, complete_nodes_count)
+
+        tags = ['medusa-cluster-backup', 'incomplete-backups-node-count', latest_cluster_backup.name]
+        monitoring.send(tags, incomplete_nodes_count)
+
+        tags = ['medusa-cluster-backup', 'missing-backups-node-count', latest_cluster_backup.name]
+        monitoring.send(tags, missing_nodes_count)
+
+        tags = ['medusa-cluster-backup', 'backup-total-size', latest_cluster_backup.name]
+        monitoring.send(tags, latest_cluster_backup_size)
+
+        tags = ['medusa-cluster-backup', 'backup-total-file-count', latest_cluster_backup.name]
+        monitoring.send(tags, number_of_files)
 
 
 def human_readable_size(num, suffix='B'):
