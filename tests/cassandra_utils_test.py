@@ -16,9 +16,10 @@ import configparser
 import unittest
 
 from cassandra.metadata import Murmur3Token
+from unittest.mock import Mock
+
 from medusa.config import MedusaConfig, StorageConfig, _namedtuple_from_dict
 from medusa.cassandra_utils import CqlSession
-from unittest.mock import Mock
 
 
 class CassandraUtilsTest(unittest.TestCase):
@@ -27,7 +28,9 @@ class CassandraUtilsTest(unittest.TestCase):
 
     def setUp(self):
         config = configparser.ConfigParser(interpolation=None)
-        config['storage'] = {'host_file_separator': ','}
+        config['storage'] = {
+            'host_file_separator': ','
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},

@@ -20,12 +20,15 @@ from medusa.restore_node import get_node_tokens
 
 
 class RestoreNodeTest(unittest.TestCase):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def setUp(self):
         config = configparser.ConfigParser(interpolation=None)
-        config['storage'] = {'host_file_separator': ','}
+        config['storage'] = {
+            'host_file_separator': ','
+        }
         self.config = MedusaConfig(
             storage=_namedtuple_from_dict(StorageConfig, config['storage']),
             monitoring={},
