@@ -17,12 +17,12 @@ import operator
 
 
 class ClusterBackup(object):
+
     def __init__(self, name, node_backups):
         self._name = name
         node_backups = list(node_backups)
         self._first_nodebackup = next(iter(node_backups))
-        self.node_backups = {node_backup.fqdn: node_backup
-                             for node_backup in node_backups}
+        self.node_backups = {node_backup.fqdn: node_backup for node_backup in node_backups}
         # Cached values
         self._tokenmap = None
         self._schema = None
@@ -36,16 +36,14 @@ class ClusterBackup(object):
 
     @property
     def started(self):
-        return min(map(operator.attrgetter('started'),
-                       self.node_backups.values()))
+        return min(map(operator.attrgetter('started'), self.node_backups.values()))
 
     @property
     def finished(self):
         if any(self.missing_nodes()):
             return None
 
-        finished_timestamps = list(map(operator.attrgetter('finished'),
-                                       self.node_backups.values()))
+        finished_timestamps = list(map(operator.attrgetter('finished'), self.node_backups.values()))
         if all(finished_timestamps):
             return max(finished_timestamps)
         else:
@@ -64,8 +62,7 @@ class ClusterBackup(object):
         return self._schema
 
     def is_complete(self):
-        return (not self.missing_nodes() and all(map(operator.attrgetter('finished'),
-                                                     self.node_backups.values())))
+        return not self.missing_nodes() and all(map(operator.attrgetter('finished'), self.node_backups.values()))
 
     def missing_nodes(self):
         return set(self.tokenmap.keys()) - set(self.node_backups.keys())

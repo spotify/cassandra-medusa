@@ -16,12 +16,13 @@
 import io
 import json
 import logging
-from dateutil import parser
 import os
+
+from dateutil import parser
+from libcloud.storage.drivers.google_storage import GoogleStorageDriver
 
 from medusa.storage.abstract_storage import AbstractStorage
 from medusa.storage.google_cloud_storage.gsutil import GSUtil
-from libcloud.storage.drivers.google_storage import GoogleStorageDriver
 
 
 class GoogleStorage(AbstractStorage):
@@ -29,8 +30,13 @@ class GoogleStorage(AbstractStorage):
     def connect_storage(self):
         with io.open(os.path.expanduser(self.config.key_file), 'r', encoding='utf-8') as json_fi:
             credentials = json.load(json_fi)
-        driver = GoogleStorageDriver(key=credentials['client_email'], secret=credentials['private_key'],
-                                     project=credentials['project_id'])
+
+        driver = GoogleStorageDriver(
+            key=credentials['client_email'],
+            secret=credentials['private_key'],
+            project=credentials['project_id']
+        )
+
         return driver
 
     def upload_blobs(self, src, dest):

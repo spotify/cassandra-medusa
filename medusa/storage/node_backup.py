@@ -18,18 +18,36 @@ import pathlib
 
 
 class NodeBackup(object):
-    def __init__(self, *, storage, fqdn, name, preloaded_blobs=None, manifest_blob=None, schema_blob=None,
-                 tokenmap_blob=None, preload_blobs=False, started_timestamp=None, started_blob=None,
-                 finished_timestamp=None, finished_blob=None, incremental_blob=None, incremental_mode=False):
+
+    def __init__(self,
+                 *,
+                 storage,
+                 fqdn,
+                 name,
+                 preloaded_blobs=None,
+                 manifest_blob=None,
+                 schema_blob=None,
+                 tokenmap_blob=None,
+                 preload_blobs=False,
+                 started_timestamp=None,
+                 started_blob=None,
+                 finished_timestamp=None,
+                 finished_blob=None,
+                 incremental_blob=None,
+                 incremental_mode=False):
+
         self._storage = storage
         self._fqdn = fqdn
         self._name = name
+
         if self._storage._prefix != '.':
             self._node_base_path = self._storage._prefix / fqdn
         else:
             self._node_base_path = fqdn
+
         self._node_backup_path = self._node_base_path / name
         self._meta_path = self._node_backup_path / 'meta'
+
         if incremental_mode is True or incremental_blob is not None:
             # Incremental backup, storage tree is different than full backups
             self._data_path = self._node_base_path / 'data'
@@ -37,6 +55,7 @@ class NodeBackup(object):
         else:
             self._data_path = self._node_backup_path / 'data'
             self._incremental = False
+
         self._tokenmap_path = self._meta_path / 'tokenmap.json'
         self._schema_path = self._meta_path / 'schema.cql'
         self._manifest_path = self._meta_path / 'manifest.json'
@@ -46,11 +65,10 @@ class NodeBackup(object):
         if preloaded_blobs is None:
             preloaded_blobs = []
             if preload_blobs:
-                preloaded_blobs = storage.storage_driver.list_objects(
-                    '{}/'.format(self._meta_path)
-                )
-        self._cached_blobs = {pathlib.Path(blob.name): blob
-                              for blob in preloaded_blobs}
+                preloaded_blobs = storage.storage_driver.list_objects('{}/'.format(self._meta_path))
+
+        self._cached_blobs = {pathlib.Path(blob.name): blob for blob in preloaded_blobs}
+
         self.cached_manifest = None
         self.cached_manifest_blob = manifest_blob
         self.cached_schema_blob = schema_blob
