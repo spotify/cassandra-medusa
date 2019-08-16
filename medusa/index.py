@@ -10,6 +10,7 @@ import shlex
 import traceback
 
 import medusa.storage
+
 from medusa.cassandra_utils import Cassandra
 
 
@@ -33,6 +34,7 @@ def build_indices(config, noop):
         storage = medusa.storage.Storage(config=config.storage)
         is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
         all_backups = []
+
         if is_ccm != 1:
             cassandra = Cassandra(config.cassandra)
             with cassandra.new_session() as cql_session:
@@ -42,6 +44,7 @@ def build_indices(config, noop):
                 all_backups = all_backups + list(storage.discover_node_backups(fqdn=fqdn))
         else:
             all_backups = list(storage.discover_node_backups())
+
         latest_node_backups = dict()
 
         if noop:
@@ -79,7 +82,9 @@ def add_backup_start_to_index(storage, node_backup):
     dst = 'index/backup_index/{}/started_{}_{}.timestamp'.format(
         node_backup.name, node_backup.fqdn, node_backup.started
     )
+
     storage.storage_driver.upload_blob_from_string(dst, str(node_backup.started))
+
     if node_backup.is_incremental is True:
         dst = 'index/backup_index/{}/incremental_{}'.format(node_backup.name, node_backup.fqdn)
         storage.storage_driver.upload_blob_from_string(dst, 'incremental')

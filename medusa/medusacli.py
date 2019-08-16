@@ -13,12 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections import defaultdict
 
 import datetime
 import logging
 import socket
 import click
+
+from collections import defaultdict
 from pathlib import Path
 
 import medusa.backup
@@ -34,20 +35,25 @@ import medusa.status
 import medusa.verify
 import medusa.fetch_tokenmap
 
+
 pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 
 
 def configure_logging(verbosity, without_log_timestamp):
     loglevel = max(2 - verbosity, 0) * 10
+
     if (verbosity == 0):
         loglevel = logging.INFO
+
     if without_log_timestamp:
         log_format = '%(levelname)s: %(message)s'
     else:
         log_format = '[%(asctime)s] %(levelname)s: %(message)s'
+
     logging.basicConfig(level=loglevel,
                         format=log_format,
                         datefmt='%Y-%m-%d %H:%M:%S')
+
     if loglevel >= logging.DEBUG:
         # Disable debugging logging for external libraries
         for loggername in 'urllib3', 'google_cloud_storage.auth.transport.requests', 'paramiko':
