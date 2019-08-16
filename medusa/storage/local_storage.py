@@ -17,8 +17,9 @@ import datetime
 import pathlib
 import os
 
-from medusa.storage.abstract_storage import AbstractStorage
 from libcloud.storage.drivers.local import LocalStorageDriver
+
+from medusa.storage.abstract_storage import AbstractStorage
 
 
 class LocalStorage(AbstractStorage):

@@ -21,6 +21,7 @@ import os
 import pathlib
 
 from libcloud.storage.types import ObjectDoesNotExistError
+
 import medusa.storage
 
 
@@ -39,16 +40,21 @@ class AbstractStorage(abc.ABC):
     def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
+
         if path is None:
             objects = self.driver.list_container_objects(self.bucket)
         else:
             objects = self.driver.list_container_objects(self.bucket, ex_prefix=path)
+
         return objects
 
     def upload_blob_from_string(self, path, content, encoding="utf-8"):
         # Upload a string content to the provided path in the bucket
-        obj = self.driver.upload_object_via_stream(io.BytesIO(bytes(content, encoding)), container=self.bucket,
-                                                   object_name=str(path))
+        obj = self.driver.upload_object_via_stream(
+            io.BytesIO(bytes(content, encoding)),
+            container=self.bucket,
+            object_name=str(path)
+        )
         return medusa.storage.ManifestObject(obj.name, obj.size, obj.hash)
 
     def download_blobs(self, src, dest):
@@ -72,14 +78,19 @@ class AbstractStorage(abc.ABC):
         :return: a list of ManifestObject describing all the uploaded files
         """
         manifest_objects = list()
+
         if isinstance(src, str) or isinstance(src, pathlib.Path):
             src = [src]
+
         for src_file in src:
             if not isinstance(src, pathlib.Path):
                 src_file = pathlib.Path(src_file)
             logging.info("Uploading {}".format(src_file))
-            obj = self.driver.upload_object(os.fspath(src_file), container=self.bucket,
-                                            object_name=str("{}/{}".format(dest, src_file.name)))
+            obj = self.driver.upload_object(
+                os.fspath(src_file),
+                container=self.bucket,
+                object_name=str("{}/{}".format(dest, src_file.name))
+            )
             manifest_objects.append(medusa.storage.ManifestObject(obj.name, obj.size, obj.hash))
 
         return manifest_objects
@@ -114,6 +125,7 @@ class AbstractStorage(abc.ABC):
         logging.debug("[Storage] Reading blob {}...".format(blob.name))
         buffer = io.BytesIO()
         stream = blob.as_stream()
+
         for chunk in stream:
             buffer.write(chunk)
 
