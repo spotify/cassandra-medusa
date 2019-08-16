@@ -14,19 +14,20 @@
 # limitations under the License.
 
 
+import base64
 import datetime
+import hashlib
 import json
 import logging
+import os
 import pathlib
+import psutil
 import sys
 import time
 import traceback
-import psutil
-import os
-import base64
-import hashlib
 
 from libcloud.storage.providers import Provider
+
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
 from medusa.monitoring import Monitoring
@@ -76,6 +77,7 @@ class NodeBackupCache(object):
             self._node_backup_cache_is_incremental = False
             self._backup_name = None
             self._bucket_name = None
+            self._data_path = ''
             self._cached_objects = {}
             self._incremental_mode = False
         self._replaced = 0
@@ -93,6 +95,7 @@ class NodeBackupCache(object):
     def replace_or_remove_if_cached(self, *, keyspace, columnfamily, srcs):
         retained = list()
         skipped = list()
+        path_prefix = self._storage_driver.get_path_prefix(self._data_path)
         for src in srcs:
             if src.name in self.NEVER_BACKED_UP:
                 pass
@@ -106,22 +109,19 @@ class NodeBackupCache(object):
                     # File was already present in the previous backup
                     # In case the backup isn't incremental or the cache backup isn't incremental, copy from cache
                     if self._incremental_mode is False or self._node_backup_cache_is_incremental is False:
-                        retained.append(
-                            self._storage_driver.get_cache_path(
-                                '{}{}'.format(
-                                    self._storage_driver.get_path_prefix(self._data_path), cached_item['path'])))
+                        prefixed_path = '{}{}'.format(path_prefix, cached_item['path'])
+                        cached_item_path = self._storage_driver.get_cache_path(prefixed_path)
+                        retained.append(cached_item_path)
                     else:
                         # in case the backup is incremental, we want to rule out files, not copy them from cache
-                        logging.debug("skipped : {}".format(cached_item['path']))
-                        manifest_object = ManifestObject('{}{}'.format(
-                            self._storage_driver.get_path_prefix(self._data_path),
-                            cached_item['path']),
-                            cached_item['size'],
-                            cached_item['MD5'])
+                        manifest_object = self._make_manifest_object(path_prefix, cached_item)
                         skipped.append(manifest_object)
                     self._replaced += 1
 
-        return (retained, skipped)
+        return retained, skipped
+
+    def _make_manifest_object(self, path_prefix, cached_item):
+        return ManifestObject('{}{}'.format(path_prefix, cached_item['path']), cached_item['size'], cached_item['MD5'])
 
     def files_are_different(self, src, cached_item):
         return (src.stat().st_size != cached_item['size']
@@ -156,11 +156,13 @@ def stagger(fqdn, storage, tokenmap):
     index = ordered_tokenmap.index((fqdn, tokenmap[fqdn]))
     if index == 0:  # Always run if we're the first node
         return True
+
     previous_host = ordered_tokenmap[index - 1][0]
     previous_host_backups = storage.list_node_backups(fqdn=previous_host)
     has_backup = any(backup.finished for backup in previous_host_backups)
     if not has_backup:
         logging.info('Still waiting for {} to finish a backup.'.format(previous_host))
+
     return has_backup
 
 
@@ -173,13 +175,17 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
     try:
         storage = Storage(config=config.storage)
         cassandra = Cassandra(config.cassandra)
+
         incremental_mode = False
         if mode == "incremental":
             incremental_mode = True
+
         node_backup = storage.get_node_backup(
             fqdn=config.storage.fqdn,
             name=backup_name,
-            incremental_mode=incremental_mode)
+            incremental_mode=incremental_mode
+        )
+
         if node_backup.exists():
             raise IOError('Error: Backup {} already exists'.format(backup_name))
 
@@ -191,6 +197,7 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
 
         logging.info('Creating snapshot')
         logging.info('Saving tokenmap and schema')
+
         with cassandra.new_session() as cql_session:
             node_backup.schema = cql_session.dump_schema()
             tokenmap = cql_session.tokenmap()
@@ -231,7 +238,7 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
 
         with cassandra.create_snapshot() as snapshot:
             manifest = []
-            num_files = backup_snapshots(storage, config, manifest, node_backup, node_backup_cache, snapshot, mode)
+            num_files = backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
 
         logging.info('Updating backup index')
         node_backup.manifest = json.dumps(manifest)
@@ -283,34 +290,44 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
         sys.exit(1)
 
 
-def backup_snapshots(storage, config, manifest, node_backup, node_backup_cache, snapshot, mode):
-    num_files = 0
-    for snapshotpath in snapshot.find_dirs():
-        (srcs, already_backed_up) = node_backup_cache.replace_or_remove_if_cached(
-            keyspace=snapshotpath.keyspace,
-            columnfamily=snapshotpath.columnfamily,
-            srcs=list(snapshotpath.path.glob('*')))
-        num_files += len(srcs) + len(already_backed_up)
-        dst = '{}'.format(
-            node_backup.datapath(keyspace=snapshotpath.keyspace, columnfamily=snapshotpath.columnfamily)
-        )
+def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot):
 
-        manifestobjects = list()
-        if len(srcs) > 0:
-            manifestobjects = storage.storage_driver.upload_blobs(srcs, dst)
+    num_files = 0
+
+    for snapshot_path in snapshot.find_dirs():
+
+        (needs_backup, already_backed_up) = node_backup_cache.replace_or_remove_if_cached(
+            keyspace=snapshot_path.keyspace,
+            columnfamily=snapshot_path.columnfamily,
+            srcs=list(snapshot_path.path.glob('*')))
+
+        num_files += len(needs_backup) + len(already_backed_up)
+
+        dst_path = str(node_backup.datapath(keyspace=snapshot_path.keyspace, columnfamily=snapshot_path.columnfamily))
+
+        manifest_objects = list()
+        if len(needs_backup) > 0:
+            manifest_objects = storage.storage_driver.upload_blobs(needs_backup, dst_path)
 
         # Reintroducing already backed up objects in the manifest in incremental
         for obj in already_backed_up:
-            manifestobjects.append(obj)
+            manifest_objects.append(obj)
 
-        manifest.append({'keyspace': snapshotpath.keyspace,
-                         'columnfamily': snapshotpath.columnfamily,
-                         'objects': [{
-                             'path': url_to_path(manifestobject.path, node_backup.fqdn),
-                             'MD5': manifestobject.MD5,
-                             'size': manifestobject.size
-                         } for manifestobject in manifestobjects]})
+        manifest.append(make_manifest_object(node_backup.fqdn, snapshot_path, manifest_objects))
+
     return num_files
+
+
+def make_manifest_object(fqdn, snapshot_path, manifest_objects):
+    return {
+        'keyspace': snapshot_path.keyspace,
+        'columnfamily': snapshot_path.columnfamily,
+        'objects': [{
+            'path': url_to_path(manifest_object.path, fqdn),
+            'MD5': manifest_object.MD5,
+            'size': manifest_object.size,
+        } for manifest_object in manifest_objects]
+    }
 
 
 def url_to_path(url, fqdn):
