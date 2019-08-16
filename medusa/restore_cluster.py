@@ -24,16 +24,18 @@ import subprocess
 import os
 
 from medusa.monitoring import Monitoring
+
 from medusa.cassandra_utils import CqlSessionProvider
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
 
+
 Remote = collections.namedtuple('Remote', ['target', 'connect_args', 'client', 'channel', 'stdout', 'stderr'])
-SSH_ADD_KEYS_CMD = "ssh-add"
-SSH_AGENT_CREATE_CMD = "ssh-agent"
-SSH_AGENT_KILL_CMD = "ssh-agent -k"
-SSH_AUTH_SOCK_ENVVAR = "SSH_AUTH_SOCK"
-SSH_AGENT_PID_ENVVAR = "SSH_AGENT_PID"
+SSH_ADD_KEYS_CMD = 'ssh-add'
+SSH_AGENT_CREATE_CMD = 'ssh-agent'
+SSH_AGENT_KILL_CMD = 'ssh-agent -k'
+SSH_AUTH_SOCK_ENVVAR = 'SSH_AUTH_SOCK'
+SSH_AGENT_PID_ENVVAR = 'SSH_AGENT_PID'
 
 
 def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify):
@@ -53,11 +55,18 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise Exception(err_msg)
 
+        if not temp_dir.is_dir():
+            err_msg = '{} is not a directory'.format(temp_dir)
+            logging.error(err_msg)
+            raise Exception(err_msg)
+
         if keep_auth:
             logging.info('system_auth keyspace will be left untouched on the target nodes')
         else:
             logging.info('system_auth keyspace will be overwritten with the backup on target nodes')
+
         storage = Storage(config=config.storage)
+
         try:
             cluster_backup = storage.get_cluster_backup(backup_name)
         except KeyError:
@@ -105,10 +114,6 @@ class RestoreJob(object):
         self.keep_auth = keep_auth
         self.verify = verify
         self.in_place = None
-        if not temp_dir.is_dir():
-            err_msg = '{} is not a directory'.format(temp_dir)
-            logging.error(err_msg)
-            raise Exception(err_msg)
         self.temp_dir = temp_dir  # temporary files
         self.work_dir = self.temp_dir / 'medusa-job-{id}'.format(id=self.id)
         self.host_map = {}  # Map of backup host/target host for the restore process
@@ -118,7 +123,7 @@ class RestoreJob(object):
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
         if not self.cluster_backup.is_complete():
-            raise Exception("Backup is not complete")
+            raise Exception('Backup is not complete')
 
         # CASE 1 : We're restoring in place and a seed target has been provided
         if self.seed_target is not None:
@@ -142,22 +147,27 @@ class RestoreJob(object):
         if self._ssh_agent_started is True:
             self.ssh_cleanup()
 
-    def _populate_ringmap(self, tokenmap, target_tokenmap):
-        for host, ringitem in target_tokenmap.items():
-            if not ringitem.get('is_up'):
+    def _validate_ringmap(self, tokenmap, target_tokenmap):
+        for host, ring_item in target_tokenmap.items():
+            if not ring_item.get('is_up'):
                 raise Exception('Target {host} is not up!'.format(host=host))
             if len(target_tokenmap) != len(tokenmap):
                 raise Exception('Cannot restore to a tokenmap of differing size: ({target_tokenmap}:{tokenmap}).'
                                 .format(target_tokenmap=len(target_tokenmap), tokenmap=len(tokenmap)))
 
+    def _populate_ringmap(self, tokenmap, target_tokenmap):
+
         def _tokens_from_ringitem(ringitem):
             return ','.join(map(str, ringitem['tokens']))
 
+        self._validate_ringmap(tokenmap, target_tokenmap)
+
         target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
         backup_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in tokenmap.items()}
+
         if target_tokens.keys() != backup_tokens.keys():
-            raise Exception('Tokenmap is differently distributed: {distribution}'.format(
-                distribution=target_tokens.keys() ^ backup_tokens.keys()))
+            extras = target_tokens.keys() ^ backup_tokens.keys()
+            raise Exception('Tokenmap is differently distributed. Extra items: {}'.format(extras))
 
         ringmap = collections.defaultdict(list)
         for ring in backup_tokens, target_tokens:
@@ -181,16 +191,17 @@ class RestoreJob(object):
         # construct command for each target host
         # invoke `nohup medusa-wrapper #{command}` on each target host
         # wait for exit on each
-        logging.info("Starting cluster restore...")
+        logging.info('Starting cluster restore...')
         logging.info('Working directory for this execution: {}'.format(self.work_dir))
         for source, target in self.host_map.items():
-            logging.info("About to restore on {} using {} as backup source".format(target, source))
+            logging.info('About to restore on {} using {} as backup source'.format(target, source))
 
-        logging.info("This will delete all data on the target nodes and replace it with backup {}."
+        logging.info('This will delete all data on the target nodes and replace it with backup {}.'
                      .format(self.cluster_backup.name))
+
         proceed = None
         while (proceed != 'Y' and proceed != 'n') and not self.bypass_checks:
-            proceed = input("Are you sure you want to proceed? (Y/n)")
+            proceed = input('Are you sure you want to proceed? (Y/n)')
 
         if proceed == 'n':
             err_msg = 'Restore manually cancelled'
@@ -199,21 +210,21 @@ class RestoreJob(object):
 
         # stop all target nodes
         stop_remotes = []
-        logging.info("Stopping Cassandra on all nodes")
+        logging.info('Stopping Cassandra on all nodes')
         for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
             if self.check_cassandra_running(target):
-                logging.info("Cassandra is running on {}. Stopping it...".format(target))
+                logging.info('Cassandra is running on {}. Stopping it...'.format(target))
                 client, connect_args = self._connect(target)
                 command = 'sh -c "{}"'.format(self.config.cassandra.stop_cmd)
                 stop_remotes.append(self._run(target, client, connect_args, command))
             else:
-                logging.info("Cassandra is not running on {}.".format(target))
+                logging.info('Cassandra is not running on {}.'.format(target))
 
         # wait for all nodes to stop
-        logging.info("Waiting for all nodes to stop...")
+        logging.info('Waiting for all nodes to stop...')
         finished, broken = self._wait_for(stop_remotes)
         if len(broken) > 0:
-            err_msg = "Some Cassandras failed to stop. Exiting"
+            err_msg = 'Some Cassandras failed to stop. Exiting'
             logging.error(err_msg)
             raise Exception(err_msg)
 
@@ -231,10 +242,10 @@ class RestoreJob(object):
             remotes.append(remote)
 
         # wait for the restores
-        logging.info("Starting to wait for the nodes to restore")
+        logging.info('Starting to wait for the nodes to restore')
         finished, broken = self._wait_for(remotes)
         if len(broken) > 0:
-            err_msg = "Some nodes failed to restore. Exiting"
+            err_msg = 'Some nodes failed to restore. Exiting'
             logging.error(err_msg)
             raise Exception(err_msg)
 
@@ -248,14 +259,15 @@ class RestoreJob(object):
         client, connect_args = self._connect(target)
 
         # TODO: If this command fails, the node is currently still marked as finished and not as broken.
-        in_place_option = "--in-place" if self.in_place else ""
-        keep_auth_option = "--keep-auth" if self.keep_auth else ""
-        seeds_option = "--seeds {}".format(','.join(seeds)) if seeds else ""
+        in_place_option = '--in-place' if self.in_place else ''
+        keep_auth_option = '--keep-auth' if self.keep_auth else ''
+        seeds_option = '--seeds {}'.format(','.join(seeds)) if seeds else ''
         # We explicitly set --no-verify since we are doing verification here in this module
         # from the control node
-        verify_option = "--no-verify"
+        verify_option = '--no-verify'
+
         command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
-                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup}"'\
+                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup}"' \
             .format(work=self.work_dir,
                     fqdn=source,
                     in_place=in_place_option,
@@ -263,7 +275,8 @@ class RestoreJob(object):
                     seeds=seeds_option,
                     verify=verify_option,
                     backup=self.cluster_backup.name)
-        logging.debug("Restoring on node {} with the following command {}".format(target, command))
+
+        logging.debug('Restoring on node {} with the following command {}'.format(target, command))
         return self._run(target, client, connect_args, command)
 
     def _wait_for(self, remotes):
@@ -284,18 +297,18 @@ class RestoreJob(object):
 
                 # If the remote does not set an exit status and the channel closes
                 # the exit_status is negative.
-                logging.debug("remote.channel.exit_status: {}".format(remote.channel.exit_status))
+                logging.debug('remote.channel.exit_status: {}'.format(remote.channel.exit_status))
                 if remote.channel.exit_status_ready and remote.channel.exit_status >= 0:
                     if remote.channel.exit_status == 0:
                         finished.append(remote)
-                        logging.info("Command succeeded on {}".format(remote.target))
+                        logging.info('Command succeeded on {}'.format(remote.target))
                     else:
                         broken.append(remote)
-                        logging.error("Command failed on {} : ".format(remote.target))
-                        logging.error("Output : {}".format(remote.stdout.readlines()))
-                        logging.error("Err output : {}".format(remote.stderr.readlines()))
+                        logging.error('Command failed on {} : '.format(remote.target))
+                        logging.error('Output : {}'.format(remote.stdout.readlines()))
+                        logging.error('Err output : {}'.format(remote.stderr.readlines()))
                         try:
-                            stderr = self.read_file(remote, self.work_dir / "stderr")
+                            stderr = self.read_file(remote, self.work_dir / 'stderr')
                         except IOError:
                             stderr = 'There was no stderr file'
                         logging.error(stderr)
@@ -307,7 +320,7 @@ class RestoreJob(object):
 
                 if remote.client.get_transport().is_alive() and not remote.channel.closed:
                     # Send an ignored packet for keep alive and later noticing a broken connection
-                    logging.debug("Keeping {} alive.".format(remote.target))
+                    logging.debug('Keeping {} alive.'.format(remote.target))
                     remote.client.get_transport().send_ignore()
                 else:
                     client = paramiko.client.SSHClient()
@@ -319,7 +332,7 @@ class RestoreJob(object):
                     remotes[i] = self._run(remote.target, client, remote.connect_args, command)
 
         if len(broken) > 0:
-            logging.info("Command failed on the following nodes:")
+            logging.info('Command failed on the following nodes:')
             for remote in broken:
                 logging.info(remote.target)
         else:
@@ -328,14 +341,14 @@ class RestoreJob(object):
         return finished, broken
 
     def _connect(self, target):
-        logging.debug("Connecting to {}".format(target))
+        logging.debug('Connecting to {}'.format(target))
 
         pkey = None
-        if self.config.ssh.key_file is not None and self.config.ssh.key_file != "":
+        if self.config.ssh.key_file is not None and self.config.ssh.key_file != '':
             pkey = paramiko.RSAKey.from_private_key_file(self.config.ssh.key_file, None)
             if self._ssh_agent_started is False:
                 self.create_agent()
-                add_key_cmd = "{} {}".format(SSH_ADD_KEYS_CMD, self.config.ssh.key_file)
+                add_key_cmd = '{} {}'.format(SSH_ADD_KEYS_CMD, self.config.ssh.key_file)
                 subprocess.check_output(add_key_cmd, universal_newlines=True, shell=True)
                 self._ssh_agent_started = True
 
@@ -350,7 +363,7 @@ class RestoreJob(object):
         }
         client.connect(**connect_args)
 
-        logging.debug("Successfully connected to {}".format(target))
+        logging.debug('Successfully connected to {}'.format(target))
         sftp = client.open_sftp()
         try:
             sftp.mkdir(str(self.work_dir))
@@ -372,10 +385,10 @@ class RestoreJob(object):
         session = transport.open_session()
         session.get_pty()
         paramiko.agent.AgentRequestHandler(session)
-        session.exec_command(command.replace("sudo", "sudo -S"))
+        session.exec_command(command.replace('sudo', 'sudo -S'))
         bufsize = -1
-        stdout = session.makefile("r", bufsize)
-        stderr = session.makefile_stderr("r", bufsize)
+        stdout = session.makefile('r', bufsize)
+        stderr = session.makefile_stderr('r', bufsize)
         logging.debug('Running \'{}\' remotely on {}'.format(command, connect_args['hostname']))
         return Remote(target, connect_args, client, stdout.channel, stdout, stderr)
 
@@ -396,10 +409,10 @@ class RestoreJob(object):
         """
         output = subprocess.check_output(SSH_AGENT_CREATE_CMD, universal_newlines=True, shell=True)
         if output:
-            output = output.strip().split("\n")
+            output = output.strip().split('\n')
             for item in output[0:2]:
-                envvar, val = item.split(";")[0].split("=")
-                logging.debug("Setting environment variable: {}={}".format(envvar, val))
+                envvar, val = item.split(';')[0].split('=')
+                logging.debug('Setting environment variable: {}={}'.format(envvar, val))
                 os.environ[envvar] = val
 
     def ssh_cleanup(self):
@@ -409,5 +422,5 @@ class RestoreJob(object):
         # Kill the agent
         subprocess.check_output(SSH_AGENT_KILL_CMD, universal_newlines=True, shell=True)
         # Reset these values so that other function
-        os.environ[SSH_AUTH_SOCK_ENVVAR] = ""
-        os.environ[SSH_AGENT_PID_ENVVAR] = ""
+        os.environ[SSH_AUTH_SOCK_ENVVAR] = ''
+        os.environ[SSH_AGENT_PID_ENVVAR] = ''
