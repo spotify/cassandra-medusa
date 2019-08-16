@@ -36,8 +36,8 @@ def main(config, max_backup_age=0, max_backup_count=0):
         storage = Storage(config=config.storage)
         # Get all backups for the local node
         logging.info('Listing backups for {}'.format(config.storage.fqdn))
-        backup_index = storage.list_backup_index()
-        backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index=backup_index))
+        backup_index = storage.list_backup_index_blobs()
+        backups = list(storage.list_node_backups(fqdn=config.storage.fqdn, backup_index_blobs=backup_index))
         # list all backups to purge based on date conditions
         backups_to_purge += backups_to_purge_by_age(backups, max_backup_age)
         # list all backups to purge based on count conditions
