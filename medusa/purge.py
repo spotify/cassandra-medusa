@@ -14,12 +14,14 @@
 # limitations under the License.
 
 
-from datetime import datetime, timedelta
 import json
 import logging
 import sys
 import traceback
 import os
+
+from datetime import datetime, timedelta
+
 from medusa.index import clean_backup_from_index
 from medusa.monitoring import Monitoring
 from medusa.storage import Storage, format_bytes_str
@@ -78,6 +80,7 @@ def purge_backups(storage, backups, fqdn):
     logging.info("{} backups are candidate to be purged".format(len(backups)))
     nb_objects_purged = 0
     total_purged_size = 0
+
     for backup in backups:
         (purged_objects, purged_size) = purge_backup(storage, backup)
         nb_objects_purged += purged_objects
@@ -86,21 +89,27 @@ def purge_backups(storage, backups, fqdn):
     (cleaned_objects_count, cleaned_objects_size) = cleanup_obsolete_files(storage, fqdn)
     nb_objects_purged += cleaned_objects_count
     total_purged_size += cleaned_objects_size
-    logging.info("Purged {} objects with a total size of {}".format(nb_objects_purged,
-                                                                    format_bytes_str(total_purged_size)))
+
+    logging.info("Purged {} objects with a total size of {}".format(
+        nb_objects_purged,
+        format_bytes_str(total_purged_size))
+    )
 
 
 def purge_backup(storage, backup):
     purged_objects = 0
     purged_size = 0
     clean_backup_from_index(storage, backup)
+
     logging.info("Purging backup {}...".format(backup.name))
     objects = storage.storage_driver.list_objects(backup.backup_path)
+
     for obj in objects:
         logging.debug("Purging {}".format(obj.name))
         purged_objects += 1
         purged_size += obj.size
         storage.storage_driver.delete_object(obj)
+
     return (purged_objects, purged_size)
 
 
@@ -108,16 +117,19 @@ def cleanup_obsolete_files(storage, fqdn):
     logging.info("Cleaning up orphaned files...")
     nb_objects_purged = 0
     total_purged_size = 0
+
     backups = storage.list_node_backups(fqdn=fqdn)
     paths_in_manifest = get_file_paths_from_manifests_for_incremental_backups(backups)
     paths_in_storage = get_file_paths_from_storage(storage, fqdn)
+
     for path in paths_in_storage - paths_in_manifest:
         logging.debug("  - [{}] exists in storage, but not in manifest".format(path))
         obj = storage.storage_driver.get_blob(path)
         nb_objects_purged += 1
         total_purged_size += int(obj.size)
         storage.storage_driver.delete_object(obj)
-    return (nb_objects_purged, total_purged_size)
+
+    return nb_objects_purged, total_purged_size
 
 
 def get_file_paths_from_storage(storage, fqdn):
@@ -126,22 +138,27 @@ def get_file_paths_from_storage(storage, fqdn):
         blob.name: blob
         for blob in storage.storage_driver.list_objects(os.fspath(data_directory))
     }
+
     return set(data_files.keys())
 
 
 def get_file_paths_from_manifests_for_incremental_backups(backups):
     incremental_backups = filter_incremental_backups(backups)
+
     manifests = list(map(lambda backup: json.loads(backup.manifest), incremental_backups))
+
     objects_in_manifests = [
         obj
         for manifest in manifests
         for columnfamily_manifest in manifest
         for obj in columnfamily_manifest['objects']
     ]
+
     paths_in_manifest = {
         "{}".format(obj['path'])
         for obj in objects_in_manifests
     }
+
     return paths_in_manifest
 
 
