@@ -113,6 +113,23 @@ class RestoreClusterTest(unittest.TestCase):
 
                 self.assertTrue('Tokenmap is differently distributed' in str(context.exception))
 
+    def test_populate_ringmap_catches_mismatching_tokens_when_using_vnodes(self):
+        node_backups = list()
+        node_backups.append(Mock())
+        with open("tests/resources/restore_cluster_tokenmap_vnodes.json", 'r') as f:
+            with open("tests/resources/restore_cluster_tokenmap_vnodes_target_fail.json", 'r') as f_target:
+                tokenmap = json.loads(f.read())
+                cluster_backup = MagicMock()
+                restoreJob = RestoreJob(
+                    cluster_backup, self.config, Path('/tmp'), None, "node1.mydomain.net", False, False, None
+                )
+
+                target_tokenmap = json.loads(f_target.read())
+                with self.assertRaises(Exception) as context:
+                    restoreJob._populate_ringmap(tokenmap, target_tokenmap)
+
+                self.assertTrue('Source/target rings have different number of tokens' in str(context.exception))
+
 
 if __name__ == '__main__':
     unittest.main()
