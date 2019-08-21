@@ -212,9 +212,9 @@ class RestoreJob(object):
         stop_remotes = []
         logging.info('Stopping Cassandra on all nodes')
         for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
-            if self.check_cassandra_running(target):
+            client, connect_args = self._connect(target)
+            if self.check_cassandra_running(target, client, connect_args):
                 logging.info('Cassandra is running on {}. Stopping it...'.format(target))
-                client, connect_args = self._connect(target)
                 command = 'sh -c "{}"'.format(self.config.cassandra.stop_cmd)
                 stop_remotes.append(self._run(target, client, connect_args, command))
             else:
@@ -313,9 +313,11 @@ class RestoreJob(object):
                             stderr = 'There was no stderr file'
                         logging.error(stderr)
                     # We got an exit code that does not indicate an error, but not necessarily
-                    # success. Cleanup channel and move to next remote. remote.client could still
-                    # be used.
+                    # success. Cleanup channel and move to next remote.
                     remote.channel.close()
+                    # also close the client. this will free file descriptors
+                    # in case we start re-using remotes this close will need to go away
+                    remote.client.close()
                     continue
 
                 if remote.client.get_transport().is_alive() and not remote.channel.closed:
@@ -397,8 +399,7 @@ class RestoreJob(object):
             with ftp_client.file(remotepath.as_posix(), 'r') as f:
                 return str(f.read(), 'utf-8')
 
-    def check_cassandra_running(self, host):
-        client, connect_args = self._connect(host)
+    def check_cassandra_running(self, host, client, connect_args):
         command = 'sh -c "{}"'.format(self.config.cassandra.check_running)
         remote = self._run(host, client, connect_args, command)
         return remote.channel.recv_exit_status() == 0
