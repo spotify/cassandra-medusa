@@ -52,7 +52,8 @@ setuptools.setup(
         'apache-libcloud==2.4.0',
         'python-dateutil==2.8.0',
         'lockfile==0.12.2',
-        'pycrypto==2.6.1'
+        'pycrypto==2.6.1',
+        'retrying==1.3.3'
     ],
     entry_points={
         'console_scripts': [

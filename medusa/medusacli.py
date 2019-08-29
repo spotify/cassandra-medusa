@@ -42,7 +42,7 @@ pass_MedusaConfig = click.make_pass_decorator(medusa.config.MedusaConfig)
 def configure_logging(verbosity, without_log_timestamp):
     loglevel = max(2 - verbosity, 0) * 10
 
-    if (verbosity == 0):
+    if verbosity == 0:
         loglevel = logging.INFO
 
     if without_log_timestamp:

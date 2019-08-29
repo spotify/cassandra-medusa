@@ -23,6 +23,7 @@ import pathlib
 import queue
 
 from libcloud.storage.types import ObjectDoesNotExistError
+from retrying import retry
 
 import medusa.storage
 
@@ -39,6 +40,7 @@ class AbstractStorage(abc.ABC):
         # Override for each child class
         pass
 
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def list_objects(self, path=None):
         # List objects in the bucket/container that have the corresponding prefix (emtpy means all objects)
         logging.debug("[Storage] Listing objects in {}".format(path if path is not None else 'everywhere'))
@@ -50,6 +52,7 @@ class AbstractStorage(abc.ABC):
 
         return objects
 
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def upload_blob_from_string(self, path, content, encoding="utf-8"):
         # Upload a string content to the provided path in the bucket
         obj = self.driver.upload_object_via_stream(
@@ -74,7 +77,6 @@ class AbstractStorage(abc.ABC):
     def upload_blobs(self, src, dest):
         """
         Uploads a list of files from the local storage into the remote storage system
-
         :param src: a list of files to upload
         :param dest: the location where to upload the files in the target bucket (doesn't contain the filename)
         :return: a list of ManifestObject describing all the uploaded files
@@ -106,16 +108,22 @@ class AbstractStorage(abc.ABC):
             try:
                 src_file = task_queue.get_nowait()
                 logging.info("Uploading {}".format(src_file))
-                obj = driver.upload_object(
-                    os.fspath(src_file),
-                    container=self.bucket,
-                    object_name=str("{}/{}".format(dest, src_file.name))
-                )
+                obj = self.upload_object(dest, driver, src_file)
                 manifest_objects.append(medusa.storage.ManifestObject(obj.name, obj.size, obj.hash))
                 task_queue.task_done()
             except queue.Empty:
                 break
 
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+    def upload_object(self, dest, driver, src_file):
+        obj = driver.upload_object(
+            os.fspath(src_file),
+            container=self.bucket,
+            object_name=str("{}/{}".format(dest, src_file.name))
+        )
+        return obj
+
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob(self, path):
         try:
             logging.debug("[Storage] Getting object {}".format(path))
@@ -123,6 +131,7 @@ class AbstractStorage(abc.ABC):
         except ObjectDoesNotExistError:
             return None
 
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob_content_as_string(self, path):
         blob = self.get_blob(str(path))
         if blob is None:
@@ -167,5 +176,6 @@ class AbstractStorage(abc.ABC):
     def get_download_path(self, path):
         return path
 
+    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def delete_object(self, object):
         self.driver.delete_object(object)
