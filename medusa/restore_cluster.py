@@ -181,7 +181,7 @@ class RestoreJob(object):
     def _populate_hostmap(self):
         with open(self.host_list, 'r') as f:
             for line in f.readlines():
-                token, seed, target, source = line.replace('\n', '').split(self.config.storage.host_file_separator)
+                seed, target, source = line.replace('\n', '').split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
                 self.host_map[source.strip()] = {'target': target.strip(), 'seed': seed in ['True']}
 
