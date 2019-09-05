@@ -1,3 +1,3 @@
--3074457345618258400,True,node1.mydomain.net,node1.mydomain.net
--9223372036854776000,True,node2.mydomain.net,node2.mydomain.net
-3074457345618258400,False,node3.mydomain.net,node4.mydomain.net
+True,node1.mydomain.net,node1.mydomain.net
+True,node2.mydomain.net,node2.mydomain.net
+False,node3.mydomain.net,node4.mydomain.net
