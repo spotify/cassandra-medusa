@@ -92,7 +92,7 @@ class AbstractStorage(abc.ABC):
                 src_file = pathlib.Path(src_file)
             task_queue.put(src_file)
 
-        with concurrent.futures.ThreadPoolExecutor(max_worker=num_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
             upload_future = executor.submit(self._upload_worker, task_queue, dest, manifest_objects)
             task_queue.join()
             concurrent.futures.wait(upload_future)
@@ -112,6 +112,7 @@ class AbstractStorage(abc.ABC):
                 container=self.bucket,
                 object_name=str("{}/{}".format(dest, src_file.name))
             )
+            print("FINISHED UPLOAD")
             manifest_objects.append(medusa.storage.ManifestObject(obj.name, obj.size, obj.hash))
 
     def get_blob(self, path):
