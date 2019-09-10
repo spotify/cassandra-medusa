@@ -160,12 +160,27 @@ class RestoreJob(object):
         def _tokens_from_ringitem(ringitem):
             return ','.join(map(str, ringitem['tokens']))
 
+        def _token_counts_per_host(tokenmap):
+            for host, ringitem in tokenmap.items():
+                yield len(ringitem['tokens'])
+
         self._validate_ringmap(tokenmap, target_tokenmap)
 
         target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
         backup_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in tokenmap.items()}
 
-        if target_tokens.keys() != backup_tokens.keys():
+        target_tokens_per_host = set(_token_counts_per_host(tokenmap))
+        backup_tokens_per_host = set(_token_counts_per_host(target_tokenmap))
+
+        # we must have the same number of tokens per host in both vnode and normal clusters
+        if target_tokens_per_host != backup_tokens_per_host:
+            raise Exception('Source/target rings have different number of tokens per node: {}/{}'.format(
+                backup_tokens_per_host,
+                target_tokens_per_host
+            ))
+
+        # if not using vnodes, the tokens must match exactly
+        if len(backup_tokens_per_host) == 1 and target_tokens.keys() != backup_tokens.keys():
             extras = target_tokens.keys() ^ backup_tokens.keys()
             raise Exception('Tokenmap is differently distributed. Extra items: {}'.format(extras))
 
