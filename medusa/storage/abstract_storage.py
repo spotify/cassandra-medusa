@@ -19,6 +19,8 @@ import io
 import logging
 import os
 import pathlib
+import queue
+import concurrent.futures
 
 from libcloud.storage.types import ObjectDoesNotExistError
 
@@ -82,18 +84,35 @@ class AbstractStorage(abc.ABC):
         if isinstance(src, str) or isinstance(src, pathlib.Path):
             src = [src]
 
+        task_queue = queue.Queue()
+        num_workers = 5
+
         for src_file in src:
             if not isinstance(src, pathlib.Path):
                 src_file = pathlib.Path(src_file)
+            task_queue.put(src_file)
+
+        with concurrent.futures.ThreadPoolExecutor(max_worker=num_workers) as executor:
+            upload_future = executor.submit(self._upload_worker, task_queue, dest, manifest_objects)
+            task_queue.join()
+            concurrent.futures.wait(upload_future)
+
+        return manifest_objects
+
+    def _upload_worker(self, task_queue, dest, manifest_objects):
+        # We need to use a separate connection per thread
+        driver = self.connect_storage()
+        while True:
+            src_file = task_queue.get()
+            if src_file is None:
+                break
             logging.info("Uploading {}".format(src_file))
-            obj = self.driver.upload_object(
+            obj = driver.upload_object(
                 os.fspath(src_file),
                 container=self.bucket,
                 object_name=str("{}/{}".format(dest, src_file.name))
             )
             manifest_objects.append(medusa.storage.ManifestObject(obj.name, obj.size, obj.hash))
-
-        return manifest_objects
 
     def get_blob(self, path):
         try:
