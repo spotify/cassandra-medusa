@@ -245,10 +245,13 @@ Options:
 In order to restore a backup for a full cluster, in the case where the restored cluster is the exact same as the backed up one:  
 
 ```
-$ medusa restore-cluster --backup-name=<name of the backup>
+$ medusa restore-cluster --backup-name=<name of the backup> --seed-target node1.domain.net
 ```
 
 Medusa will need to run without `sudo` as it will connect through ssh to all nodes in the cluster in order to perform remote operations. It will, by default, use the current user to connect and rely on agent forwarding for authentication (you must ssh into the server using `-A` to enable agent forwarding).
+The `--seed-target` node is used to connect to Cassandra and retrieve the current topology of the cluster. This allows Medusa to map each backup to the correct node in the current topology.
+
+The following operations will take place:
 
 * stop Cassandra on all nodes
 * check that the current topology matches the backed up one
