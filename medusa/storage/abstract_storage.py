@@ -21,6 +21,7 @@ import os
 import pathlib
 import queue
 import concurrent.futures
+import time
 
 from libcloud.storage.types import ObjectDoesNotExistError
 
@@ -95,7 +96,7 @@ class AbstractStorage(abc.ABC):
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
             upload_future = executor.submit(self._upload_worker, task_queue, dest, manifest_objects)
             task_queue.join()
-            concurrent.futures.wait(upload_future)
+            # concurrent.futures.wait(list(upload_future))
 
         return manifest_objects
 
@@ -103,7 +104,7 @@ class AbstractStorage(abc.ABC):
         # We need to use a separate connection per thread
         driver = self.connect_storage()
         while True:
-            src_file = task_queue.get()
+            src_file = task_queue.get_nowait()
             if src_file is None:
                 break
             logging.info("Uploading {}".format(src_file))
@@ -112,8 +113,8 @@ class AbstractStorage(abc.ABC):
                 container=self.bucket,
                 object_name=str("{}/{}".format(dest, src_file.name))
             )
-            print("FINISHED UPLOAD")
             manifest_objects.append(medusa.storage.ManifestObject(obj.name, obj.size, obj.hash))
+            task_queue.task_done()
 
     def get_blob(self, path):
         try:
