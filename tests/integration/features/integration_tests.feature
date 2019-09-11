@@ -186,7 +186,7 @@ Feature: Integration tests
         | local      |
 # other storage providers than local won't work with this test
 
-Scenario Outline: Perform an incremental backup, verify it, and restore it
+    Scenario Outline: Perform an incremental backup, verify it, and restore it
         Given I have a fresh ccm cluster running named "scenario8"
         And I am using "<Storage>" as storage provider
         And I create the "test" table in keyspace "medusa"
@@ -233,7 +233,7 @@ Scenario Outline: Perform an incremental backup, verify it, and restore it
 #        | google_storage      |
 #        | s3_us_west_oregon      |
 
-Scenario Outline: Run a purge on backups
+    Scenario Outline: Run a purge on backups
         Given I have a fresh ccm cluster running named "scenario9"
         And I am using "<Storage>" as storage provider
         And I create the "test" table in keyspace "medusa"
@@ -273,7 +273,7 @@ Scenario Outline: Run a purge on backups
 #        | google_storage      |
 #        | s3_us_west_oregon      |
 
-Scenario Outline: Run a backup and restore and verify metrics
+    Scenario Outline: Run a backup and restore and verify metrics
         Given I have a fresh ccm cluster running named "scenario10"
         And I am using "<Storage>" as storage provider
         And I create the "test" table in keyspace "medusa"
@@ -289,3 +289,27 @@ Scenario Outline: Run a backup and restore and verify metrics
         | local      |
 #        | google_storage      |
 #        | s3_us_west_oregon      |
+
+    Scenario Outline: Perform a backup, and restore it using the sstableloader
+        Given I have a fresh ccm cluster running named "scenario1"
+        And I am using "<Storage>" as storage provider
+        And I create the "test" table in keyspace "medusa"
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        And I perform a backup in "full" mode of the node named "first_backup"
+        Then I can see the backup named "first_backup" when I list the backups
+        And I can verify the backup named "first_backup" successfully
+        When I load "100" rows in the "medusa.test" table
+        And run a "ccm node1 nodetool flush" command
+        Given I have "300" rows in the "medusa.test" table
+        And I truncate the "medusa.test" table
+        When I restore the backup named "first_backup" with the sstableloader
+        Then I have "200" rows in the "medusa.test" table
+
+        Examples:
+        | Storage   |
+        | local     |
+#        | s3_us_west_oregon     |
+#        | google_storage      |

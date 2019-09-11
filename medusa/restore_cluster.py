@@ -27,6 +27,7 @@ import os
 from medusa.monitoring import Monitoring
 
 from medusa.cassandra_utils import CqlSessionProvider
+from medusa.schema import parse_schema
 from medusa.storage import Storage
 from medusa.verify_restore import verify_restore
 
@@ -39,7 +40,8 @@ SSH_AUTH_SOCK_ENVVAR = 'SSH_AUTH_SOCK'
 SSH_AGENT_PID_ENVVAR = 'SSH_AGENT_PID'
 
 
-def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks, verify):
+def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
+                verify, use_sstableloader=False):
     monitoring = Monitoring(config=config.monitoring)
     try:
         restore_start_time = datetime.datetime.now()
@@ -75,7 +77,8 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
             logging.error(err_msg)
             raise Exception(err_msg)
 
-        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify, bypass_checks)
+        restore = RestoreJob(cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
+                             bypass_checks, use_sstableloader)
         restore.execute()
 
         restore_end_time = datetime.datetime.now()
@@ -104,7 +107,7 @@ def orchestrate(config, backup_name, seed_target, temp_dir, host_list, keep_auth
 
 class RestoreJob(object):
     def __init__(self, cluster_backup, config, temp_dir, host_list, seed_target, keep_auth, verify,
-                 bypass_checks=False):
+                 bypass_checks=False, use_sstableloader=False):
         self.id = uuid.uuid4()
         self.ringmap = None
         self.cluster_backup = cluster_backup
@@ -120,6 +123,7 @@ class RestoreJob(object):
         self.host_map = {}  # Map of backup host/target host for the restore process
         self.bypass_checks = bypass_checks
         self._ssh_agent_started = False
+        self.use_sstableloader = use_sstableloader
 
     def execute(self):
         logging.info('Ensuring the backup is found and is complete')
@@ -152,9 +156,9 @@ class RestoreJob(object):
         for host, ring_item in target_tokenmap.items():
             if not ring_item.get('is_up'):
                 raise Exception('Target {host} is not up!'.format(host=host))
-            if len(target_tokenmap) != len(tokenmap):
-                raise Exception('Cannot restore to a tokenmap of differing size: ({target_tokenmap}:{tokenmap}).'
-                                .format(target_tokenmap=len(target_tokenmap), tokenmap=len(tokenmap)))
+        if len(target_tokenmap) != len(tokenmap):
+            return False
+        return True
 
     def _populate_ringmap(self, tokenmap, target_tokenmap):
 
@@ -165,41 +169,72 @@ class RestoreJob(object):
             for host, ringitem in tokenmap.items():
                 yield len(ringitem['tokens'])
 
-        self._validate_ringmap(tokenmap, target_tokenmap)
+        def _hosts_from_tokenmap(tokenmap):
+            hosts = set()
+            for host, ringitem in tokenmap.items():
+                hosts.add(host)
+            return hosts
 
-        target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
-        backup_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in tokenmap.items()}
+        def _chunk(my_list, nb_chunks):
+            groups = []
+            for i in range(nb_chunks):
+                groups.append([])
+            for i in range(len(my_list)):
+                groups[i % nb_chunks].append(my_list[i])
+            return groups
 
-        target_tokens_per_host = set(_token_counts_per_host(tokenmap))
-        backup_tokens_per_host = set(_token_counts_per_host(target_tokenmap))
+        topology_matches = self._validate_ringmap(tokenmap, target_tokenmap)
 
-        # we must have the same number of tokens per host in both vnode and normal clusters
-        if target_tokens_per_host != backup_tokens_per_host:
-            raise Exception('Source/target rings have different number of tokens per node: {}/{}'.format(
-                backup_tokens_per_host,
-                target_tokens_per_host
-            ))
+        if topology_matches:
+            target_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in target_tokenmap.items()}
+            backup_tokens = {_tokens_from_ringitem(ringitem): host for host, ringitem in tokenmap.items()}
 
-        # if not using vnodes, the tokens must match exactly
-        if len(backup_tokens_per_host) == 1 and target_tokens.keys() != backup_tokens.keys():
-            extras = target_tokens.keys() ^ backup_tokens.keys()
-            raise Exception('Tokenmap is differently distributed. Extra items: {}'.format(extras))
+            target_tokens_per_host = set(_token_counts_per_host(tokenmap))
+            backup_tokens_per_host = set(_token_counts_per_host(target_tokenmap))
 
-        ringmap = collections.defaultdict(list)
-        for ring in backup_tokens, target_tokens:
-            for token, host in ring.items():
-                ringmap[token].append(host)
+            # we must have the same number of tokens per host in both vnode and normal clusters
+            if target_tokens_per_host != backup_tokens_per_host:
+                logging.info('Source/target rings have different number of tokens per node: {}/{}'.format(
+                    backup_tokens_per_host,
+                    target_tokens_per_host
+                ))
+                topology_matches = False
 
-        self.ringmap = ringmap
-        for token, hosts in ringmap.items():
-            self.host_map[hosts[0]] = {'target': hosts[1], 'seed': False}
+            # if not using vnodes, the tokens must match exactly
+            if len(backup_tokens_per_host) == 1 and target_tokens.keys() != backup_tokens.keys():
+                extras = target_tokens.keys() ^ backup_tokens.keys()
+                logging.info('Tokenmap is differently distributed. Extra items: {}'.format(extras))
+                topology_matches = False
+
+        if topology_matches:
+            # We can associate each restore node with exactly one backup node
+            ringmap = collections.defaultdict(list)
+            for ring in backup_tokens, target_tokens:
+                for token, host in ring.items():
+                    ringmap[token].append(host)
+
+            self.ringmap = ringmap
+            for token, hosts in ringmap.items():
+                self.host_map[hosts[1]] = {'source': [hosts[0]], 'seed': False}
+        else:
+            # Topologies are different between backup and restore clusters. Using the sstableloader for restore.
+            self.use_sstableloader = True
+            backup_hosts = _hosts_from_tokenmap(tokenmap)
+            restore_hosts = list(_hosts_from_tokenmap(target_tokenmap))
+            if len(backup_hosts) >= len(restore_hosts):
+                grouped_backups = _chunk(list(backup_hosts), len(restore_hosts))
+            else:
+                grouped_backups = _chunk(list(backup_hosts), len(backup_hosts))
+            for i in range(min([len(grouped_backups), len(restore_hosts)])):
+                # associate one restore host with several backups as we don't have the same number of nodes.
+                self.host_map[restore_hosts[i]] = {'source': grouped_backups[i], 'seed': False}
 
     def _populate_hostmap(self):
         with open(self.host_list, 'r') as f:
             for line in f.readlines():
                 seed, target, source = line.replace('\n', '').split(self.config.storage.host_file_separator)
                 # in python, bool('False') evaluates to True. Need to test the membership as below
-                self.host_map[source.strip()] = {'target': target.strip(), 'seed': seed in ['True']}
+                self.host_map[target.strip()] = {'source': [source.strip()], 'seed': seed in ['True']}
 
     def _restore_data(self):
         # create workdir on each target host
@@ -209,8 +244,8 @@ class RestoreJob(object):
         # wait for exit on each
         logging.info('Starting cluster restore...')
         logging.info('Working directory for this execution: {}'.format(self.work_dir))
-        for source, target in self.host_map.items():
-            logging.info('About to restore on {} using {} as backup source'.format(target, source))
+        for target, sources in self.host_map.items():
+            logging.info('About to restore on {} using {} as backup source'.format(target, sources))
 
         logging.info('This will delete all data on the target nodes and replace it with backup {}.'
                      .format(self.cluster_backup.name))
@@ -224,34 +259,39 @@ class RestoreJob(object):
             logging.error(err_msg)
             raise Exception(err_msg)
 
-        # stop all target nodes
-        stop_remotes = []
-        logging.info('Stopping Cassandra on all nodes')
-        for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
-            client, connect_args = self._connect(target)
-            if self.check_cassandra_running(target, client, connect_args):
-                logging.info('Cassandra is running on {}. Stopping it...'.format(target))
-                command = 'sh -c "{}"'.format(self.config.cassandra.stop_cmd)
-                stop_remotes.append(self._run(target, client, connect_args, command))
-            else:
-                logging.info('Cassandra is not running on {}.'.format(target))
+        if self.use_sstableloader is False:
+            # stop all target nodes
+            stop_remotes = []
+            logging.info('Stopping Cassandra on all nodes')
+            for target, source in [(t, s['source']) for t, s in self.host_map.items()]:
+                client, connect_args = self._connect(target)
+                if self.check_cassandra_running(target, client, connect_args):
+                    logging.info('Cassandra is running on {}. Stopping it...'.format(target))
+                    command = 'sh -c "{}"'.format(self.config.cassandra.stop_cmd)
+                    stop_remotes.append(self._run(target, client, connect_args, command))
+                else:
+                    logging.info('Cassandra is not running on {}.'.format(target))
 
-        # wait for all nodes to stop
-        logging.info('Waiting for all nodes to stop...')
-        finished, broken = self._wait_for(stop_remotes)
-        if len(broken) > 0:
-            err_msg = 'Some Cassandras failed to stop. Exiting'
-            logging.error(err_msg)
-            raise Exception(err_msg)
+            # wait for all nodes to stop
+            logging.info('Waiting for all nodes to stop...')
+            finished, broken = self._wait_for(stop_remotes)
+            if len(broken) > 0:
+                err_msg = 'Some Cassandras failed to stop. Exiting'
+                logging.error(err_msg)
+                raise Exception(err_msg)
+        else:
+            # we're using the sstableloader, which will require to (re)create the schema and empty the tables
+            logging.info("Restoring schema on the target cluster")
+            self._restore_schema()
 
         # work out which nodes are seeds in the target cluster
-        target_seeds = [t['target'] for s, t in self.host_map.items() if t['seed']]
+        target_seeds = [s['source'][0] for t, s in self.host_map.items() if s['seed']]
 
         # trigger restores everywhere at once
         # pass in seed info so that non-seeds can wait for seeds before starting
         # seeds, naturally, don't wait for anything
         remotes = []
-        for source, target in [(s, t['target']) for s, t in self.host_map.items()]:
+        for target, source in [(t, s['source']) for t, s in self.host_map.items()]:
             logging.info('Restoring data on {}...'.format(target))
             seeds = None if target in target_seeds else target_seeds
             remote = self._trigger_restore(target, source, seeds=seeds)
@@ -271,6 +311,43 @@ class RestoreJob(object):
             hosts = list(map(lambda r: r.target, remotes))
             verify_restore(hosts, self.cluster_backup.complete_nodes(), self.config)
 
+    def _restore_schema(self):
+        schema = parse_schema(self.cluster_backup.schema)
+        with self.session_provider.new_session() as session:
+            for keyspace in schema.keys():
+                if keyspace.startswith("system"):
+                    continue
+                else:
+                    self._create_or_recreate_schema_objects(session, keyspace, schema[keyspace])
+
+    def _create_or_recreate_schema_objects(self, session, keyspace, keyspace_schema):
+        logging.info("(Re)creating schema for keyspace {}".format(keyspace))
+        if (keyspace not in session.cluster.metadata.keyspaces):
+            # Keyspace doesn't exist on the target cluster. Got to create it and all the tables as well.
+            session.execute(keyspace_schema['create_statement'])
+        for mv in keyspace_schema['materialized_views']:
+            # MVs need to be dropped before we drop the tables
+            logging.debug("Dropping MV {}.{}".format(keyspace, mv[0]))
+            session.execute("DROP MATERIALIZED VIEW {}.{}".format(keyspace, mv[0]))
+        for udf in keyspace_schema['udf'].items():
+            # 1st custom types as they can be used in tables
+            session.execute(udf[1].replace('CREATE TYPE', 'CREATE TYPE IF NOT EXISTS'))
+        for table in keyspace_schema['tables'].items():
+            logging.debug("(re)creating table {}.{}".format(keyspace, table[0]))
+            if table[0] in session.cluster.metadata.keyspaces[keyspace].tables.keys():
+                # table already exists, drop it first
+                session.execute("DROP TABLE {}.{}".format(keyspace, table[0]))
+            # Create the table
+            session.execute(table[1])
+        for index in keyspace_schema['indices'].items():
+            # indices were dropped with their base tables
+            logging.debug("Creating index {}.{}".format(keyspace, index[0]))
+            session.execute(index[1])
+        for mv in keyspace_schema['materialized_views']:
+            # Base tables are created now, we can create the MVs
+            logging.debug("Creating MV {}.{}".format(keyspace, mv[0]))
+            session.execute("DROP MATERIALIZED VIEW {}.{}".format(keyspace, mv[0]))
+
     def _trigger_restore(self, target, source, seeds=None):
         client, connect_args = self._connect(target)
 
@@ -283,14 +360,15 @@ class RestoreJob(object):
         verify_option = '--no-verify'
 
         command = 'nohup sh -c "cd {work} && medusa-wrapper sudo medusa --fqdn={fqdn} -vvv restore-node ' \
-                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup}"' \
+                  '{in_place} {keep_auth} {seeds} {verify} --backup-name {backup} {use_sstableloader}"' \
             .format(work=self.work_dir,
-                    fqdn=source,
+                    fqdn=','.join(source),
                     in_place=in_place_option,
                     keep_auth=keep_auth_option,
                     seeds=seeds_option,
                     verify=verify_option,
-                    backup=self.cluster_backup.name)
+                    backup=self.cluster_backup.name,
+                    use_sstableloader='--use-sstableloader' if self.use_sstableloader is True else '')
 
         logging.debug('Restoring on node {} with the following command {}'.format(target, command))
         return self._run(target, client, connect_args, command)

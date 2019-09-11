@@ -55,9 +55,9 @@ class RestoreClusterTest(unittest.TestCase):
             restoreJob = RestoreJob(cluster_backup, self.config, Path('/tmp'), host_list, None, False, False, None)
             restoreJob._populate_hostmap()
 
-        self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['target'], "node1.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node2.mydomain.net"]['target'], "node2.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node4.mydomain.net"]['target'], "node3.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['source'], ["node1.mydomain.net"])
+        self.assertEqual(restoreJob.host_map["node2.mydomain.net"]['source'], ["node2.mydomain.net"])
+        self.assertEqual(restoreJob.host_map["node3.mydomain.net"]['source'], ["node4.mydomain.net"])
 
     # Test that we can properly associate source and target nodes for restore using a token map
     def test_populate_tokenmap(self):
@@ -73,10 +73,11 @@ class RestoreClusterTest(unittest.TestCase):
 
                 target_tokenmap = json.loads(f_target.read())
                 restoreJob._populate_ringmap(tokenmap, target_tokenmap)
+                assert restoreJob.use_sstableloader is False
 
-        self.assertEqual(restoreJob.host_map["node1.mydomain.net"]['target'], "node4.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node2.mydomain.net"]['target'], "node5.mydomain.net")
-        self.assertEqual(restoreJob.host_map["node3.mydomain.net"]['target'], "node6.mydomain.net")
+        self.assertEqual(restoreJob.host_map["node4.mydomain.net"]['source'], ["node1.mydomain.net"])
+        self.assertEqual(restoreJob.host_map["node5.mydomain.net"]['source'], ["node2.mydomain.net"])
+        self.assertEqual(restoreJob.host_map["node6.mydomain.net"]['source'], ["node3.mydomain.net"])
 
     # Test that we can't restore the cluster if the source and target topology have different sizes
     def test_populate_tokenmap_fail(self):
@@ -91,10 +92,9 @@ class RestoreClusterTest(unittest.TestCase):
                 )
 
                 target_tokenmap = json.loads(f_target.read())
-                with self.assertRaises(Exception) as context:
-                    restoreJob._populate_ringmap(tokenmap, target_tokenmap)
-
-                self.assertTrue('Cannot restore to a tokenmap of differing size' in str(context.exception))
+                restoreJob._populate_ringmap(tokenmap, target_tokenmap)
+                # topologies are different, which forces the use of the sstableloader
+                assert restoreJob.use_sstableloader is True
 
     # Test that we can't restore the cluster if the source and target topology have different tokens
     def test_populate_tokenmap_fail_tokens(self):
@@ -109,10 +109,9 @@ class RestoreClusterTest(unittest.TestCase):
                 )
 
                 target_tokenmap = json.loads(f_target.read())
-                with self.assertRaises(Exception) as context:
-                    restoreJob._populate_ringmap(tokenmap, target_tokenmap)
-
-                self.assertTrue('Tokenmap is differently distributed' in str(context.exception))
+                restoreJob._populate_ringmap(tokenmap, target_tokenmap)
+                # topologies are different, which forces the use of the sstableloader
+                assert restoreJob.use_sstableloader is True
 
     def test_populate_ringmap_catches_mismatching_tokens_when_using_vnodes(self):
         node_backups = list()
@@ -126,10 +125,9 @@ class RestoreClusterTest(unittest.TestCase):
                 )
 
                 target_tokenmap = json.loads(f_target.read())
-                with self.assertRaises(Exception) as context:
-                    restoreJob._populate_ringmap(tokenmap, target_tokenmap)
-
-                self.assertTrue('Source/target rings have different number of tokens' in str(context.exception))
+                restoreJob._populate_ringmap(tokenmap, target_tokenmap)
+                # topologies are different, which forces the use of the sstableloader
+                assert restoreJob.use_sstableloader is True
 
 
 if __name__ == '__main__':

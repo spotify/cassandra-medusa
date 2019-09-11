@@ -134,7 +134,12 @@ def i_am_using_storage_provider(self, storage_provider):
         'is_ccm': 1,
         'stop_cmd': 'ccm stop',
         'start_cmd': 'ccm start',
-        'config_file': os.path.expanduser(os.path.join('~/.ccm', world.cluster_name, 'node1', 'conf', 'cassandra.yaml'))
+        'cql_username': 'cassandra',
+        'cql_password': 'cassandra',
+        'config_file': os.path.expanduser(os.path.join('~/.ccm', world.cluster_name, 'node1', 'conf',
+                                                       'cassandra.yaml')),
+        'sstableloader_bin': os.path.expanduser(os.path.join('~/.ccm', 'repository', world.cassandra_version,
+                                                             'bin', 'sstableloader'))
     }
 
     config['monitoring'] = {
@@ -233,10 +238,16 @@ def _i_can_verify_the_backup_named_successfully(self, backup_name):
     medusa.verify.verify(world.config, backup_name)
 
 
-@step(r'I restore the backup named "([^"]*)"')
+@step(r'I restore the backup named "([^"]*)"$')
 def _i_restore_the_backup_named(self, backup_name):
     medusa.restore_node.restore_node(world.config, Path("/tmp"), backup_name, in_place=True, keep_auth=False,
-                                     seeds=None, verify=None)
+                                     seeds=None, verify=None, use_sstableloader=False)
+
+
+@step(r'I restore the backup named "([^"]*)" with the sstableloader$')
+def _i_restore_the_backup_named_with_sstableloader(self, backup_name):
+    medusa.restore_node.restore_node(world.config, Path("/tmp"), backup_name, in_place=True, keep_auth=False,
+                                     seeds=None, verify=None, use_sstableloader=True)
 
 
 @step(r'I have "([^"]*)" rows in the "([^"]*)" table')
@@ -439,6 +450,12 @@ def _i_see_metrics_emitted(self, metrics_count):
     logging.info('There is {} metrics'.format(len(metrics)))
     logging.info('The metrics are: {}'.format(metrics))
     assert int(len(metrics)) == int(metrics_count)
+
+
+@step(r'I truncate the "([^"]*)" table$')
+def _i_truncate_the_table(self, table_name):
+    world.session = connect_cassandra()
+    world.session.execute("truncate {}".format(table_name))
 
 
 def connect_cassandra():

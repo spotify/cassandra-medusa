@@ -133,9 +133,11 @@ def download(medusaconfig, backup_name, download_destination):
               default=False, is_flag=True)
 @click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
               default=False)
+@click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
+              default=False, is_flag=True)
 @pass_MedusaConfig
 def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list, keep_auth, bypass_checks,
-                    verify):
+                    verify, use_sstableloader):
     """
     Restore Cassandra cluster
     """
@@ -146,7 +148,8 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
                                        host_list,
                                        keep_auth,
                                        bypass_checks,
-                                       verify)
+                                       verify,
+                                       use_sstableloader)
 
 
 @cli.command(name='restore-node')
@@ -160,12 +163,15 @@ def restore_cluster(medusaconfig, backup_name, seed_target, temp_dir, host_list,
               default=None)
 @click.option('--verify/--no-verify', help='Verify that the cluster is operational after the restore completes,',
               default=False)
+@click.option('--use-sstableloader', help='Use the sstableloader to load the backup into the cluster',
+              default=False, is_flag=True)
 @pass_MedusaConfig
-def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds, verify):
+def restore_node(medusaconfig, temp_dir, backup_name, in_place, keep_auth, seeds, verify, use_sstableloader):
     """
     Restore single Cassandra node
     """
-    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds, verify)
+    medusa.restore_node.restore_node(medusaconfig, Path(temp_dir), backup_name, in_place, keep_auth, seeds,
+                                     verify, use_sstableloader)
 
 
 @cli.command(name='status')

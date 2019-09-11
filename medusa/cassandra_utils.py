@@ -168,6 +168,9 @@ class CqlSession(object):
         return (row for row in self.session.execute(query)
                 if row.keyspace_name not in self.EXCLUDED_KEYSPACES)
 
+    def execute(self, query):
+        return self.session.execute(query)
+
 
 class CassandraConfigReader(object):
 

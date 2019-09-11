@@ -33,7 +33,7 @@ A_MINUTE = 60
 MAX_ATTEMPTS = 60
 
 
-def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify):
+def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, verify, use_sstableloader=False):
 
     if in_place and keep_auth:
         logging.warning('Cannot keep system_auth when restoring in-place. It would be overwritten')
@@ -41,6 +41,15 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
 
     storage = Storage(config=config.storage)
 
+    if not use_sstableloader:
+        node_backup = restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage)
+    else:
+        node_backup = restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage)
+    if verify:
+        verify_restore([socket.gethostname()], [node_backup], config)
+
+
+def restore_node_locally(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage):
     incremental_blob = storage.storage_driver.get_blob(
         os.path.join(config.storage.fqdn, backup_name, 'meta', 'incremental'))
 
@@ -96,8 +105,66 @@ def restore_node(config, temp_dir, backup_name, in_place, keep_auth, seeds, veri
     else:
         cassandra.start(tokens)
 
-    if verify:
-        verify_restore([socket.gethostname()], [node_backup], config)
+    return node_backup
+
+
+def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_auth, seeds, storage):
+    node_backup = None
+    fqdns = config.storage.fqdn.split(",")
+    for fqdn in fqdns:
+        incremental_blob = storage.storage_driver.get_blob(
+            os.path.join(fqdn, backup_name, 'meta', 'incremental'))
+
+        node_backup = storage.get_node_backup(
+            fqdn=fqdn,
+            name=backup_name,
+            incremental_mode=True if incremental_blob is not None else False
+        )
+
+        if not node_backup.exists():
+            logging.error('No such backup')
+            sys.exit(1)
+
+        # Download the backup
+        download_dir = temp_dir / 'medusa-restore-{}'.format(uuid.uuid4())
+        logging.info('Downloading data from backup to {}'.format(download_dir))
+        download_data(config.storage, node_backup, destination=download_dir)
+        invoke_sstableloader(config, download_dir, keep_auth)
+        logging.info('Finished loading backup from {}'.format(fqdn))
+
+    return node_backup
+
+
+def invoke_sstableloader(config, download_dir, keep_auth):
+    logging.debug("sstableloader bin : {}".format(config.cassandra.sstableloader_bin))
+    keyspaces = os.listdir(download_dir)
+    for keyspace in keyspaces:
+        ks_path = os.path.join(download_dir, keyspace)
+        if os.path.isdir(ks_path) and keyspace_is_allowed_to_restore(keyspace, keep_auth):
+            logging.info('Restoring keyspace {} with sstableloader...'.format(ks_path))
+            for table in os.listdir(ks_path):
+                if os.path.isdir(os.path.join(ks_path, table)):
+                    logging.debug('Restoring table {} with sstableloader...'.format(table))
+                    output = subprocess.check_output([config.cassandra.sstableloader_bin,
+                                                      '-d', socket.gethostname() if config.cassandra.is_ccm == 0
+                                                      else '127.0.0.1',
+                                                      '-u', config.cassandra.cql_username,
+                                                      '--password', config.cassandra.cql_password,
+                                                      '--no-progress',
+                                                      os.path.join(ks_path, table)])
+                    for line in output.decode('utf-8').split('\n'):
+                        logging.debug(line)
+    clean_path(download_dir)
+
+
+def keyspace_is_allowed_to_restore(keyspace, keep_auth):
+    if keyspace == 'system':
+        return False
+
+    if keyspace == 'system_auth' and keep_auth is True:
+        return False
+
+    return True
 
 
 def clean_path(p):

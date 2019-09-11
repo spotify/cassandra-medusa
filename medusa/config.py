@@ -31,7 +31,8 @@ StorageConfig = collections.namedtuple(
 
 CassandraConfig = collections.namedtuple(
     'CassandraConfig',
-    ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm']
+    ['start_cmd', 'stop_cmd', 'config_file', 'cql_username', 'cql_password', 'check_running', 'is_ccm',
+     'sstableloader_bin']
 )
 
 SSHConfig = collections.namedtuple(
@@ -74,7 +75,8 @@ def load_config(args, config_file):
         'start_cmd': 'sudo /etc/init.d/cassandra start',
         'stop_cmd': 'sudo /etc/init.d/cassandra stop',
         'check_running': 'nodetool version',
-        'is_ccm': 0
+        'is_ccm': 0,
+        'sstableloader_bin': 'sstableloader'
     }
 
     config['ssh'] = {
