@@ -49,7 +49,7 @@ class UploadJob:
         :return: a list of ManifestObject describing all the uploaded files
         """
         with concurrent.futures.ThreadPoolExecutor(self.max_workers) as executor:
-            return executor.map(self._upload_file, self.src_files)
+            return list(executor.map(self._upload_file, self.src_files))
 
     def _upload_file(self, src_file):
         with self.lock:
