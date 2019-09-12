@@ -19,19 +19,36 @@ import os
 import pathlib
 import concurrent.futures
 import medusa.storage
+import multiprocessing
 
 
 class UploadJob:
-    def __init__(self, storage, src_files, dest, bucket):
+
+    def __init__(self, storage, src_files, dest, bucket, max_workers=None):
+        """
+        :param storage An AbstractStorage instance, needed to create connections
+        :param src_files List of files to upload
+        :param dest The path where to download the objects locally
+        :param bucket The container/bucket in which files will be stored
+        :param max_workers The max number of threads to use for uploads. Defaults to the number of CPUs
+        """
         self.storage = storage
         self.src_files = src_files
         self.dest = dest
         self.bucket = bucket
         self.lock = threading.Lock()
         self.connection_pool = []
+        if max_workers is None:
+            self.max_workers = multiprocessing.cpu_count()
+        else:
+            self.max_workers = max_workers
 
     def execute(self):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        """
+        Uploads files concurrently using a concurrent.futures.ThreadPoolExecutor
+        :return: a list of ManifestObject describing all the uploaded files
+        """
+        with concurrent.futures.ThreadPoolExecutor(self.max_workers) as executor:
             return executor.map(self._upload_file, self.src_files)
 
     def _upload_file(self, src_file):
@@ -53,7 +70,3 @@ class UploadJob:
         finally:
             with self.lock:
                 self.connection_pool.append(connection)
-
-
-
-
