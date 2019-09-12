@@ -15,17 +15,15 @@
 
 import abc
 import base64
-import concurrent.futures
 import io
 import logging
-import os
-import pathlib
-import queue
 
 from libcloud.storage.types import ObjectDoesNotExistError
 from retrying import retry
 
 import medusa.storage
+
+from medusa.storage.upload import UploadJob
 
 
 class AbstractStorage(abc.ABC):
@@ -81,49 +79,10 @@ class AbstractStorage(abc.ABC):
         :param dest: the location where to upload the files in the target bucket (doesn't contain the filename)
         :return: a list of ManifestObject describing all the uploaded files
         """
-        manifest_objects = list()
 
-        if isinstance(src, str) or isinstance(src, pathlib.Path):
-            src = [src]
+        upload_job = UploadJob(self, src, dest, self.bucket)
+        return upload_job.execute()
 
-        task_queue = queue.Queue()
-        num_workers = 5
-
-        for src_file in src:
-            if not isinstance(src, pathlib.Path):
-                src_file = pathlib.Path(src_file)
-            task_queue.put(src_file)
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            upload_future = executor.submit(self._upload_worker, task_queue, dest, manifest_objects)
-            concurrent.futures.wait([upload_future])
-            # task_queue.join()
-
-        return manifest_objects
-
-    def _upload_worker(self, task_queue, dest, manifest_objects):
-        # We need to use a separate connection per thread
-        driver = self.connect_storage()
-        while True:
-            try:
-                src_file = task_queue.get_nowait()
-                logging.info("Uploading {}".format(src_file))
-                obj = self.upload_object(dest, driver, src_file)
-                manifest_objects.append(medusa.storage.ManifestObject(obj.name, obj.size, obj.hash))
-                task_queue.task_done()
-            except queue.Empty:
-                break
-
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
-    def upload_object(self, dest, driver, src_file):
-        obj = driver.upload_object(
-            os.fspath(src_file),
-            container=self.bucket,
-            object_name=str("{}/{}".format(dest, src_file.name))
-        )
-        return obj
-
-    @retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
     def get_blob(self, path):
         try:
             logging.debug("[Storage] Getting object {}".format(path))
