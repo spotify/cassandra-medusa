@@ -4,7 +4,7 @@ Upstream-Contact: Twan Wolthof <xeago@spotify.com>
 Source: https://ghe.spotify.net/data-bye/medusa
 
 Files: bin/* medusa/* test/*
-Copyright: 2018 Spotify AB
+Copyright: 2019 Spotify AB. All rights reserved.
 Comment: This package bundles dependencies.
  See their respective copyright and license notices.
 License: Apache-2.0
