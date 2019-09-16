@@ -27,6 +27,7 @@ import time
 import traceback
 
 from libcloud.storage.providers import Provider
+from retrying import retry
 
 from medusa.cassandra_utils import Cassandra
 from medusa.index import add_backup_start_to_index, add_backup_finish_to_index, set_latest_backup_in_index
@@ -198,13 +199,13 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
         logging.info('Creating snapshot')
         logging.info('Saving tokenmap and schema')
 
-        with cassandra.new_session() as cql_session:
-            node_backup.schema = cql_session.dump_schema()
-            tokenmap = cql_session.tokenmap()
-            node_backup.tokenmap = json.dumps(tokenmap)
-            add_backup_start_to_index(storage, node_backup)
-            if incremental_mode is True:
-                node_backup.incremental = mode
+        schema, tokenmap = get_schema_and_tokenmap(cassandra)
+
+        node_backup.schema = schema
+        node_backup.tokenmap = json.dumps(tokenmap)
+        if incremental_mode is True:
+            node_backup.incremental = mode
+        add_backup_start_to_index(storage, node_backup)
 
         if restore_verify_query:
             if os.path.isfile(restore_verify_query):
@@ -225,62 +226,16 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
                     raise IOError('Backups on previous nodes did not complete'
                                   ' within our stagger time.'.format(backup_name))
 
-        logging.info('Starting backup')
         actual_start = datetime.datetime.now()
 
-        # Load last backup as a cache
-        node_backup_cache = NodeBackupCache(
-            node_backup=storage.latest_node_backup(fqdn=config.storage.fqdn),
-            incremental_mode=incremental_mode,
-            storage_driver=storage.storage_driver,
-            storage_provider=storage.storage_provider
-        )
-
-        with cassandra.create_snapshot() as snapshot:
-            manifest = []
-            num_files = backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
-
-        logging.info('Updating backup index')
-        node_backup.manifest = json.dumps(manifest)
-        add_backup_finish_to_index(storage, node_backup)
-        set_latest_backup_in_index(storage, node_backup)
+        num_files, node_backup_cache = do_backup(cassandra, node_backup, storage, incremental_mode, config.storage.fqdn)
 
         end = datetime.datetime.now()
         actual_backup_duration = end - actual_start
 
-        logging.info('Backup done')
-        logging.info("""- Started: {:%Y-%m-%d %H:%M:%S}
-                        - Started extracting data: {:%Y-%m-%d %H:%M:%S}
-                        - Finished: {:%Y-%m-%d %H:%M:%S}""".format(start, actual_start, end))
-        logging.info('- Real duration: {} (excludes time waiting '
-                     'for other nodes)'.format(actual_backup_duration))
-        logging.info('- {} files, {}'.format(
-            num_files,
-            format_bytes_str(node_backup.size())
-        ))
-        logging.info('- {} files copied from host'.format(
-            num_files - node_backup_cache.replaced
-        ))
-        if node_backup_cache.backup_name is not None:
-            logging.info('- {} copied from previous backup ({})'.format(
-                node_backup_cache.replaced,
-                node_backup_cache.backup_name
-            ))
+        print_backup_stats(actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start)
 
-        logging.debug('Emitting metrics')
-
-        # Monitoring update
-        logging.info('actual duration: {}'.format(actual_backup_duration.seconds))
-        tags = ['medusa-node-backup', 'backup-duration', backup_name]
-        monitoring.send(tags, actual_backup_duration.seconds)
-
-        tags = ['medusa-node-backup', 'backup-size', backup_name]
-        monitoring.send(tags, node_backup.size())
-
-        tags = ['medusa-node-backup', 'backup-error', backup_name]
-        monitoring.send(tags, 0)
-
-        logging.debug('Done emitting metrics')
+        update_monitoring(actual_backup_duration, backup_name, monitoring, node_backup)
 
     except Exception as e:
         tags = ['medusa-node-backup', 'backup-error', backup_name]
@@ -288,6 +243,84 @@ def main(config, backup_name_arg, stagger_time, restore_verify_query, mode):
         logging.error('This error happened during the backup: {}'.format(str(e)))
         traceback.print_exc()
         sys.exit(1)
+
+
+# Wait 2^i * 10 seconds between each retry, up to 2 minutes between attempts, which is right after the
+# attempt on which it waited for 60 seconds
+@retry(stop_max_attempt_number=7, wait_exponential_multiplier=10000, wait_exponential_max=120000)
+def get_schema_and_tokenmap(cassandra):
+    with cassandra.new_session() as cql_session:
+        schema = cql_session.dump_schema()
+        tokenmap = cql_session.tokenmap()
+    return schema, tokenmap
+
+
+def do_backup(cassandra, node_backup, storage, incremental_mode, fqdn):
+
+    # Load last backup as a cache
+    node_backup_cache = NodeBackupCache(
+        node_backup=storage.latest_node_backup(fqdn=fqdn),
+        incremental_mode=incremental_mode,
+        storage_driver=storage.storage_driver,
+        storage_provider=storage.storage_provider
+    )
+
+    logging.info('Starting backup')
+
+    # the cassandra snapshot we use defines __exit__ that cleans up the snapshot
+    # so even if exception is thrown, a new snapshot will be created on the next run
+    # this is not too good and we will use just one snapshot in the future
+    with cassandra.create_snapshot() as snapshot:
+        manifest = []
+        num_files = backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot)
+
+    logging.info('Updating backup index')
+    node_backup.manifest = json.dumps(manifest)
+    add_backup_finish_to_index(storage, node_backup)
+    set_latest_backup_in_index(storage, node_backup)
+
+    return num_files, node_backup_cache
+
+
+def print_backup_stats(actual_backup_duration, actual_start, end, node_backup, node_backup_cache, num_files, start):
+    logging.info('Backup done')
+
+    logging.info("""- Started: {:%Y-%m-%d %H:%M:%S}
+                        - Started extracting data: {:%Y-%m-%d %H:%M:%S}
+                        - Finished: {:%Y-%m-%d %H:%M:%S}""".format(start, actual_start, end))
+
+    logging.info('- Real duration: {} (excludes time waiting '
+                 'for other nodes)'.format(actual_backup_duration))
+
+    logging.info('- {} files, {}'.format(
+        num_files,
+        format_bytes_str(node_backup.size())
+    ))
+
+    logging.info('- {} files copied from host'.format(
+        num_files - node_backup_cache.replaced
+    ))
+
+    if node_backup_cache.backup_name is not None:
+        logging.info('- {} copied from previous backup ({})'.format(
+            node_backup_cache.replaced,
+            node_backup_cache.backup_name
+        ))
+
+
+def update_monitoring(actual_backup_duration, backup_name, monitoring, node_backup):
+    logging.debug('Emitting metrics')
+
+    tags = ['medusa-node-backup', 'backup-duration', backup_name]
+    monitoring.send(tags, actual_backup_duration.seconds)
+
+    tags = ['medusa-node-backup', 'backup-size', backup_name]
+    monitoring.send(tags, node_backup.size())
+
+    tags = ['medusa-node-backup', 'backup-error', backup_name]
+    monitoring.send(tags, 0)
+
+    logging.debug('Done emitting metrics')
 
 
 def backup_snapshots(storage, manifest, node_backup, node_backup_cache, snapshot):
