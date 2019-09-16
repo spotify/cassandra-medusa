@@ -9,6 +9,8 @@ __pycache__/
 /env/
 /build/
 /dist/
+/venv/
+medusa.iml
 /*.egg-info/
 .vscode/settings.json
 metrics.json

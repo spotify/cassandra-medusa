@@ -1,3 +1,17 @@
+# Copyright 2019 Spotify AB. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Service Information File for System-Z in YAML format.
 
 # Basic YAML syntax here: http://www.yaml.org/spec/1.2/spec.html
@@ -36,7 +50,7 @@ dependencies: []
 
 facts:
   lifecycle: production
-  
+
   # A list of the names under which this component can be discovered
   # on production machines. Must be valid service_discovery names
   # registered in the Nameless service.
@@ -54,11 +68,11 @@ facts:
   # Any tags you like, to help refine search results.
   tags:
     - data-bye
-  
+
   # Links to support systems. Remove hash to enable.
   slack_channel: backup-users  # Link to Slack channel.
   pagerdutykey:   # PagerDuty API key.
-  
+
   # Custom key-values, for owner's own use.
   #custom_key: custom_value
   maintainers:
