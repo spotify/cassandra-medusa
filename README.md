@@ -60,7 +60,7 @@ storage_provider = <Storage system used for backups>
 # storage_provider should be either of "local", "google_storage" or the s3_* values from
 # https://github.com/apache/libcloud/blob/trunk/libcloud/storage/types.py#L87-L105
 bucket_name = <Name of the bucket used for storing backups>
-key_file = <JSON key file for service account with access to GCS bucket or AWS credentials file (~/.aws/credentials)>
+key_file = <JSON key file for service account with access to GCS bucket or AWS credentials file (home-dir/.aws/credentials)>
 #base_path = <Path of the local storage bucket (used only with 'local' storage provider>
 #prefix = <Any prefix used for multitenancy in the same bucket>
 #fqdn = <enforce the name of the local node. Computed automatically if not provided.>
