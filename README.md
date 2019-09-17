@@ -56,14 +56,17 @@ Modify `/etc/medusa/medusa.ini` to match your requirements:
 #check_running = <Command ran to verify if Cassandra is running on a node. Defaults to "nodetool version">
 
 [storage]
-storage_provider = <Storage system used for backups. Currently either of "local", "google_storage" or the s3_* values from the following link: https://github.com/apache/libcloud/blob/trunk/libcloud/storage/types.py#L87-L105>
+storage_provider = <Storage system used for backups>
+# storage_provider should be either of "local", "google_storage" or the s3_* values from
+# https://github.com/apache/libcloud/blob/trunk/libcloud/storage/types.py#L87-L105
 bucket_name = <Name of the bucket used for storing backups>
 key_file = <JSON key file for service account with access to GCS bucket or AWS credentials file (~/.aws/credentials)>
-#base_path = <Path of the local storage bucket (not used with providers other than "local">
+#base_path = <Path of the local storage bucket (used only with 'local' storage provider>
 #prefix = <Any prefix used for multitenancy in the same bucket>
 #fqdn = <enforce the name of the local node. Computed automatically if not provided.>
-#max_backup_age = <number of days before backups are purged. 0 means backups don't get purged (default)>
-#max_backup_count = <number of backups to retain. Older backups will get purged beyond that number. 0 means backups don't get purged (default)>
+#max_backup_age = <number of days before backups are purged. 0 means backups don't get purged by age (default)>
+#max_backup_count = <number of backups to retain. Older backups will get purged beyond that number. 0 means backups don't get purged by count (default)>
+# Both thresholds can be defined for backup purge.
 
 
 [monitoring]
@@ -253,16 +256,16 @@ The `--seed-target` node is used to connect to Cassandra and retrieve the curren
 
 The following operations will take place:
 
-* stop Cassandra on all nodes
-* check that the current topology matches the backed up one
-* run `restore-node` on each node in the cluster
-* start Cassandra on all nodes
+* Stop Cassandra on all nodes
+* Check that the current topology matches the backed up one
+* Run `restore-node` on each node in the cluster
+* Start Cassandra on all nodes
 
 
 ### Remotely (different hardware)
 
-In order to restore a backup for a full cluster but on different servers.  
-This can be used to restore a production cluster data on a staging cluster (with the same number of nodes), or recovering from an outage where previously used hardware cannot be re-used.
+In order to restore a backup of a full cluster but on different servers.  
+This can be used to restore a production cluster data to a staging cluster (with the same number of nodes), or recovering from an outage where previously used hardware cannot be re-used.
 
 ```
 $ medusa restore-cluster --backup-name=<name of the backup> --host-list /etc/medusa/restore_mapping.txt
@@ -280,12 +283,16 @@ False,old_node3.foo.net,new_node3.foo.net
 
 Medusa will need to run without `sudo` as it will connect through ssh to all nodes in the cluster in order to perform remote operations. It will, by default, use the current user to connect and rely on agent forwarding for authentication (you must ssh into the server using `-A` to enable agent forwarding).
 
-* stop Cassandra on all nodes
-* check that the current topology matches the backed up one
-* run `restore-node` on each node in the cluster
-* start Cassandra on all nodes
+* Stop Cassandra on all nodes
+* Check that the current topology matches the backed up one
+* Run `restore-node` on each node in the cluster
+* Start Cassandra on all nodes
 
-By default, Medusa will overwrite the `system_auth` keyspace with the backed up one. If you want to retain the existing system_auth keyspace.
+By default, Medusa will overwrite the `system_auth` keyspace with the backed up one. If you want to retain the existing system_auth keyspace, you'll have to run `restore-cluster` with the `--keep-auth` flag: 
+
+```
+$ medusa restore-cluster --backup-name=<name of the backup> --host-list /etc/medusa/restore_mapping.txt --keep-auth
+```
 
 Verify an existing backup
 -------------------------
@@ -303,10 +310,10 @@ Options:
 
 Run a health check on a backup, which will verify that:
 
-* all nodes have completed the backup
-* all files in the manifest are present in storage
-* all backed up files are present in the manifest
-* all files have the right hash as stored in the manifest
+* All nodes have completed the backup
+* All files in the manifest are present in storage
+* All backed up files are present in the manifest
+* All files have the right hash as stored in the manifest
 
 ```
 $ medusa verify --backup-name=2019090503
@@ -376,8 +383,8 @@ $ medusa purge
 
 Since SSTables and meta files are stored in different places for incremental backups, the purge is a two step process:  
 
-- Delete all backup directories
-- Scan remaining backup files from manifests and compare with the list of SSTables in the `data` directory. All orphaned SSTables will get deleted in that step.
+* Delete all backup directories
+* Scan active backup files from manifests and compare with the list of SSTables in the `data` directory. All SSTables present in the `data` directory but absent from all manifests will get deleted in that step.
 
 
 Check the status of a backup
