@@ -22,7 +22,7 @@ pipelines:
         tasks:
           - task: 'tox'
             steps:
-              - action: 'gcr.io/action-containers/tox:3.0.0-2'
+              - action: 'gcr.io/action-containers/tox:3.13.2-1@sha256:7573fa1887325fbfe8e61dd4e264438b9e38f6e1d646569be624c742b2373a39'
                 args: ['-c', 'tox.ini']
       - stage: 'integration tests'
         tasks:
