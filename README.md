@@ -42,9 +42,11 @@ Choose and initialize the storage system:
 * [AWS S3 setup](docs/aws_s3_setup.md)
 
 Install Medusa on each Cassandra node:
-*Installation procedure depending on what packaging we'll be providing*
 
-Modify `/etc/medusa/medusa.ini` to match your requirements:
+* Either run `pip3 install cassandra-medusa`
+* or clone the github repo and run : `python3 setup.py install`
+
+Copy `/etc/medusa/medusa-example.ini` to `/etc/medusa/medusa.ini` and mofidy it to match your requirements:
 
 ```
 [cassandra]

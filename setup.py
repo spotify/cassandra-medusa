@@ -59,5 +59,6 @@ setuptools.setup(
         'console_scripts': [
             'medusa=medusa.medusacli:cli',
         ]},
-    scripts=['bin/medusa-wrapper']
+    scripts=['bin/medusa-wrapper'],
+    data_files=[('/etc/medusa', ['medusa-example.ini'])]
 )
