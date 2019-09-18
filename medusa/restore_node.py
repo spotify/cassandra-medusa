@@ -17,6 +17,7 @@ import collections
 import json
 import logging
 import os
+import shlex
 import socket
 import subprocess
 import sys
@@ -136,7 +137,7 @@ def restore_node_sstableloader(config, temp_dir, backup_name, in_place, keep_aut
 
 
 def invoke_sstableloader(config, download_dir, keep_auth):
-    logging.debug("sstableloader bin : {}".format(config.cassandra.sstableloader_bin))
+    cassandra_is_ccm = int(shlex.split(config.cassandra.is_ccm)[0])
     keyspaces = os.listdir(download_dir)
     for keyspace in keyspaces:
         ks_path = os.path.join(download_dir, keyspace)
@@ -146,7 +147,7 @@ def invoke_sstableloader(config, download_dir, keep_auth):
                 if os.path.isdir(os.path.join(ks_path, table)):
                     logging.debug('Restoring table {} with sstableloader...'.format(table))
                     output = subprocess.check_output([config.cassandra.sstableloader_bin,
-                                                      '-d', socket.gethostname() if config.cassandra.is_ccm == 0
+                                                      '-d', socket.gethostname() if cassandra_is_ccm == 0
                                                       else '127.0.0.1',
                                                       '-u', config.cassandra.cql_username,
                                                       '--password', config.cassandra.cql_password,
