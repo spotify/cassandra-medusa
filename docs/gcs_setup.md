@@ -32,15 +32,7 @@ Create the service account (if it doesn't exist yet):
 
 ```
 gcloud --project ${GCP_PROJECT} iam service-accounts create ${SERVICE_ACCOUNT_NAME} --display-name ${SERVICE_ACCOUNT_NAME}
-```
-
-And download the json key file:  
-
-```
-gcloud --project ${GCP_PROJECT} iam service-accounts keys create ${SERVICE_ACCOUNT_NAME}.json --iam-account=${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com
-```
-
-The `${SERVICE_ACCOUNT_NAME}.json` file will have to be placed on each Cassandra node running Medusa, under `/etc/medusa`.
+``` 
 
 ### Configure the service account with the role
 
@@ -50,4 +42,20 @@ Once the service account has been created, and considering [jq](https://stedolan
 gsutil iam set <(gsutil iam get ${BUCKET_URL} | jq ".bindings += [{\"members\":[\"serviceAccount:${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com\"],\"role\":\"projects/${GCP_PROJECT}/roles/MedusaStorageRole\"}]") ${BUCKET_URL}
 ```
 
+### Configure Medusa
 
+Generate a json key file called `credentials.json`, for the service account:
+
+```
+gcloud --project ${GCP_PROJECT} iam service-accounts keys create credentials.json --iam-account=${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com
+```
+
+Place this file on all Cassandra nodes running medusa under `/etc/medusa` and set the rights appropriately so that only users running Medusa can read/modify it.
+Set the `key_file` value in the `[storage]` section of `/etc/medusa/medusa.ini` to the credentials file:  
+
+```
+bucket_name = my_gcs_bucket
+key_file = /etc/medusa/credentials.json
+```
+
+Medusa should now be able to access the bucket and perform all required operations.
