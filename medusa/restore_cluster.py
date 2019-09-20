@@ -285,7 +285,7 @@ class RestoreJob(object):
             self._restore_schema()
 
         # work out which nodes are seeds in the target cluster
-        target_seeds = [s['source'][0] for t, s in self.host_map.items() if s['seed']]
+        target_seeds = [t for t, s in self.host_map.items() if s['seed']]
 
         # trigger restores everywhere at once
         # pass in seed info so that non-seeds can wait for seeds before starting
