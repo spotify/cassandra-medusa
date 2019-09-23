@@ -21,6 +21,7 @@ import operator
 import pathlib
 
 from libcloud.storage.providers import Provider
+from libcloud.common.types import InvalidCredsError
 from retrying import retry
 
 import medusa.index
@@ -205,7 +206,14 @@ class Storage(object):
             else:
                 logging.debug('Backup {} for fqdn {} present only in index'.format(node_backup.name, node_backup.fqdn))
                 # if a backup doesn't exist, we should remove its entry from the index too
-                self.remove_backup_from_index(node_backup)
+                try:
+                    self.remove_backup_from_index(node_backup)
+                except InvalidCredsError:
+                    logging.debug(
+                        'This account cannot perform the cleanup_storage'
+                        '{} for fqdn {} present only in index.'
+                        'Ignoring and continuing...'
+                        .format(node_backup.name, node_backup.fqdn))
 
     def list_backup_index_blobs(self):
         path = 'index/backup_index'
