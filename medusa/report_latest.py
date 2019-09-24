@@ -128,18 +128,20 @@ def check_latest_cluster_backup(storage, push_metrics, monitoring, backup_index)
     # Node count for incomplete backups
     incomplete_nodes = latest_cluster_backup.incomplete_nodes()
     incomplete_nodes_count = len(incomplete_nodes)
-    logging.info('- Incomplete backup: {} nodes have not completed the backup yet'.format(incomplete_nodes_count))
-    logging.info('  These nodes are:')
-    for node_backup in incomplete_nodes:
-        logging.info('     {}'.format(node_backup.fqdn))
+    if incomplete_nodes_count > 0:
+        logging.info('- Incomplete backup: {} nodes have not completed the backup yet'.format(incomplete_nodes_count))
+        logging.info('  These nodes are:')
+        for node_backup in incomplete_nodes:
+            logging.info('     {}'.format(node_backup.fqdn))
 
     # Known hosts not having backups
     missing_nodes = latest_cluster_backup.missing_nodes()
     missing_nodes_count = len(missing_nodes)
-    logging.info('- Missing backup: {} nodes are not running backups'.format(missing_nodes_count))
-    logging.info('  These nodes are:')
-    for missing_node in missing_nodes:
-        logging.info('     {}'.format(missing_node))
+    if missing_nodes_count > 0:
+        logging.info('- Missing backup: {} nodes are not running backups'.format(missing_nodes_count))
+        logging.info('  These nodes are:')
+        for missing_node in missing_nodes:
+            logging.info('     {}'.format(missing_node))
 
     # Total size used for this backup (all nodes sum) and the corresponding number of files
     latest_cluster_backup_size = latest_cluster_backup.size()
