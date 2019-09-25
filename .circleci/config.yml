@@ -78,4 +78,5 @@ workflows:
       - build
       - ccm
       - integration_tests:
-          requires: ccm
+          requires:
+            - ccm
