@@ -42,8 +42,8 @@ jobs:
             . venv/bin/activate
             tox
 
-     - run:
-         name: run integration tests
-         command: |
-           . venv/bin/activate
-           ./run_integration_tests.sh
+      - run:
+          name: run integration tests
+          command: |
+            . venv/bin/activate
+            ./run_integration_tests.sh
