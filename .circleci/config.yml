@@ -6,7 +6,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/python:3.6.1
+      - image: circleci/openjdk:8-jdk-node-browsers
 
     working_directory: ~/repo
 
