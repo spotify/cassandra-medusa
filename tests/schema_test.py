@@ -59,12 +59,12 @@ class SchemaTest(unittest.TestCase):
     def test_udf(self):
         with open("tests/resources/schema.cql", 'r') as f:
             schema = parse_schema(f.read())
-            assert len(schema["system_auth"]["udf"].keys()) == 0
-            assert len(schema["system"]["udf"].keys()) == 0
-            assert len(schema["system_distributed"]["udf"].keys()) == 0
-            assert len(schema["tlp_stress2"]["udf"].keys()) == 2
-            assert "custom_type" in schema["tlp_stress2"]["udf"].keys()
-            assert "custom_type2" in schema["tlp_stress2"]["udf"].keys()
+            assert len(schema["system_auth"]["udt"].keys()) == 0
+            assert len(schema["system"]["udt"].keys()) == 0
+            assert len(schema["system_distributed"]["udt"].keys()) == 0
+            assert len(schema["tlp_stress2"]["udt"].keys()) == 2
+            assert "custom_type" in schema["tlp_stress2"]["udt"].keys()
+            assert "custom_type2" in schema["tlp_stress2"]["udt"].keys()
 
 
 if __name__ == '__main__':
