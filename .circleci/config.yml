@@ -6,7 +6,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/openjdk:8-jdk-node-browsers
+      - image: jsanda/ubuntu:18.0.4-sudo-2
 
     working_directory: ~/repo
 
@@ -20,18 +20,6 @@ jobs:
           # fallback to using the latest cache if no exact match is found
           - v1-dependencies-
 
-      - run:
-          name: install dependencies
-          command: |
-            python -m venv venv
-            . venv/bin/activate
-            pip install -r requirements.txt
-            pip install -r requirements-test.txt
-            pip install wheel
-            pip install twine
-            pip install tox
-            pip install ccm
-
       - save_cache:
           paths:
             - ./venv
@@ -40,50 +28,11 @@ jobs:
       - run:
           name: run tox
           command: |
+            python3 -m venv venv
             . venv/bin/activate
             tox
-
       - run:
           name: run integration tests
           command: |
             . venv/bin/activate
             ./run_integration_tests.sh
-
-#  integration_tests:
-#    docker:
-#      - image: circleci/python:3.6.1
-#
-#    working_directory: ~/repo
-#
-#    steps:
-#      - run:
-#          name: run integration tests
-#          command: |
-#            . venv/bin/activate
-#            ./run_integration_tests.sh
-#
-#  ccm:
-#    docker:
-#      - image: circleci/python:3.6.1
-#
-#    working_directory: ~/repo
-#
-#    steps:
-#      - run:
-#          name: clone ccm git repo
-#          command: git clone https://github.com/pcmanus/ccm.git
-#
-#      - run:
-#          name: install ccm
-#          command: |
-#            cd ccm && ./setup.py install
-#
-#workflows:
-#  version: 2
-#  build_and_test:
-#    jobs:
-#      - build
-#      - ccm
-#      - integration_tests:
-#          requires:
-#            - ccm
