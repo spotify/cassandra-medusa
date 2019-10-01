@@ -329,15 +329,21 @@ class RestoreJob(object):
             # MVs need to be dropped before we drop the tables
             logging.debug("Dropping MV {}.{}".format(keyspace, mv[0]))
             session.execute("DROP MATERIALIZED VIEW {}.{}".format(keyspace, mv[0]))
-        for udf in keyspace_schema['udf'].items():
-            # 1st custom types as they can be used in tables
-            session.execute(udf[1].replace('CREATE TYPE', 'CREATE TYPE IF NOT EXISTS'))
         for table in keyspace_schema['tables'].items():
-            logging.debug("(re)creating table {}.{}".format(keyspace, table[0]))
+            logging.debug("Dropping table {}.{}".format(keyspace, table[0]))
             if table[0] in session.cluster.metadata.keyspaces[keyspace].tables.keys():
                 # table already exists, drop it first
                 session.execute("DROP TABLE {}.{}".format(keyspace, table[0]))
-            # Create the table
+        for udt in keyspace_schema['udt'].items():
+            # then custom types as they can be used in tables
+            if udt[0] in session.cluster.metadata.keyspaces[keyspace].user_types.keys():
+                # UDT already exists, drop it first
+                session.execute("DROP TYPE {}.{}".format(keyspace, udt[0]))
+            # Then we create the missing ones
+            session.execute(udt[1])
+        for table in keyspace_schema['tables'].items():
+            logging.debug("Creating table {}.{}".format(keyspace, table[0]))
+            # Create the tables
             session.execute(table[1])
         for index in keyspace_schema['indices'].items():
             # indices were dropped with their base tables
@@ -346,7 +352,7 @@ class RestoreJob(object):
         for mv in keyspace_schema['materialized_views']:
             # Base tables are created now, we can create the MVs
             logging.debug("Creating MV {}.{}".format(keyspace, mv[0]))
-            session.execute("DROP MATERIALIZED VIEW {}.{}".format(keyspace, mv[0]))
+            session.execute(mv[1])
 
     def _trigger_restore(self, target, source, seeds=None):
         client, connect_args = self._connect(target)

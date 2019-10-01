@@ -32,7 +32,7 @@ def parse_schema(schema):
                                                         'tables': {},
                                                         'indices': {},
                                                         'materialized_views': {},
-                                                        'udf': {},
+                                                        'udt': {},
                                                         'uda': {}}
                 current_keyspace = parsed_statement.group(3)
             elif parsed_statement.group(2) == 'INDEX' or parsed_statement.group(2) == 'CUSTOM INDEX':
@@ -44,7 +44,7 @@ def parse_schema(schema):
                 elif parsed_statement.group(2) == 'AGGREGATE':
                     object_kind = 'uda'
                 elif parsed_statement.group(2) == 'TYPE':
-                    object_kind = 'udf'
+                    object_kind = 'udt'
                 elif 'CREATE MATERIALIZED VIEW' in statement:
                     # Yikes! Materialized view (╯°□°)╯︵ ┻━┻
                     object_kind = 'materialized_views'
