@@ -321,8 +321,7 @@ In this section, we will describe procedures that apply to the other cases:
 * Vnodes are used + the backup and the restore cluster have a different number of nodes.
 
 
-This case will be detected automatically by Medusa when checking the topologies, but it can be enforced by adding the `--use-sstableloader` flag to the `restore-cluster` command.
-
+This case will be detected automatically by Medusa when checking the topologies, but it can be enforced by adding the `--use-sstableloader` flag to the `restore-cluster` command.  
 This technique allows to restore any backup on any cluster of any size, **at the expense of some overhead.**  
 
 * First, the sstableloader will have to parse all the backed up SSTables in order to send them to the appropriate nodes, which can take way more time on large volumes.  
