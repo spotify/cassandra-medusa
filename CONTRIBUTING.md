@@ -17,7 +17,7 @@ We use [Aloe](https://aloe.readthedocs.io/en/latest/) as framework for running i
 
 ## Running tests
 
-### Code style checking and unit tests
+### Code style checking and unit tests
 
 You can use tox to run both the code style checks and the unit tests.
 Install tox in your virtual environment by running : `pip3 install tox`
@@ -38,7 +38,7 @@ python3 -m "flake8" --ignore=W503
 python3 -m "nose"
 ```
 
-### Integration tests
+### Integration tests
 
 We've created a script to help running the integration tests at the root of the repository: `run_integration_tests.sh` 
 Integration tests require [CCM](https://github.com/riptano/ccm) to be installed on your development machine:
