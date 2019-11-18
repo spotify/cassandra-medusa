@@ -62,8 +62,6 @@ class GSUtil(object):
         return False
 
     def cp(self, *, srcs, dst, max_retries=5):
-        if isinstance(srcs, str) or isinstance(srcs, pathlib.Path):
-            srcs = [srcs]
 
         # TODO: Clean up these files in production
         job_id = str(uuid.uuid4())
